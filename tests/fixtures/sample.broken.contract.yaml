@@ -4,6 +4,7 @@ columns:
     type: string # deliberately wrong: sample.csv's id column is integer
   - name: price
     type: float
+    max_null_percentage: 10 # deliberately too strict: sample.csv's price column is 25% null
   - name: in_stock
     type: boolean
   - name: sku

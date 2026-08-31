@@ -27,6 +27,8 @@ pub enum ColumnType {
 pub struct ColumnSchema {
     pub name: String,
     pub inferred_type: ColumnType,
+    pub null_percentage: f64,
+    pub type_consistency_percentage: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -35,15 +37,23 @@ pub struct SchemaContract {
     pub columns: Vec<ColumnSchema>,
 }
 
-fn infer_column_type(values: &[&str]) -> ColumnType {
-    let non_empty: Vec<&&str> = values.iter().filter(|v| !v.is_empty()).collect();
+/// `f64::from_str` accepts "nan"/"inf"/"infinity" (case-insensitively) as valid
+/// floats, but those are missing-value placeholders in practice, not numbers —
+/// excluding them keeps a `["1", "2", "nan"]` column from inferring as Float.
+fn parses_as_finite_float(v: &str) -> bool {
+    v.parse::<f64>().is_ok_and(f64::is_finite)
+}
+
+/// A value is null for schema purposes when the CSV cell is empty. Distinguishing
+/// "empty string" from "absent" would need a quoting-aware signal CSV doesn't give us.
+fn infer_column_type(non_empty: &[&&str]) -> ColumnType {
     if non_empty.is_empty() {
         return ColumnType::String;
     }
     if non_empty.iter().all(|v| v.parse::<i64>().is_ok()) {
         return ColumnType::Integer;
     }
-    if non_empty.iter().all(|v| v.parse::<f64>().is_ok()) {
+    if non_empty.iter().all(|v| parses_as_finite_float(v)) {
         return ColumnType::Float;
     }
     if non_empty
@@ -53,6 +63,31 @@ fn infer_column_type(values: &[&str]) -> ColumnType {
         return ColumnType::Boolean;
     }
     ColumnType::String
+}
+
+/// When a column doesn't cleanly infer to Integer/Float/Boolean, this is how much
+/// of it actually would have: the best match rate among those types, e.g. 9 clean
+/// integers and 1 stray "n/a" is 90% — an accidental type mix, not a real string
+/// column. A genuine string column (no numeric/boolean look-alikes at all) is 100%.
+fn type_consistency(non_empty: &[&&str], inferred_type: ColumnType) -> f64 {
+    if non_empty.is_empty() || inferred_type != ColumnType::String {
+        return 100.0;
+    }
+    let integer_matches = non_empty.iter().filter(|v| v.parse::<i64>().is_ok()).count();
+    let float_matches = non_empty
+        .iter()
+        .filter(|v| parses_as_finite_float(v))
+        .count();
+    let bool_matches = non_empty
+        .iter()
+        .filter(|v| v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("false"))
+        .count();
+    let best = integer_matches.max(float_matches).max(bool_matches);
+    if best == 0 {
+        100.0
+    } else {
+        best as f64 / non_empty.len() as f64 * 100.0
+    }
 }
 
 /// Infers a schema contract from an already-loaded sample.
@@ -67,9 +102,18 @@ pub fn infer_schema(sample: &CsvSample) -> SchemaContract {
                 .iter()
                 .map(|row| row.get(i).map(String::as_str).unwrap_or(""))
                 .collect();
+            let non_empty: Vec<&&str> = values.iter().filter(|v| !v.is_empty()).collect();
+            let null_percentage = if values.is_empty() {
+                0.0
+            } else {
+                (values.len() - non_empty.len()) as f64 / values.len() as f64 * 100.0
+            };
+            let inferred_type = infer_column_type(&non_empty);
             ColumnSchema {
                 name: name.clone(),
-                inferred_type: infer_column_type(&values),
+                inferred_type,
+                null_percentage,
+                type_consistency_percentage: type_consistency(&non_empty, inferred_type),
             }
         })
         .collect();
@@ -99,9 +143,20 @@ fn infer_schema_from_parquet(path: &Path) -> Result<SchemaContract> {
     let stats = triplex_io::read_parquet_schema(path)?;
     let columns = stats
         .into_iter()
-        .map(|s| ColumnSchema {
-            name: s.name,
-            inferred_type: column_type_from_parquet_physical_type(&s.physical_type),
+        .map(|s| {
+            let null_percentage = if s.total_count == 0 {
+                0.0
+            } else {
+                s.null_count as f64 / s.total_count as f64 * 100.0
+            };
+            ColumnSchema {
+                name: s.name,
+                inferred_type: column_type_from_parquet_physical_type(&s.physical_type),
+                null_percentage,
+                // Parquet is columnar with one physical type per column — no
+                // per-value ambiguity, so there's nothing to be inconsistent with.
+                type_consistency_percentage: 100.0,
+            }
         })
         .collect();
 
@@ -137,6 +192,8 @@ pub fn infer_schema_from_path(path: &Path, sample_rows: usize) -> Result<SchemaC
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use std::time::{Duration, Instant};
 
     fn fixture(name: &str) -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -273,5 +330,117 @@ mod tests {
         assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
         assert_eq!(contract.columns[2].inferred_type, ColumnType::Boolean);
         assert_eq!(contract.columns[3].inferred_type, ColumnType::String);
+    }
+
+    #[test]
+    fn handles_quoted_commas_escaped_quotes_unicode_and_scientific_notation() {
+        let contract = infer_schema_from_path(&fixture("sample.tricky.csv"), 100)
+            .expect("tricky fixture should be readable despite quoting/unicode");
+
+        assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer); // id
+        assert_eq!(contract.columns[1].inferred_type, ColumnType::String); // description
+        assert_eq!(contract.columns[2].inferred_type, ColumnType::Integer); // amount, incl. negatives
+        assert_eq!(contract.columns[3].inferred_type, ColumnType::Float); // ratio, scientific notation
+
+        // Row 4's blanks make description/amount/ratio 25% null; id has none.
+        assert_eq!(contract.columns[0].null_percentage, 0.0);
+        assert_eq!(contract.columns[1].null_percentage, 25.0);
+    }
+
+    #[test]
+    fn an_entirely_empty_column_is_100_percent_null_and_defaults_to_string() {
+        let contract = infer_schema_from_path(&fixture("sample.all_null_column.csv"), 100)
+            .expect("fixture should be readable");
+
+        let note = &contract.columns[1];
+        assert_eq!(note.name, "note");
+        assert_eq!(note.inferred_type, ColumnType::String);
+        assert_eq!(note.null_percentage, 100.0);
+    }
+
+    #[test]
+    fn nan_and_inf_placeholders_do_not_infer_a_column_as_float() {
+        let sample = CsvSample {
+            headers: vec!["reading".into()],
+            rows: vec![
+                vec!["1".into()],
+                vec!["2".into()],
+                vec!["nan".into()],
+                vec!["4".into()],
+            ],
+        };
+
+        let contract = infer_schema(&sample);
+
+        assert_eq!(contract.columns[0].inferred_type, ColumnType::String);
+        assert_eq!(contract.columns[0].type_consistency_percentage, 75.0);
+    }
+
+    #[test]
+    fn a_column_with_a_few_stray_values_infers_as_string_but_reports_the_mix() {
+        let contract = infer_schema_from_path(&fixture("sample.mixed_types.csv"), 100)
+            .expect("fixture should be readable");
+
+        // 3 of 4 "quantity" values are integers; one ("not_a_number") is not, so the
+        // waterfall falls back to String — but type_consistency_percentage should
+        // still surface that this was an accidental mix, not a genuine string column.
+        let quantity = &contract.columns[1];
+        assert_eq!(quantity.name, "quantity");
+        assert_eq!(quantity.inferred_type, ColumnType::String);
+        assert_eq!(quantity.type_consistency_percentage, 75.0);
+
+        // A genuinely string column (no numeric/boolean look-alikes) stays at 100%.
+        let name = &contract.columns[2];
+        assert_eq!(name.name, "name");
+        assert_eq!(name.inferred_type, ColumnType::String);
+        assert_eq!(name.type_consistency_percentage, 100.0);
+
+        // A clean numeric column is also 100% consistent.
+        assert_eq!(contract.columns[0].type_consistency_percentage, 100.0);
+    }
+
+    #[test]
+    fn ragged_rows_are_a_reported_error_not_a_panic_or_silent_misread() {
+        let result = infer_schema_from_path(&fixture("sample.ragged.csv"), 100);
+        assert!(
+            result.is_err(),
+            "rows with the wrong field count must fail loudly, not be silently misaligned"
+        );
+    }
+
+    /// Bounded-memory / bounded-latency check: sampling must stay cheap regardless
+    /// of total file size, since only `sample_rows` records are ever read.
+    #[test]
+    fn inference_stays_fast_on_a_file_with_a_hundred_thousand_rows() {
+        const ROW_COUNT: usize = 100_000;
+        const SAMPLE_ROWS: usize = 1000;
+
+        let path = std::env::temp_dir().join(format!(
+            "triplex_schemacast_large_fixture_{}.csv",
+            std::process::id()
+        ));
+        {
+            let file = std::fs::File::create(&path).expect("temp file should be creatable");
+            let mut writer = std::io::BufWriter::new(file);
+            writeln!(writer, "id,score,label").unwrap();
+            for i in 0..ROW_COUNT {
+                writeln!(writer, "{i},{i}.5,row{i}").unwrap();
+            }
+        }
+
+        let started = Instant::now();
+        let contract = infer_schema_from_path(&path, SAMPLE_ROWS);
+        let elapsed = started.elapsed();
+        std::fs::remove_file(&path).ok();
+
+        let contract = contract.expect("large synthetic file should be readable");
+        assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
+        assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
+        assert_eq!(contract.columns[2].inferred_type, ColumnType::String);
+        assert!(
+            elapsed < Duration::from_secs(2),
+            "inference took {elapsed:?} for a {ROW_COUNT}-row file with a {SAMPLE_ROWS}-row \
+             sample — sampling should make this independent of total file size"
+        );
     }
 }

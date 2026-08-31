@@ -18,6 +18,10 @@ pub struct DeclaredColumn {
     pub column_type: ColumnType,
     #[serde(default = "default_required")]
     pub required: bool,
+    #[serde(default)]
+    pub max_null_percentage: Option<f64>,
+    #[serde(default)]
+    pub min_type_consistency: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,7 +30,7 @@ pub struct DeclaredContract {
     pub columns: Vec<DeclaredColumn>,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ValidationError {
     MissingColumn { name: String },
@@ -35,6 +39,16 @@ pub enum ValidationError {
         name: String,
         expected: ColumnType,
         actual: ColumnType,
+    },
+    NullThresholdExceeded {
+        name: String,
+        max_percentage: f64,
+        actual_percentage: f64,
+    },
+    TypeConsistencyBelowThreshold {
+        name: String,
+        min_percentage: f64,
+        actual_percentage: f64,
     },
 }
 
@@ -56,24 +70,45 @@ pub fn validate(declared: &DeclaredContract, inferred: &SchemaContract) -> Valid
     let mut errors = Vec::new();
 
     for declared_col in &declared.columns {
-        match inferred
-            .columns
-            .iter()
-            .find(|c| c.name == declared_col.name)
-        {
-            Some(actual_col) if actual_col.inferred_type != declared_col.column_type => {
-                errors.push(ValidationError::TypeMismatch {
-                    name: declared_col.name.clone(),
-                    expected: declared_col.column_type,
-                    actual: actual_col.inferred_type,
-                });
-            }
-            None if declared_col.required => {
+        let Some(actual_col) = inferred.columns.iter().find(|c| c.name == declared_col.name)
+        else {
+            if declared_col.required {
                 errors.push(ValidationError::MissingColumn {
                     name: declared_col.name.clone(),
                 });
             }
-            _ => {}
+            continue;
+        };
+
+        if actual_col.inferred_type != declared_col.column_type {
+            errors.push(ValidationError::TypeMismatch {
+                name: declared_col.name.clone(),
+                expected: declared_col.column_type,
+                actual: actual_col.inferred_type,
+            });
+        }
+
+        if let Some(max_percentage) = declared_col.max_null_percentage {
+            // Not `>`: a NaN threshold must fail closed (reject everything), and
+            // `x > NaN` is always false, which would silently pass any column.
+            if !(actual_col.null_percentage <= max_percentage) {
+                errors.push(ValidationError::NullThresholdExceeded {
+                    name: declared_col.name.clone(),
+                    max_percentage,
+                    actual_percentage: actual_col.null_percentage,
+                });
+            }
+        }
+
+        if let Some(min_percentage) = declared_col.min_type_consistency {
+            // Same fail-closed reasoning as the null-threshold check above.
+            if !(actual_col.type_consistency_percentage >= min_percentage) {
+                errors.push(ValidationError::TypeConsistencyBelowThreshold {
+                    name: declared_col.name.clone(),
+                    min_percentage,
+                    actual_percentage: actual_col.type_consistency_percentage,
+                });
+            }
         }
     }
 
@@ -109,13 +144,35 @@ mod tests {
     use crate::ColumnSchema;
 
     fn inferred(columns: &[(&str, ColumnType)]) -> SchemaContract {
+        inferred_with_nulls(
+            &columns
+                .iter()
+                .map(|(name, t)| (*name, *t, 0.0))
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn inferred_with_nulls(columns: &[(&str, ColumnType, f64)]) -> SchemaContract {
+        inferred_with_nulls_and_consistency(
+            &columns
+                .iter()
+                .map(|(name, t, null_percentage)| (*name, *t, *null_percentage, 100.0))
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn inferred_with_nulls_and_consistency(
+        columns: &[(&str, ColumnType, f64, f64)],
+    ) -> SchemaContract {
         SchemaContract {
             version: "0.1.0".into(),
             columns: columns
                 .iter()
-                .map(|(name, t)| ColumnSchema {
+                .map(|(name, t, null_percentage, type_consistency_percentage)| ColumnSchema {
                     name: (*name).to_string(),
                     inferred_type: *t,
+                    null_percentage: *null_percentage,
+                    type_consistency_percentage: *type_consistency_percentage,
                 })
                 .collect(),
         }
@@ -133,6 +190,8 @@ mod tests {
             name: name.to_string(),
             column_type,
             required,
+            max_null_percentage: None,
+            min_type_consistency: None,
         }
     }
 
@@ -194,6 +253,82 @@ mod tests {
     }
 
     #[test]
+    fn null_percentage_within_threshold_is_fine() {
+        let mut d = declared(vec![col("id", ColumnType::Integer, true)]);
+        d.columns[0].max_null_percentage = Some(50.0);
+        let i = inferred_with_nulls(&[("id", ColumnType::Integer, 25.0)]);
+        assert!(validate(&d, &i).valid);
+    }
+
+    #[test]
+    fn null_percentage_over_threshold_fails() {
+        let mut d = declared(vec![col("id", ColumnType::Integer, true)]);
+        d.columns[0].max_null_percentage = Some(10.0);
+        let i = inferred_with_nulls(&[("id", ColumnType::Integer, 25.0)]);
+        assert_eq!(
+            validate(&d, &i).errors,
+            vec![ValidationError::NullThresholdExceeded {
+                name: "id".into(),
+                max_percentage: 10.0,
+                actual_percentage: 25.0,
+            }]
+        );
+    }
+
+    #[test]
+    fn no_threshold_declared_means_any_null_rate_is_fine() {
+        let d = declared(vec![col("id", ColumnType::Integer, true)]);
+        let i = inferred_with_nulls(&[("id", ColumnType::Integer, 99.0)]);
+        assert!(validate(&d, &i).valid);
+    }
+
+    #[test]
+    fn nan_null_threshold_fails_closed_instead_of_silently_passing() {
+        let mut d = declared(vec![col("id", ColumnType::Integer, true)]);
+        d.columns[0].max_null_percentage = Some(f64::NAN);
+        let i = inferred_with_nulls(&[("id", ColumnType::Integer, 0.0)]);
+        assert!(!validate(&d, &i).valid);
+    }
+
+    #[test]
+    fn nan_type_consistency_threshold_fails_closed_instead_of_silently_passing() {
+        let mut d = declared(vec![col("id", ColumnType::Integer, true)]);
+        d.columns[0].min_type_consistency = Some(f64::NAN);
+        let i = inferred_with_nulls_and_consistency(&[("id", ColumnType::Integer, 0.0, 100.0)]);
+        assert!(!validate(&d, &i).valid);
+    }
+
+    #[test]
+    fn type_consistency_within_threshold_is_fine() {
+        let mut d = declared(vec![col("qty", ColumnType::String, true)]);
+        d.columns[0].min_type_consistency = Some(50.0);
+        let i = inferred_with_nulls_and_consistency(&[("qty", ColumnType::String, 0.0, 75.0)]);
+        assert!(validate(&d, &i).valid);
+    }
+
+    #[test]
+    fn type_consistency_below_threshold_fails() {
+        let mut d = declared(vec![col("qty", ColumnType::String, true)]);
+        d.columns[0].min_type_consistency = Some(90.0);
+        let i = inferred_with_nulls_and_consistency(&[("qty", ColumnType::String, 0.0, 75.0)]);
+        assert_eq!(
+            validate(&d, &i).errors,
+            vec![ValidationError::TypeConsistencyBelowThreshold {
+                name: "qty".into(),
+                min_percentage: 90.0,
+                actual_percentage: 75.0,
+            }]
+        );
+    }
+
+    #[test]
+    fn no_consistency_threshold_declared_means_any_mix_is_fine() {
+        let d = declared(vec![col("qty", ColumnType::String, true)]);
+        let i = inferred_with_nulls_and_consistency(&[("qty", ColumnType::String, 0.0, 1.0)]);
+        assert!(validate(&d, &i).valid);
+    }
+
+    #[test]
     fn loads_and_validates_the_synthetic_fixtures() {
         let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
 
@@ -212,5 +347,9 @@ mod tests {
         )
         .expect("broken fixture pair should still load");
         assert!(!broken_report.valid);
+        assert!(broken_report
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::NullThresholdExceeded { name, .. } if name == "price")));
     }
 }

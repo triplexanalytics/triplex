@@ -4,6 +4,7 @@ columns:
     type: integer
   - name: price
     type: float
+    max_null_percentage: 50
   - name: in_stock
     type: boolean
   - name: name
