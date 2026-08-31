@@ -7,3 +7,4 @@ license.workspace = true
 [dependencies]
 triplex-core = { path = "../triplex-core" }
 csv = "1"
+parquet = { version = "59.2.0", default-features = false, features = ["snap", "zstd"] }

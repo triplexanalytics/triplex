@@ -7,6 +7,7 @@ pub enum Error {
     Io(std::io::Error),
     Csv(String),
     Yaml(String),
+    Parquet(String),
 }
 
 impl fmt::Display for Error {
@@ -15,6 +16,7 @@ impl fmt::Display for Error {
             Error::Io(e) => write!(f, "io error: {e}"),
             Error::Csv(e) => write!(f, "csv error: {e}"),
             Error::Yaml(e) => write!(f, "yaml error: {e}"),
+            Error::Parquet(e) => write!(f, "parquet error: {e}"),
         }
     }
 }
