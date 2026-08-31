@@ -1,0 +1,9 @@
+[package]
+name = "triplex-io"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+triplex-core = { path = "../triplex-core" }
+csv = "1"

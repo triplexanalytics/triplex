@@ -1,0 +1,13 @@
+[package]
+name = "triplex-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "triplex"
+path = "src/main.rs"
+
+[dependencies]
+triplex-schemacast = { path = "../../crates/triplex-schemacast" }
+serde_json = "1"

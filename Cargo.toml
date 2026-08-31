@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/triplex-core",
+    "crates/triplex-io",
+    "crates/triplex-schemacast",
+    "apps/triplex-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
