@@ -2,14 +2,19 @@
 //! emits it as versioned, deterministic JSON. No network calls; the caller's
 //! path is the only source of data, and nothing here transmits it anywhere.
 
-use serde::Serialize;
+mod contract;
+pub use contract::{
+    validate, validate_path, DeclaredColumn, DeclaredContract, ValidationError, ValidationReport,
+};
+
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use triplex_core::Result;
 use triplex_io::CsvSample;
 
 const CONTRACT_VERSION: &str = "0.1.0";
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ColumnType {
     Integer,

@@ -1,0 +1,10 @@
+version: 1
+columns:
+  - name: id
+    type: string # deliberately wrong: sample.csv's id column is integer
+  - name: price
+    type: float
+  - name: in_stock
+    type: boolean
+  - name: sku
+    type: string # deliberately missing from sample.csv

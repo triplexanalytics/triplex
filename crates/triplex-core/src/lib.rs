@@ -6,6 +6,7 @@ use std::fmt;
 pub enum Error {
     Io(std::io::Error),
     Csv(String),
+    Yaml(String),
 }
 
 impl fmt::Display for Error {
@@ -13,6 +14,7 @@ impl fmt::Display for Error {
         match self {
             Error::Io(e) => write!(f, "io error: {e}"),
             Error::Csv(e) => write!(f, "csv error: {e}"),
+            Error::Yaml(e) => write!(f, "yaml error: {e}"),
         }
     }
 }
