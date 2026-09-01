@@ -19,7 +19,7 @@ pub struct ConvertReport {
     pub output_format: String,
 }
 
-fn read_full(path: &Path, extension: &str, delimiter: Option<u8>) -> Result<Sample> {
+pub(crate) fn read_full(path: &Path, extension: &str, delimiter: Option<u8>) -> Result<Sample> {
     match (extension, delimiter) {
         ("csv", Some(d)) => triplex_io::read_csv_full_with_delimiter(path, d),
         ("parquet", _) => triplex_io::read_parquet_rows(path),

@@ -1,0 +1,11 @@
+version: 1
+columns:
+  - name: id
+    type: integer
+  - name: price
+    type: float
+  - name: in_stock
+    type: boolean
+  - name: name
+    type: string
+    pattern: "^[a-z]+$"

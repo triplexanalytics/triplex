@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.";
+const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.";
 
 /// Exit codes per the design notes: 0 success, 1
 /// non-blocking warning (no coercion modes exist yet, so unused today), 2
@@ -117,6 +117,30 @@ fn main() -> ExitCode {
                 ),
             };
             match result {
+                Ok(report) => {
+                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                    if report.valid {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::from(EXIT_CONTRACT_BREACH)
+                    }
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+                }
+            }
+        }
+        Some("check-patterns") => {
+            let (Some(schema), Some(input)) =
+                (flag_value(&args, "--schema"), flag_value(&args, "--input"))
+            else {
+                return usage_error();
+            };
+            match triplex_schemacast::check_patterns_path(
+                &PathBuf::from(schema),
+                &PathBuf::from(input),
+            ) {
                 Ok(report) => {
                     println!("{}", serde_json::to_string_pretty(&report).unwrap());
                     if report.valid {

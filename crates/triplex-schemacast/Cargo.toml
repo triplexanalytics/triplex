@@ -10,6 +10,7 @@ triplex-io = { path = "../triplex-io" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml_ng = "0.10.0"
+regex = "1"
 
 [dev-dependencies]
 parquet = { version = "59.2.0", default-features = false }

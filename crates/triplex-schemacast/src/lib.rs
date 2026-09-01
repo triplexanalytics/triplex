@@ -5,8 +5,8 @@
 mod contract;
 mod convert;
 pub use contract::{
-    validate, validate_csv_with_delimiter, validate_path, DeclaredColumn, DeclaredContract,
-    ValidationError, ValidationReport,
+    check_patterns, check_patterns_path, validate, validate_csv_with_delimiter, validate_path,
+    DeclaredColumn, DeclaredContract, ValidationError, ValidationReport,
 };
 pub use convert::{convert_file, convert_file_with_delimiters, ConvertReport};
 

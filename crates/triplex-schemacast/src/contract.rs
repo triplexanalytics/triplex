@@ -3,9 +3,11 @@
 //! declared contract or it doesn't.
 
 use crate::{ColumnType, SchemaContract};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use triplex_core::{Error, Result};
+use triplex_io::Sample;
 
 fn default_required() -> bool {
     true
@@ -42,6 +44,11 @@ pub struct DeclaredColumn {
     pub required: bool,
     #[serde(default)]
     pub statistics: Option<DeclaredColumnStatistics>,
+    /// A regex every non-empty value in this column must match. Checked
+    /// separately from `statistics` (see `check_patterns`) since it needs
+    /// every raw value, not just aggregate stats over a sample.
+    #[serde(default)]
+    pub pattern: Option<String>,
 }
 
 impl DeclaredColumn {
@@ -94,6 +101,15 @@ pub enum ValidationError {
         expected_mean: f64,
         epsilon: f64,
         actual_mean: f64,
+    },
+    /// Deliberately omits the offending value(s): a schema/validation report
+    /// is a privacy-adjacent surface, so a mismatch is reported as a count,
+    /// never as the raw cell content.
+    PatternMismatch {
+        name: String,
+        pattern: String,
+        non_conforming_count: usize,
+        checked_count: usize,
     },
 }
 
@@ -250,6 +266,69 @@ pub fn validate_csv_with_delimiter(
     Ok(validate(&declared, &inferred))
 }
 
+/// Checks every declared `pattern` against every non-empty value in its
+/// column across a full in-memory `Sample`. Separate from `validate`: this
+/// needs the raw per-value data (not just aggregate stats), and it must
+/// stay usable on a `Sample` alone (no file path) so the same check runs
+/// against data already loaded in memory, e.g. anonymized output in the
+/// browser (`apps/triplex-web`) with no local file to point at.
+pub fn check_patterns(declared: &DeclaredContract, sample: &Sample) -> Result<ValidationReport> {
+    let mut errors = Vec::new();
+
+    for declared_col in &declared.columns {
+        let Some(pattern) = declared_col.pattern.as_ref() else {
+            continue;
+        };
+        let regex = Regex::new(pattern).map_err(|e| {
+            Error::Yaml(format!(
+                "invalid pattern for column \"{}\": {e}",
+                declared_col.name
+            ))
+        })?;
+        let Some(col_index) = sample.headers.iter().position(|h| h == &declared_col.name) else {
+            continue; // MissingColumn is validate()'s job, not this one's
+        };
+
+        let mut checked_count = 0usize;
+        let mut non_conforming_count = 0usize;
+        for row in &sample.rows {
+            let Some(value) = row.get(col_index) else {
+                continue;
+            };
+            if value.is_empty() {
+                continue; // an empty cell is null, not a pattern violation
+            }
+            checked_count += 1;
+            if !regex.is_match(value) {
+                non_conforming_count += 1;
+            }
+        }
+
+        if non_conforming_count > 0 {
+            errors.push(ValidationError::PatternMismatch {
+                name: declared_col.name.clone(),
+                pattern: pattern.clone(),
+                non_conforming_count,
+                checked_count,
+            });
+        }
+    }
+
+    Ok(ValidationReport {
+        valid: errors.is_empty(),
+        errors,
+    })
+}
+
+/// Loads a declared contract and a local data file, then runs
+/// `check_patterns` against it in one step.
+pub fn check_patterns_path(schema_path: &Path, input_path: &Path) -> Result<ValidationReport> {
+    let declared = load_contract(schema_path)?;
+    let extension = input_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let sample = crate::convert::read_full(input_path, extension, None)?;
+    check_patterns(&declared, &sample)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,6 +422,17 @@ mod tests {
             column_type,
             required,
             statistics: None,
+            pattern: None,
+        }
+    }
+
+    fn sample(headers: &[&str], rows: &[Vec<&str>]) -> Sample {
+        Sample {
+            headers: headers.iter().map(|h| h.to_string()).collect(),
+            rows: rows
+                .iter()
+                .map(|r| r.iter().map(|v| v.to_string()).collect())
+                .collect(),
         }
     }
 
@@ -642,5 +732,87 @@ mod tests {
             .errors
             .iter()
             .any(|e| matches!(e, ValidationError::MeanOutOfTolerance { name, .. } if name == "price")));
+    }
+
+    #[test]
+    fn every_value_matching_the_pattern_is_valid() {
+        let mut d = declared(vec![col("code", ColumnType::String, true)]);
+        d.columns[0].pattern = Some("^[A-Z]{2}-[0-9]{3}$".to_string());
+        let s = sample(&["code"], &[vec!["AB-123"], vec!["ZZ-999"]]);
+        assert!(check_patterns(&d, &s).unwrap().valid);
+    }
+
+    #[test]
+    fn non_conforming_values_fail_without_leaking_the_raw_value() {
+        let mut d = declared(vec![col("code", ColumnType::String, true)]);
+        d.columns[0].pattern = Some("^[A-Z]{2}-[0-9]{3}$".to_string());
+        let s = sample(
+            &["code"],
+            &[vec!["AB-123"], vec!["not-a-code"], vec!["also-bad"]],
+        );
+        let report = check_patterns(&d, &s).unwrap();
+        assert_eq!(
+            report.errors,
+            vec![ValidationError::PatternMismatch {
+                name: "code".into(),
+                pattern: "^[A-Z]{2}-[0-9]{3}$".into(),
+                non_conforming_count: 2,
+                checked_count: 3,
+            }]
+        );
+    }
+
+    #[test]
+    fn no_pattern_declared_means_any_value_is_fine() {
+        let d = declared(vec![col("code", ColumnType::String, true)]);
+        let s = sample(&["code"], &[vec!["anything at all"]]);
+        assert!(check_patterns(&d, &s).unwrap().valid);
+    }
+
+    #[test]
+    fn empty_cells_are_null_not_a_pattern_violation() {
+        let mut d = declared(vec![col("code", ColumnType::String, true)]);
+        d.columns[0].pattern = Some("^[A-Z]+$".to_string());
+        let s = sample(&["code"], &[vec![""], vec!["AB"]]);
+        assert!(check_patterns(&d, &s).unwrap().valid);
+    }
+
+    #[test]
+    fn an_invalid_regex_in_the_contract_is_a_clear_error_not_a_panic() {
+        let mut d = declared(vec![col("code", ColumnType::String, true)]);
+        d.columns[0].pattern = Some("[unterminated".to_string());
+        let s = sample(&["code"], &[vec!["x"]]);
+        assert!(check_patterns(&d, &s).is_err());
+    }
+
+    #[test]
+    fn a_column_missing_from_the_sample_has_nothing_to_pattern_check() {
+        let mut d = declared(vec![col("code", ColumnType::String, true)]);
+        d.columns[0].pattern = Some("^[A-Z]+$".to_string());
+        let s = sample(&["other"], &[vec!["x"]]);
+        assert!(check_patterns(&d, &s).unwrap().valid);
+    }
+
+    #[test]
+    fn check_patterns_path_reads_and_checks_the_synthetic_fixture() {
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+
+        let ok_report = check_patterns_path(
+            &fixtures.join("sample.pattern.contract.yaml"),
+            &fixtures.join("sample.csv"),
+        )
+        .expect("valid fixture pair should load");
+        assert!(ok_report.valid, "expected valid, got {ok_report:?}");
+
+        let broken_report = check_patterns_path(
+            &fixtures.join("sample.pattern.broken.contract.yaml"),
+            &fixtures.join("sample.csv"),
+        )
+        .expect("broken fixture pair should still load");
+        assert!(!broken_report.valid);
+        assert!(broken_report
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::PatternMismatch { name, .. } if name == "name")));
     }
 }
