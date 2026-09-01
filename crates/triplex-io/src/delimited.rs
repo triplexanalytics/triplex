@@ -51,7 +51,9 @@ pub(crate) fn write(
         .write_record(headers)
         .map_err(|e| wrap_err(e.to_string()))?;
     for row in rows {
-        writer.write_record(row).map_err(|e| wrap_err(e.to_string()))?;
+        writer
+            .write_record(row)
+            .map_err(|e| wrap_err(e.to_string()))?;
     }
     writer.flush()?;
     Ok(())
@@ -77,12 +79,14 @@ pub(crate) fn write_bytes(
             .write_record(row)
             .map_err(|e| wrap_err(e.to_string()))?;
     }
-    writer
-        .into_inner()
-        .map_err(|e| wrap_err(e.to_string()))
+    writer.into_inner().map_err(|e| wrap_err(e.to_string()))
 }
 
-pub(crate) fn read_full(path: &Path, delimiter: u8, wrap_err: fn(String) -> Error) -> Result<Sample> {
+pub(crate) fn read_full(
+    path: &Path,
+    delimiter: u8,
+    wrap_err: fn(String) -> Error,
+) -> Result<Sample> {
     let reader = csv::ReaderBuilder::new()
         .delimiter(delimiter)
         .from_path(path)

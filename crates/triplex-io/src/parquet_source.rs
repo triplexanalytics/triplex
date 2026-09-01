@@ -44,8 +44,7 @@ pub fn read_parquet_schema(path: &Path) -> Result<Vec<ParquetColumnStats>> {
     use parquet::file::reader::{FileReader, SerializedFileReader};
 
     let file = File::open(path)?;
-    let reader =
-        SerializedFileReader::new(file).map_err(|e| Error::Parquet(e.to_string()))?;
+    let reader = SerializedFileReader::new(file).map_err(|e| Error::Parquet(e.to_string()))?;
     let metadata = reader.metadata();
     let schema = metadata.file_metadata().schema_descr();
 

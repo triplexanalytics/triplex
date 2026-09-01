@@ -36,11 +36,6 @@ pub fn read_csv_full(path: &Path) -> Result<Sample> {
     read_csv_full_with_delimiter(path, COMMA)
 }
 
-/// Writes a CSV header plus rows to a local file.
-pub fn write_csv(path: &Path, headers: &[String], rows: &[Vec<String>]) -> Result<()> {
-    write_csv_with_delimiter(path, COMMA, headers, rows)
-}
-
 /// Reads a `.csv`-shaped file whose actual field separator isn't a comma —
 /// e.g. the semicolon-delimited exports common under European Excel locale
 /// settings, or a pipe-delimited feed. Still reported as `CSV_PARSE_ERROR`
@@ -59,29 +54,12 @@ pub fn read_csv_full_with_delimiter(path: &Path, delimiter: u8) -> Result<Sample
     delimited::read_full(path, delimiter, Error::Csv)
 }
 
-/// Writes a header plus rows using a custom field separator instead of a
-/// comma — see `read_csv_sample_with_delimiter`.
-pub fn write_csv_with_delimiter(
-    path: &Path,
-    delimiter: u8,
-    headers: &[String],
-    rows: &[Vec<String>],
-) -> Result<()> {
-    delimited::write(path, delimiter, headers, rows, Error::Csv)
-}
-
 /// Reads a CSV header plus every data row from an in-memory byte slice
 /// (comma-delimited) — see `crate::delimited::read_full_bytes` for why a
 /// bytes variant exists alongside the path-based readers (no filesystem in
 /// a browser/WASM caller like `apps/triplex-web`).
 pub fn read_csv_full_bytes(bytes: &[u8]) -> Result<Sample> {
     delimited::read_full_bytes(bytes, COMMA, Error::Csv)
-}
-
-/// Writes a CSV header plus rows to an in-memory byte buffer instead of a
-/// local file.
-pub fn write_csv_bytes(headers: &[String], rows: &[Vec<String>]) -> Result<Vec<u8>> {
-    delimited::write_bytes(COMMA, headers, rows, Error::Csv)
 }
 
 #[cfg(test)]
@@ -97,29 +75,10 @@ mod tests {
     #[test]
     fn read_csv_full_reads_every_row_unlike_the_bounded_sample() {
         let full = read_csv_full(&fixture("sample.csv")).expect("fixture should be readable");
-        let capped = read_csv_sample(&fixture("sample.csv"), 2).expect("fixture should be readable");
+        let capped =
+            read_csv_sample(&fixture("sample.csv"), 2).expect("fixture should be readable");
         assert_eq!(full.rows.len(), 4);
         assert_eq!(capped.rows.len(), 2);
-    }
-
-    #[test]
-    fn write_csv_round_trips_through_read_csv_full() {
-        let path = std::env::temp_dir().join(format!(
-            "triplex_io_write_csv_roundtrip_{}.csv",
-            std::process::id()
-        ));
-        let headers = vec!["a".to_string(), "b".to_string()];
-        let rows = vec![
-            vec!["1".to_string(), "x".to_string()],
-            vec!["2".to_string(), "y".to_string()],
-        ];
-
-        write_csv(&path, &headers, &rows).expect("write should succeed");
-        let read_back = read_csv_full(&path).expect("read should succeed");
-        std::fs::remove_file(&path).ok();
-
-        assert_eq!(read_back.headers, headers);
-        assert_eq!(read_back.rows, rows);
     }
 
     #[test]
@@ -137,35 +96,5 @@ mod tests {
         let from_path = read_csv_full(&fixture("sample.csv")).unwrap();
         assert_eq!(from_bytes.headers, from_path.headers);
         assert_eq!(from_bytes.rows, from_path.rows);
-    }
-
-    #[test]
-    fn write_csv_bytes_round_trips_through_read_csv_full_bytes() {
-        let headers = vec!["a".to_string(), "b".to_string()];
-        let rows = vec![vec!["1".to_string(), "x".to_string()]];
-
-        let bytes = write_csv_bytes(&headers, &rows).expect("write should succeed");
-        let read_back = read_csv_full_bytes(&bytes).expect("read should succeed");
-
-        assert_eq!(read_back.headers, headers);
-        assert_eq!(read_back.rows, rows);
-    }
-
-    #[test]
-    fn write_csv_with_delimiter_round_trips_through_the_matching_reader() {
-        let path = std::env::temp_dir().join(format!(
-            "triplex_io_write_csv_pipe_delimited_{}.csv",
-            std::process::id()
-        ));
-        let headers = vec!["a".to_string(), "b".to_string()];
-        let rows = vec![vec!["1".to_string(), "x".to_string()]];
-
-        write_csv_with_delimiter(&path, b'|', &headers, &rows).expect("write should succeed");
-        let read_back =
-            read_csv_full_with_delimiter(&path, b'|').expect("read with the same delimiter should succeed");
-        std::fs::remove_file(&path).ok();
-
-        assert_eq!(read_back.headers, headers);
-        assert_eq!(read_back.rows, rows);
     }
 }

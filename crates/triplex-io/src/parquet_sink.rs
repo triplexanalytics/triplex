@@ -39,11 +39,17 @@ fn parse_or_none<T: std::str::FromStr>(value: &str) -> Option<T> {
 /// shouldn't block writing everything else.
 fn build_array(column_type: WriteColumnType, values: &[&str]) -> ArrayRef {
     match column_type {
-        WriteColumnType::Integer => {
-            Arc::new(Int64Array::from(values.iter().map(|v| parse_or_none::<i64>(v)).collect::<Vec<_>>()))
-        }
+        WriteColumnType::Integer => Arc::new(Int64Array::from(
+            values
+                .iter()
+                .map(|v| parse_or_none::<i64>(v))
+                .collect::<Vec<_>>(),
+        )),
         WriteColumnType::Float => Arc::new(Float64Array::from(
-            values.iter().map(|v| parse_or_none::<f64>(v)).collect::<Vec<_>>(),
+            values
+                .iter()
+                .map(|v| parse_or_none::<f64>(v))
+                .collect::<Vec<_>>(),
         )),
         WriteColumnType::Boolean => Arc::new(BooleanArray::from(
             values
@@ -99,7 +105,9 @@ pub fn write_parquet(
     let file = File::create(path)?;
     let mut writer =
         ArrowWriter::try_new(file, schema, None).map_err(|e| Error::Parquet(e.to_string()))?;
-    writer.write(&batch).map_err(|e| Error::Parquet(e.to_string()))?;
+    writer
+        .write(&batch)
+        .map_err(|e| Error::Parquet(e.to_string()))?;
     writer.close().map_err(|e| Error::Parquet(e.to_string()))?;
 
     Ok(())

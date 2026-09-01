@@ -103,45 +103,6 @@ pub fn read_jsonl_full_bytes(bytes: &[u8]) -> Result<Sample> {
     read_lines_bytes(bytes, None)
 }
 
-/// Writes one JSON object per row (keys = headers) to a local file. Every
-/// value is written as a JSON string — the pipeline is string-based end to
-/// end, so this can't tell a would-be number like `"1"` from a genuine
-/// string `"1"` on the way out. Round-tripping through JSONL therefore
-/// preserves structure and text, not JSON's native scalar types.
-pub fn write_jsonl(path: &Path, headers: &[String], rows: &[Vec<String>]) -> Result<()> {
-    use std::io::Write as _;
-
-    let mut file = File::create(path)?;
-    for row in rows {
-        let mut object = serde_json::Map::new();
-        for (header, value) in headers.iter().zip(row) {
-            object.insert(header.clone(), serde_json::Value::String(value.clone()));
-        }
-        let line = serde_json::to_string(&serde_json::Value::Object(object))
-            .map_err(|e| Error::Jsonl(e.to_string()))?;
-        writeln!(file, "{line}")?;
-    }
-    Ok(())
-}
-
-/// Writes one JSON object per row to an in-memory byte buffer instead of a
-/// local file — see `write_jsonl`.
-pub fn write_jsonl_bytes(headers: &[String], rows: &[Vec<String>]) -> Result<Vec<u8>> {
-    use std::io::Write as _;
-
-    let mut buf = Vec::new();
-    for row in rows {
-        let mut object = serde_json::Map::new();
-        for (header, value) in headers.iter().zip(row) {
-            object.insert(header.clone(), serde_json::Value::String(value.clone()));
-        }
-        let line = serde_json::to_string(&serde_json::Value::Object(object))
-            .map_err(|e| Error::Jsonl(e.to_string()))?;
-        writeln!(buf, "{line}")?;
-    }
-    Ok(buf)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,7 +164,8 @@ mod tests {
 
     #[test]
     fn max_rows_bounds_how_many_lines_are_read() {
-        let sample = read_jsonl_sample(&fixture("sample.jsonl"), 2).expect("fixture should be readable");
+        let sample =
+            read_jsonl_sample(&fixture("sample.jsonl"), 2).expect("fixture should be readable");
         assert_eq!(sample.rows.len(), 2);
     }
 
@@ -220,34 +182,5 @@ mod tests {
         let from_path = read_jsonl_full(&fixture("sample.jsonl")).unwrap();
         assert_eq!(from_bytes.headers, from_path.headers);
         assert_eq!(from_bytes.rows, from_path.rows);
-    }
-
-    #[test]
-    fn write_jsonl_bytes_round_trips_through_read_jsonl_full_bytes() {
-        let headers = vec!["a".to_string(), "b".to_string()];
-        let rows = vec![vec!["1".to_string(), "x".to_string()]];
-
-        let bytes = write_jsonl_bytes(&headers, &rows).expect("write should succeed");
-        let read_back = read_jsonl_full_bytes(&bytes).expect("read should succeed");
-
-        assert_eq!(read_back.headers, headers);
-        assert_eq!(read_back.rows, rows);
-    }
-
-    #[test]
-    fn write_jsonl_round_trips_through_read_jsonl_full() {
-        let path = std::env::temp_dir().join(format!(
-            "triplex_io_write_jsonl_roundtrip_{}.jsonl",
-            std::process::id()
-        ));
-        let headers = vec!["a".to_string(), "b".to_string()];
-        let rows = vec![vec!["1".to_string(), "x".to_string()]];
-
-        write_jsonl(&path, &headers, &rows).expect("write should succeed");
-        let read_back = read_jsonl_full(&path).expect("read should succeed");
-        std::fs::remove_file(&path).ok();
-
-        assert_eq!(read_back.headers, headers);
-        assert_eq!(read_back.rows, rows);
     }
 }
