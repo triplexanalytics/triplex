@@ -15,8 +15,18 @@ pub enum Error {
     Yaml(String),
     /// The file was readable but is not valid Parquet.
     Parquet(String),
-    /// The input path's extension isn't one SchemaCast knows how to ingest.
+    /// The input path's extension isn't one SchemaCast/Anonymizer knows how
+    /// to ingest.
     UnsupportedExtension(String),
+    /// A declared column (e.g. in an Anonymizer recipe) doesn't exist in the
+    /// actual data's header.
+    ColumnNotFound(String),
+    /// A required environment variable (e.g. a declared `salt_env`) is unset.
+    MissingEnvVar(String),
+    /// A cryptographic operation failed — key derivation, encryption, or
+    /// decryption (including a wrong passphrase, which AEAD reports as a
+    /// generic authentication failure rather than a specific reason).
+    Crypto(String),
 }
 
 impl Error {
@@ -27,6 +37,9 @@ impl Error {
             Error::Yaml(_) => "YAML_PARSE_ERROR",
             Error::Parquet(_) => "PARQUET_READ_ERROR",
             Error::UnsupportedExtension(_) => "UNSUPPORTED_EXTENSION",
+            Error::ColumnNotFound(_) => "COLUMN_NOT_FOUND",
+            Error::MissingEnvVar(_) => "MISSING_ENV_VAR",
+            Error::Crypto(_) => "CRYPTO_ERROR",
         }
     }
 }
@@ -40,6 +53,13 @@ impl fmt::Display for Error {
             Error::Yaml(e) => write!(f, "[{code}] not a valid .triplex.yaml file: {e}"),
             Error::Parquet(e) => write!(f, "[{code}] not a valid Parquet file: {e}"),
             Error::UnsupportedExtension(msg) => write!(f, "[{code}] {msg}"),
+            Error::ColumnNotFound(name) => {
+                write!(f, "[{code}] column \"{name}\" not found in the input data")
+            }
+            Error::MissingEnvVar(var) => {
+                write!(f, "[{code}] environment variable \"{var}\" is not set")
+            }
+            Error::Crypto(msg) => write!(f, "[{code}] {msg}"),
         }
     }
 }
@@ -66,6 +86,9 @@ mod tests {
             Error::Yaml("invalid mapping".into()),
             Error::Parquet("bad magic bytes".into()),
             Error::UnsupportedExtension("unsupported file extension \"xlsx\"".into()),
+            Error::ColumnNotFound("customer_id".into()),
+            Error::MissingEnvVar("HASH_SALT".into()),
+            Error::Crypto("AEAD decryption failed".into()),
         ];
 
         let codes: Vec<&str> = errors.iter().map(Error::code).collect();

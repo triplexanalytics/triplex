@@ -5,6 +5,6 @@ mod csv_source;
 mod parquet_source;
 mod statistics;
 
-pub use csv_source::{read_csv_sample, CsvSample};
-pub use parquet_source::{read_parquet_schema, ParquetColumnStats};
+pub use csv_source::{read_csv_full, read_csv_sample, write_csv, CsvSample};
+pub use parquet_source::{read_parquet_rows, read_parquet_schema, ParquetColumnStats};
 pub use statistics::{compute_column_statistics, ColumnStatistics, ColumnStatisticsBuilder};

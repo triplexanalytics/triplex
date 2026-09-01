@@ -86,3 +86,71 @@ pub fn read_parquet_schema(path: &Path) -> Result<Vec<ParquetColumnStats>> {
         })
         .collect())
 }
+
+/// Reads every row of a local Parquet file, decoding actual column values
+/// (not just footer statistics) into strings. Unlike `read_parquet_schema`'s
+/// zero-copy metadata-only read, this is for callers that must touch every
+/// value — e.g. Anonymizer tokenizing real cells. Loads the whole decoded
+/// dataset into memory; revisit with a batch-by-batch streaming writer if
+/// anonymizing very large Parquet files becomes a real use case.
+pub fn read_parquet_rows(path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+    use arrow_cast::display::array_value_to_string;
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+
+    let file = File::open(path)?;
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+        .map_err(|e| Error::Parquet(e.to_string()))?;
+    let headers: Vec<String> = builder
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| f.name().clone())
+        .collect();
+    let reader = builder.build().map_err(|e| Error::Parquet(e.to_string()))?;
+
+    let mut rows = Vec::new();
+    for batch_result in reader {
+        let batch = batch_result.map_err(|e| Error::Parquet(e.to_string()))?;
+        for row_idx in 0..batch.num_rows() {
+            let mut row = Vec::with_capacity(batch.num_columns());
+            for col_idx in 0..batch.num_columns() {
+                let array = batch.column(col_idx);
+                let value = if array.is_null(row_idx) {
+                    String::new()
+                } else {
+                    array_value_to_string(array, row_idx)
+                        .map_err(|e| Error::Parquet(e.to_string()))?
+                };
+                row.push(value);
+            }
+            rows.push(row);
+        }
+    }
+
+    Ok((headers, rows))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture(name: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(name)
+    }
+
+    #[test]
+    fn reads_every_row_including_a_null_cell() {
+        let (headers, rows) = read_parquet_rows(&fixture("sample.parquet"))
+            .expect("parquet fixture should be readable");
+
+        assert_eq!(headers, vec!["id", "price", "in_stock", "name"]);
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0], vec!["1", "9.99", "true", "widget"]);
+        assert_eq!(rows[1], vec!["2", "3.5", "false", "gadget"]);
+        assert_eq!(rows[2], vec!["3", "12.0", "true", "sprocket"]);
+        // Row 4's price is null in the fixture.
+        assert_eq!(rows[3], vec!["4", "", "true", "doohickey"]);
+    }
+}

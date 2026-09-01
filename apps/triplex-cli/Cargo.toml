@@ -10,4 +10,5 @@ path = "src/main.rs"
 
 [dependencies]
 triplex-schemacast = { path = "../../crates/triplex-schemacast" }
+triplex-anonymizer = { path = "../../crates/triplex-anonymizer" }
 serde_json = "1"

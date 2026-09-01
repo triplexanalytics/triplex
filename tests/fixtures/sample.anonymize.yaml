@@ -1,0 +1,5 @@
+version: 1
+columns:
+  - name: name
+    method: token_hmac
+    salt_env: TRIPLEX_DEMO_SALT
