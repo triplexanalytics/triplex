@@ -14,6 +14,10 @@ impl SampleFormat for TsvFormat {
     fn read_full(&self, path: &Path) -> Result<Sample> {
         read_tsv_full(path)
     }
+
+    fn read_full_bytes(&self, bytes: &[u8]) -> Result<Sample> {
+        read_tsv_full_bytes(bytes)
+    }
 }
 
 /// Reads a TSV header plus up to `max_rows` data rows from a local file —
@@ -31,6 +35,17 @@ pub fn read_tsv_full(path: &Path) -> Result<Sample> {
 /// Writes a TSV header plus rows to a local file.
 pub fn write_tsv(path: &Path, headers: &[String], rows: &[Vec<String>]) -> Result<()> {
     delimited::write(path, b'\t', headers, rows, Error::Tsv)
+}
+
+/// Reads a TSV header plus every data row from an in-memory byte slice —
+/// see `csv_source::read_csv_full_bytes`.
+pub fn read_tsv_full_bytes(bytes: &[u8]) -> Result<Sample> {
+    delimited::read_full_bytes(bytes, b'\t', Error::Tsv)
+}
+
+/// Writes a TSV header plus rows to an in-memory byte buffer.
+pub fn write_tsv_bytes(headers: &[String], rows: &[Vec<String>]) -> Result<Vec<u8>> {
+    delimited::write_bytes(b'\t', headers, rows, Error::Tsv)
 }
 
 #[cfg(test)]
@@ -58,6 +73,27 @@ mod tests {
             Err(e) => assert_eq!(e.code(), "TSV_PARSE_ERROR"),
             Ok(_) => panic!("expected an error for a missing file"),
         }
+    }
+
+    #[test]
+    fn read_tsv_full_bytes_matches_the_path_based_reader() {
+        let bytes = std::fs::read(fixture("sample.tsv")).unwrap();
+        let from_bytes = read_tsv_full_bytes(&bytes).expect("bytes should parse");
+        let from_path = read_tsv_full(&fixture("sample.tsv")).unwrap();
+        assert_eq!(from_bytes.headers, from_path.headers);
+        assert_eq!(from_bytes.rows, from_path.rows);
+    }
+
+    #[test]
+    fn write_tsv_bytes_round_trips_through_read_tsv_full_bytes() {
+        let headers = vec!["a".to_string(), "b".to_string()];
+        let rows = vec![vec!["1".to_string(), "x".to_string()]];
+
+        let bytes = write_tsv_bytes(&headers, &rows).expect("write should succeed");
+        let read_back = read_tsv_full_bytes(&bytes).expect("read should succeed");
+
+        assert_eq!(read_back.headers, headers);
+        assert_eq!(read_back.rows, rows);
     }
 
     #[test]

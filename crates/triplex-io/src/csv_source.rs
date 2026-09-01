@@ -14,6 +14,10 @@ impl SampleFormat for CsvFormat {
     fn read_full(&self, path: &Path) -> Result<Sample> {
         read_csv_full(path)
     }
+
+    fn read_full_bytes(&self, bytes: &[u8]) -> Result<Sample> {
+        read_csv_full_bytes(bytes)
+    }
 }
 
 const COMMA: u8 = b',';
@@ -66,6 +70,20 @@ pub fn write_csv_with_delimiter(
     delimited::write(path, delimiter, headers, rows, Error::Csv)
 }
 
+/// Reads a CSV header plus every data row from an in-memory byte slice
+/// (comma-delimited) — see `crate::delimited::read_full_bytes` for why a
+/// bytes variant exists alongside the path-based readers (no filesystem in
+/// a browser/WASM caller like `apps/triplex-web`).
+pub fn read_csv_full_bytes(bytes: &[u8]) -> Result<Sample> {
+    delimited::read_full_bytes(bytes, COMMA, Error::Csv)
+}
+
+/// Writes a CSV header plus rows to an in-memory byte buffer instead of a
+/// local file.
+pub fn write_csv_bytes(headers: &[String], rows: &[Vec<String>]) -> Result<Vec<u8>> {
+    delimited::write_bytes(COMMA, headers, rows, Error::Csv)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,6 +128,27 @@ mod tests {
             .expect("fixture should be readable with the right delimiter");
         assert_eq!(sample.headers, vec!["id", "price", "in_stock", "name"]);
         assert_eq!(sample.rows[0], vec!["1", "9.99", "true", "widget"]);
+    }
+
+    #[test]
+    fn read_csv_full_bytes_matches_the_path_based_reader() {
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let from_bytes = read_csv_full_bytes(&bytes).expect("bytes should parse");
+        let from_path = read_csv_full(&fixture("sample.csv")).unwrap();
+        assert_eq!(from_bytes.headers, from_path.headers);
+        assert_eq!(from_bytes.rows, from_path.rows);
+    }
+
+    #[test]
+    fn write_csv_bytes_round_trips_through_read_csv_full_bytes() {
+        let headers = vec!["a".to_string(), "b".to_string()];
+        let rows = vec![vec!["1".to_string(), "x".to_string()]];
+
+        let bytes = write_csv_bytes(&headers, &rows).expect("write should succeed");
+        let read_back = read_csv_full_bytes(&bytes).expect("read should succeed");
+
+        assert_eq!(read_back.headers, headers);
+        assert_eq!(read_back.rows, rows);
     }
 
     #[test]

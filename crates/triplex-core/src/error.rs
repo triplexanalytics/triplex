@@ -27,6 +27,11 @@ pub enum Error {
     ColumnNotFound(String),
     /// A required environment variable (e.g. a declared `salt_env`) is unset.
     MissingEnvVar(String),
+    /// A declared Anonymizer column has no salt available. Distinct from
+    /// `MissingEnvVar`: this fires on the byte-based/WASM path (e.g.
+    /// `apps/triplex-web`), which has no OS environment to read a salt
+    /// from — the caller supplies salts directly instead.
+    MissingSalt(String),
     /// A cryptographic operation failed — key derivation, encryption, or
     /// decryption (including a wrong passphrase, which AEAD reports as a
     /// generic authentication failure rather than a specific reason).
@@ -45,6 +50,7 @@ impl Error {
             Error::UnsupportedExtension(_) => "UNSUPPORTED_EXTENSION",
             Error::ColumnNotFound(_) => "COLUMN_NOT_FOUND",
             Error::MissingEnvVar(_) => "MISSING_ENV_VAR",
+            Error::MissingSalt(_) => "MISSING_SALT",
             Error::Crypto(_) => "CRYPTO_ERROR",
         }
     }
@@ -66,6 +72,9 @@ impl fmt::Display for Error {
             }
             Error::MissingEnvVar(var) => {
                 write!(f, "[{code}] environment variable \"{var}\" is not set")
+            }
+            Error::MissingSalt(name) => {
+                write!(f, "[{code}] no salt provided for column \"{name}\"")
             }
             Error::Crypto(msg) => write!(f, "[{code}] {msg}"),
         }
@@ -98,6 +107,7 @@ mod tests {
             Error::UnsupportedExtension("unsupported file extension \"xlsx\"".into()),
             Error::ColumnNotFound("customer_id".into()),
             Error::MissingEnvVar("HASH_SALT".into()),
+            Error::MissingSalt("email".into()),
             Error::Crypto("AEAD decryption failed".into()),
         ];
 

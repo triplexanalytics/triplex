@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Triplex — SchemaCast + Anonymizer (local, client-side)</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2.5rem; border-top: 1px solid #ddd; padding-top: 1.5rem; }
+  section p.hint { color: #555; font-size: 0.9rem; margin-top: -0.3rem; }
+  textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+  pre { background: #f5f5f5; padding: 0.75rem; overflow-x: auto; font-size: 0.85rem; }
+  .row { margin: 0.6rem 0; }
+  button { margin-right: 0.5rem; }
+  .error { color: #b00020; white-space: pre-wrap; }
+  #salt-inputs label { display: block; margin: 0.3rem 0; font-size: 0.9rem; }
+  #salt-inputs input { width: 16rem; }
+  .warning { color: #8a5a00; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<h1>Triplex — local contracts &amp; anonymization</h1>
+<p class="hint">
+  Everything below runs in this browser tab via WebAssembly. No file is ever uploaded to a
+  server — see <code>the design notes</code>'s S3.5 step.
+</p>
+
+<section>
+  <h2>1. Generate a contract</h2>
+  <p class="hint">Infers a schema from a local file and renders a starting <code>.triplex.yaml</code> (CSV/TSV/JSONL only).</p>
+  <div class="row"><input type="file" id="contract-file" /></div>
+  <div class="row"><button id="generate-contract-btn">Generate contract</button></div>
+  <div class="row error" id="contract-error"></div>
+  <textarea id="contract-yaml" rows="10" placeholder="generated .triplex.yaml appears here — edit as needed"></textarea>
+  <div class="row">
+    <button id="download-contract-btn">Download .triplex.yaml</button>
+    <button id="copy-contract-to-check-btn">Use as contract for step 3</button>
+  </div>
+</section>
+
+<section>
+  <h2>2. Anonymize (Tier 1)</h2>
+  <p class="hint">Tokenizes declared columns with HMAC-SHA256. Masked output and mapping never leave this page.</p>
+  <div class="row">Data file: <input type="file" id="anonymize-file" /></div>
+  <div class="row">Anonymize recipe (<code>.triplex.yaml</code>):</div>
+  <textarea id="recipe-yaml" rows="8" placeholder="version: 1&#10;columns:&#10;  - name: email&#10;    method: token_hmac&#10;    salt_env: unused_in_the_browser"></textarea>
+  <div class="row"><button id="load-recipe-columns-btn">Load columns</button></div>
+  <div class="row" id="salt-inputs"></div>
+  <div class="row"><button id="anonymize-btn">Anonymize</button></div>
+  <div class="row error" id="anonymize-error"></div>
+  <pre id="anonymize-report"></pre>
+  <p class="warning" id="anonymize-warning"></p>
+  <div class="row">
+    <button id="download-masked-btn" disabled>Download masked CSV</button>
+    <button id="download-mapping-btn" disabled>Download mapping CSV</button>
+  </div>
+</section>
+
+<section>
+  <h2>3. Check pattern conformance</h2>
+  <p class="hint">Checks every <code>pattern</code> declared in a contract against a file's values (e.g. step 2's masked output).</p>
+  <div class="row">File to check: <input type="file" id="pattern-check-file" /></div>
+  <div class="row">Contract (<code>.triplex.yaml</code>, must declare at least one column's <code>pattern</code>):</div>
+  <textarea id="pattern-contract-yaml" rows="8"></textarea>
+  <div class="row"><button id="check-patterns-btn">Check pattern conformance</button></div>
+  <div class="row error" id="pattern-error"></div>
+  <pre id="pattern-report"></pre>
+</section>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

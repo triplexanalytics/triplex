@@ -16,6 +16,10 @@ impl SampleFormat for JsonlFormat {
     fn read_full(&self, path: &Path) -> Result<Sample> {
         read_jsonl_full(path)
     }
+
+    fn read_full_bytes(&self, bytes: &[u8]) -> Result<Sample> {
+        read_jsonl_full_bytes(bytes)
+    }
 }
 
 /// Renders a JSON scalar as the plain string our string-based pipeline
@@ -38,8 +42,16 @@ fn json_value_to_string(value: &serde_json::Value) -> String {
 /// revisit if JSONL files with inconsistent keys per line turn out to be
 /// common.
 fn read_lines(path: &Path, max_rows: Option<usize>) -> Result<Sample> {
-    let reader = BufReader::new(File::open(path)?);
+    read_lines_from(BufReader::new(File::open(path)?), max_rows)
+}
 
+/// Byte-slice counterpart to `read_lines` — same line-by-line JSON object
+/// parsing, source is data already in memory instead of a local path.
+fn read_lines_bytes(bytes: &[u8], max_rows: Option<usize>) -> Result<Sample> {
+    read_lines_from(bytes, max_rows)
+}
+
+fn read_lines_from<R: BufRead>(reader: R, max_rows: Option<usize>) -> Result<Sample> {
     let mut headers: Option<Vec<String>> = None;
     let mut rows = Vec::new();
 
@@ -85,6 +97,12 @@ pub fn read_jsonl_full(path: &Path) -> Result<Sample> {
     read_lines(path, None)
 }
 
+/// Reads every JSON object (one per line) from an in-memory byte slice —
+/// see `csv_source::read_csv_full_bytes`.
+pub fn read_jsonl_full_bytes(bytes: &[u8]) -> Result<Sample> {
+    read_lines_bytes(bytes, None)
+}
+
 /// Writes one JSON object per row (keys = headers) to a local file. Every
 /// value is written as a JSON string — the pipeline is string-based end to
 /// end, so this can't tell a would-be number like `"1"` from a genuine
@@ -104,6 +122,24 @@ pub fn write_jsonl(path: &Path, headers: &[String], rows: &[Vec<String>]) -> Res
         writeln!(file, "{line}")?;
     }
     Ok(())
+}
+
+/// Writes one JSON object per row to an in-memory byte buffer instead of a
+/// local file — see `write_jsonl`.
+pub fn write_jsonl_bytes(headers: &[String], rows: &[Vec<String>]) -> Result<Vec<u8>> {
+    use std::io::Write as _;
+
+    let mut buf = Vec::new();
+    for row in rows {
+        let mut object = serde_json::Map::new();
+        for (header, value) in headers.iter().zip(row) {
+            object.insert(header.clone(), serde_json::Value::String(value.clone()));
+        }
+        let line = serde_json::to_string(&serde_json::Value::Object(object))
+            .map_err(|e| Error::Jsonl(e.to_string()))?;
+        writeln!(buf, "{line}")?;
+    }
+    Ok(buf)
 }
 
 #[cfg(test)]
@@ -175,6 +211,27 @@ mod tests {
     fn read_jsonl_full_reads_every_line_unlike_the_bounded_sample() {
         let full = read_jsonl_full(&fixture("sample.jsonl")).expect("fixture should be readable");
         assert_eq!(full.rows.len(), 4);
+    }
+
+    #[test]
+    fn read_jsonl_full_bytes_matches_the_path_based_reader() {
+        let bytes = std::fs::read(fixture("sample.jsonl")).unwrap();
+        let from_bytes = read_jsonl_full_bytes(&bytes).expect("bytes should parse");
+        let from_path = read_jsonl_full(&fixture("sample.jsonl")).unwrap();
+        assert_eq!(from_bytes.headers, from_path.headers);
+        assert_eq!(from_bytes.rows, from_path.rows);
+    }
+
+    #[test]
+    fn write_jsonl_bytes_round_trips_through_read_jsonl_full_bytes() {
+        let headers = vec!["a".to_string(), "b".to_string()];
+        let rows = vec![vec!["1".to_string(), "x".to_string()]];
+
+        let bytes = write_jsonl_bytes(&headers, &rows).expect("write should succeed");
+        let read_back = read_jsonl_full_bytes(&bytes).expect("read should succeed");
+
+        assert_eq!(read_back.headers, headers);
+        assert_eq!(read_back.rows, rows);
     }
 
     #[test]

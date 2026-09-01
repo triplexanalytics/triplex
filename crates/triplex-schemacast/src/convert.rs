@@ -9,7 +9,7 @@
 use crate::{infer_schema, unsupported_extension_error, ColumnType};
 use serde::Serialize;
 use std::path::Path;
-use triplex_core::Result;
+use triplex_core::{Error, Result};
 use triplex_io::{Sample, WriteColumnType};
 
 #[derive(Debug, Serialize)]
@@ -29,6 +29,20 @@ pub(crate) fn read_full(path: &Path, extension: &str, delimiter: Option<u8>) -> 
             format.read_full(path)
         }
     }
+}
+
+/// Byte-slice counterpart to `read_full`, for a caller with no filesystem
+/// (`apps/triplex-web`'s browser/WASM path). No `.parquet` support here —
+/// see `crates/triplex-io/Cargo.toml` for why Parquet input is out of scope
+/// for the wasm32 target in the first place.
+pub(crate) fn read_full_bytes(bytes: &[u8], extension: &str) -> Result<Sample> {
+    let format = triplex_io::sample_format_for_extension(extension).ok_or_else(|| {
+        Error::UnsupportedExtension(format!(
+            "unsupported file extension \"{extension}\" (expected .csv, .tsv, or .jsonl — \
+             .parquet input isn't supported in the browser)"
+        ))
+    })?;
+    format.read_full_bytes(bytes)
 }
 
 fn to_write_column_type(column_type: ColumnType) -> WriteColumnType {
@@ -114,6 +128,22 @@ mod tests {
             "triplex_schemacast_convert_test_{}_{name}",
             std::process::id()
         ))
+    }
+
+    #[test]
+    fn read_full_bytes_matches_the_path_based_reader() {
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let from_bytes = read_full_bytes(&bytes, "csv").expect("bytes should parse");
+        let from_path = read_full(&fixture("sample.csv"), "csv", None).unwrap();
+        assert_eq!(from_bytes.headers, from_path.headers);
+        assert_eq!(from_bytes.rows, from_path.rows);
+    }
+
+    #[test]
+    fn read_full_bytes_rejects_parquet_with_a_clear_error_not_a_panic() {
+        let bytes = std::fs::read(fixture("sample.parquet")).unwrap();
+        let result = read_full_bytes(&bytes, "parquet");
+        assert!(result.is_err(), "parquet input isn't supported via bytes");
     }
 
     #[test]

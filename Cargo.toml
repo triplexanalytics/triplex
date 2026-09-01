@@ -6,6 +6,7 @@ members = [
     "crates/triplex-schemacast",
     "crates/triplex-anonymizer",
     "apps/triplex-cli",
+    "apps/triplex-web",
 ]
 
 [workspace.package]

@@ -5,8 +5,9 @@
 mod contract;
 mod convert;
 pub use contract::{
-    check_patterns, check_patterns_path, validate, validate_csv_with_delimiter, validate_path,
-    DeclaredColumn, DeclaredContract, ValidationError, ValidationReport,
+    check_patterns, check_patterns_bytes, check_patterns_path, parse_contract,
+    to_declared_contract, validate, validate_csv_with_delimiter, validate_path, DeclaredColumn,
+    DeclaredContract, ValidationError, ValidationReport,
 };
 pub use convert::{convert_file, convert_file_with_delimiters, ConvertReport};
 
@@ -222,6 +223,28 @@ pub fn infer_schema_from_csv_with_delimiter(
     Ok(infer_schema(&sample))
 }
 
+/// Infers a schema contract from an in-memory byte slice instead of a local
+/// path — for a caller with no filesystem (`apps/triplex-web`'s
+/// browser/WASM upload flow). Reads the whole buffer rather than sampling:
+/// unlike a CLI run against an arbitrarily large local file, a browser
+/// upload is already bounded by what a user selected and is already fully
+/// in memory, so there's no separate cost to bound. `.csv`/`.tsv`/`.jsonl`
+/// only — see `convert::read_full_bytes` for why `.parquet` isn't supported
+/// here.
+pub fn infer_schema_from_bytes(bytes: &[u8], extension: &str) -> Result<SchemaContract> {
+    let sample = convert::read_full_bytes(bytes, extension)?;
+    Ok(infer_schema(&sample))
+}
+
+/// Infers a schema from bytes and renders it as a starting `.triplex.yaml`
+/// contract — `apps/triplex-web`'s "generate contract" action in one call.
+/// See `to_declared_contract` for the inferred-to-declared mapping.
+pub fn generate_contract_yaml_from_bytes(bytes: &[u8], extension: &str) -> Result<String> {
+    let inferred = infer_schema_from_bytes(bytes, extension)?;
+    let declared = to_declared_contract(&inferred);
+    serde_yaml_ng::to_string(&declared).map_err(|e| Error::Yaml(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -433,6 +456,37 @@ mod tests {
         assert_eq!(contract.columns[3].inferred_type, ColumnType::String);
         // Row 4's price is JSON null, same treatment as an empty CSV cell.
         assert_eq!(contract.columns[1].statistics.null_percentage, 25.0);
+    }
+
+    #[test]
+    fn infer_schema_from_bytes_matches_the_path_based_reader() {
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let from_bytes = infer_schema_from_bytes(&bytes, "csv").expect("bytes should infer");
+        let from_path = infer_schema_from_path(&fixture("sample.csv"), 100).unwrap();
+        assert_eq!(
+            from_bytes.columns.iter().map(|c| c.inferred_type).collect::<Vec<_>>(),
+            from_path.columns.iter().map(|c| c.inferred_type).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn generate_contract_yaml_from_bytes_round_trips_through_parse_contract() {
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let yaml =
+            generate_contract_yaml_from_bytes(&bytes, "csv").expect("generation should succeed");
+
+        let declared = parse_contract(&yaml).expect("generated yaml should itself be parseable");
+        assert_eq!(
+            declared.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            vec!["id", "price", "in_stock", "name"]
+        );
+        assert_eq!(declared.columns[0].column_type, ColumnType::Integer);
+        assert!(declared.columns.iter().all(|c| c.required));
+
+        // The generated contract must itself validate cleanly against the
+        // same data it was inferred from.
+        let inferred = infer_schema_from_bytes(&bytes, "csv").unwrap();
+        assert!(validate(&declared, &inferred).valid);
     }
 
     #[test]

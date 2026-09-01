@@ -16,3 +16,11 @@ sha2 = "0.10"
 aes-gcm = "0.10"
 argon2 = "0.5"
 base64 = { version = "0.23.1", default-features = false, features = ["std"] }
+
+# argon2/aes-gcm draw randomness from getrandom via OsRng, which has no
+# default source on wasm32-unknown-unknown (no OS to call) — the "js"
+# feature backs it with the browser's crypto.getRandomValues instead. Scoped
+# to wasm32 only so native (CLI) builds don't pull in wasm-bindgen for
+# nothing.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }

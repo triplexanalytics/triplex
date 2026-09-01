@@ -17,7 +17,7 @@ fn default_required() -> bool {
 /// separately from identity/type (name, column_type, required) since these
 /// are all optional, orthogonal checks against the inferred column's
 /// `ColumnStatistics` — see `triplex_io::ColumnStatistics`.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct DeclaredColumnStatistics {
     #[serde(default)]
     pub max_null_percentage: Option<f64>,
@@ -35,7 +35,7 @@ pub struct DeclaredColumnStatistics {
     pub mean_epsilon: Option<f64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DeclaredColumn {
     pub name: String,
     #[serde(rename = "type")]
@@ -60,7 +60,7 @@ impl DeclaredColumn {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DeclaredContract {
     pub version: u32,
     pub columns: Vec<DeclaredColumn>,
@@ -119,10 +119,42 @@ pub struct ValidationReport {
     pub errors: Vec<ValidationError>,
 }
 
+/// Parses a declarative schema contract from already-loaded YAML text — the
+/// part of `load_contract` that doesn't need a local path, split out for a
+/// caller with no filesystem (`apps/triplex-web`, where the browser already
+/// has the contract's text from an upload or a generated string).
+pub fn parse_contract(text: &str) -> Result<DeclaredContract> {
+    serde_yaml_ng::from_str(text).map_err(|e| Error::Yaml(e.to_string()))
+}
+
 /// Loads a declarative schema contract from a local `.triplex.yaml` file.
 pub fn load_contract(path: &Path) -> Result<DeclaredContract> {
     let text = std::fs::read_to_string(path)?;
-    serde_yaml_ng::from_str(&text).map_err(|e| Error::Yaml(e.to_string()))
+    parse_contract(&text)
+}
+
+/// Converts an inferred schema into a declared-contract skeleton — every
+/// column required, no thresholds or pattern set — ready to serialize as a
+/// starting `.triplex.yaml` a user can hand-edit. Used by
+/// `apps/triplex-web`'s "generate contract" action; the CLI's `triplex
+/// schema` intentionally keeps emitting the raw inferred JSON instead,
+/// since that's its machine-readable output for downstream tooling, not a
+/// human-editable contract starting point.
+pub fn to_declared_contract(inferred: &SchemaContract) -> DeclaredContract {
+    DeclaredContract {
+        version: 1,
+        columns: inferred
+            .columns
+            .iter()
+            .map(|c| DeclaredColumn {
+                name: c.name.clone(),
+                column_type: c.inferred_type,
+                required: true,
+                statistics: None,
+                pattern: None,
+            })
+            .collect(),
+    }
 }
 
 /// Validates an inferred schema against a declared contract. Column order does
@@ -327,6 +359,18 @@ pub fn check_patterns_path(schema_path: &Path, input_path: &Path) -> Result<Vali
     let extension = input_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let sample = crate::convert::read_full(input_path, extension, None)?;
     check_patterns(&declared, &sample)
+}
+
+/// Byte-slice counterpart to `check_patterns_path` — for a caller with data
+/// already in memory instead of a local file (e.g. `apps/triplex-web`
+/// checking anonymized output against its source contract).
+pub fn check_patterns_bytes(
+    declared: &DeclaredContract,
+    bytes: &[u8],
+    extension: &str,
+) -> Result<ValidationReport> {
+    let sample = crate::convert::read_full_bytes(bytes, extension)?;
+    check_patterns(declared, &sample)
 }
 
 #[cfg(test)]
@@ -791,6 +835,26 @@ mod tests {
         d.columns[0].pattern = Some("^[A-Z]+$".to_string());
         let s = sample(&["other"], &[vec!["x"]]);
         assert!(check_patterns(&d, &s).unwrap().valid);
+    }
+
+    #[test]
+    fn check_patterns_bytes_matches_the_path_based_check() {
+        let declared = load_contract(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/sample.pattern.broken.contract.yaml"),
+        )
+        .unwrap();
+        let bytes = std::fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/sample.csv"),
+        )
+        .unwrap();
+
+        let report = check_patterns_bytes(&declared, &bytes, "csv").unwrap();
+        assert!(!report.valid);
+        assert!(report
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::PatternMismatch { name, .. } if name == "name")));
     }
 
     #[test]

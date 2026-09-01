@@ -20,6 +20,10 @@ pub trait SampleFormat {
     fn read_sample(&self, path: &Path, max_rows: usize) -> Result<Sample>;
     /// Reads a header plus every data row.
     fn read_full(&self, path: &Path) -> Result<Sample>;
+    /// Reads a header plus every data row from an in-memory byte slice
+    /// instead of a local path — the browser/WASM path (`apps/triplex-web`)
+    /// has no filesystem to read from.
+    fn read_full_bytes(&self, bytes: &[u8]) -> Result<Sample>;
 }
 
 /// Looks up the `SampleFormat` strategy for a file extension (without the
@@ -68,6 +72,24 @@ mod tests {
         let capped = format.read_sample(&fixture("sample.csv"), 2).unwrap();
         assert_eq!(full.rows.len(), 4);
         assert_eq!(capped.rows.len(), 2);
+    }
+
+    #[test]
+    fn read_full_bytes_matches_read_full_for_every_strategy() {
+        for (ext, file) in [
+            ("csv", "sample.csv"),
+            ("tsv", "sample.tsv"),
+            ("jsonl", "sample.jsonl"),
+        ] {
+            let format = sample_format_for_extension(ext).unwrap();
+            let bytes = std::fs::read(fixture(file)).unwrap();
+            let from_bytes = format
+                .read_full_bytes(&bytes)
+                .unwrap_or_else(|_| panic!("expected {file} bytes to parse via .{ext} strategy"));
+            let from_path = format.read_full(&fixture(file)).unwrap();
+            assert_eq!(from_bytes.headers, from_path.headers);
+            assert_eq!(from_bytes.rows, from_path.rows);
+        }
     }
 
     #[test]

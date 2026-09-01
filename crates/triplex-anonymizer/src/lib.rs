@@ -29,6 +29,15 @@ pub struct AnonymizeReport {
     pub warning: &'static str,
 }
 
+/// The masked dataset plus its reversible mapping, both as in-memory CSV
+/// bytes — the return shape `anonymize_bytes` needs since a browser/WASM
+/// caller (`apps/triplex-web`) has nowhere on disk to write them.
+pub struct AnonymizeBytesResult {
+    pub masked_csv: Vec<u8>,
+    pub mapping_csv: Vec<u8>,
+    pub report: AnonymizeReport,
+}
+
 fn read_rows(path: &Path) -> Result<triplex_io::Sample> {
     match path.extension().and_then(|e| e.to_str()) {
         Some("csv") => triplex_io::read_csv_full(path),
@@ -39,10 +48,33 @@ fn read_rows(path: &Path) -> Result<triplex_io::Sample> {
     }
 }
 
+/// Byte-slice counterpart to `read_rows` — `.csv` only. Parquet input is out
+/// of scope for `apps/triplex-web` (see `crates/triplex-io/Cargo.toml` for
+/// why: its codecs need a C toolchain wasm32-unknown-unknown doesn't have).
+fn read_rows_bytes(bytes: &[u8], extension: &str) -> Result<triplex_io::Sample> {
+    match extension {
+        "csv" => triplex_io::read_csv_full_bytes(bytes),
+        other => Err(Error::UnsupportedExtension(format!(
+            "unsupported file extension {other:?} (expected .csv — .parquet input isn't \
+             supported in the browser)"
+        ))),
+    }
+}
+
 struct ResolvedColumn<'a> {
     header_index: usize,
     declared: &'a AnonymizeColumn,
     salt: Vec<u8>,
+}
+
+/// `AnonymizeMethod` has exactly one variant today; matching (rather than
+/// ignoring it) means adding a second variant forces every call site that
+/// cares to be updated instead of silently defaulting to token_hmac
+/// behavior.
+fn check_method_is_supported(method: &AnonymizeMethod) {
+    match method {
+        AnonymizeMethod::TokenHmac => {}
+    }
 }
 
 fn resolve_columns<'a>(
@@ -60,13 +92,7 @@ fn resolve_columns<'a>(
             let salt = std::env::var(&declared.salt_env)
                 .map_err(|_| Error::MissingEnvVar(declared.salt_env.clone()))?
                 .into_bytes();
-            // AnonymizeMethod has exactly one variant today; matching (rather
-            // than ignoring it) means adding a second variant forces every
-            // call site that cares to be updated instead of silently
-            // defaulting to token_hmac behavior.
-            match declared.method {
-                AnonymizeMethod::TokenHmac => {}
-            }
+            check_method_is_supported(&declared.method);
             Ok(ResolvedColumn {
                 header_index,
                 declared,
@@ -76,27 +102,49 @@ fn resolve_columns<'a>(
         .collect()
 }
 
-/// Reads `input_path` (`.csv` or `.parquet`), tokenizes every column the
-/// recipe declares, writes the masked dataset to `output_path` as CSV, and
-/// writes a separate reversible mapping to `mapping_out_path` — plaintext
-/// CSV, or an AES-256-GCM-encrypted JSON envelope if `mapping_passphrase`
-/// is given.
-pub fn anonymize_file(
-    input_path: &Path,
-    recipe: &AnonymizeRecipe,
-    output_path: &Path,
-    mapping_out_path: &Path,
-    mapping_passphrase: Option<&str>,
-) -> Result<AnonymizeReport> {
-    let sample = read_rows(input_path)?;
-    let (headers, mut rows) = (sample.headers, sample.rows);
-    let resolved = resolve_columns(recipe, &headers)?;
+/// Like `resolve_columns`, but takes each column's salt directly from
+/// `salts` (keyed by declared column name) instead of reading an OS env
+/// var — the browser/WASM path (`apps/triplex-web`) has no environment to
+/// read from; the salt comes from what the user typed into the page.
+fn resolve_columns_with_salts<'a>(
+    recipe: &'a AnonymizeRecipe,
+    headers: &[String],
+    salts: &std::collections::HashMap<String, String>,
+) -> Result<Vec<ResolvedColumn<'a>>> {
+    recipe
+        .columns
+        .iter()
+        .map(|declared| {
+            let header_index = headers
+                .iter()
+                .position(|h| h == &declared.name)
+                .ok_or_else(|| Error::ColumnNotFound(declared.name.clone()))?;
+            let salt = salts
+                .get(&declared.name)
+                .ok_or_else(|| Error::MissingSalt(declared.name.clone()))?
+                .clone()
+                .into_bytes();
+            check_method_is_supported(&declared.method);
+            Ok(ResolvedColumn {
+                header_index,
+                declared,
+                salt,
+            })
+        })
+        .collect()
+}
 
+/// The masking loop shared by every entry point: tokenizes every resolved
+/// column's values in place, minting one mapping entry per distinct
+/// (column, original_value) pair. Pure — no I/O — so it runs the same way
+/// whether the `Sample` came from a local file or from browser bytes.
+fn mask_rows(resolved: &[ResolvedColumn], sample: triplex_io::Sample) -> (triplex_io::Sample, Vec<mapping::MappingEntry>) {
+    let (headers, mut rows) = (sample.headers, sample.rows);
     let mut mapping_entries = Vec::new();
     let mut seen = HashSet::new();
 
     for row in &mut rows {
-        for col in &resolved {
+        for col in resolved {
             let value = &mut row[col.header_index];
             if value.is_empty() {
                 continue; // nothing to mask/reveal for a missing cell
@@ -113,7 +161,26 @@ pub fn anonymize_file(
         }
     }
 
-    triplex_io::write_csv(output_path, &headers, &rows)?;
+    (triplex_io::Sample { headers, rows }, mapping_entries)
+}
+
+/// Reads `input_path` (`.csv` or `.parquet`), tokenizes every column the
+/// recipe declares, writes the masked dataset to `output_path` as CSV, and
+/// writes a separate reversible mapping to `mapping_out_path` — plaintext
+/// CSV, or an AES-256-GCM-encrypted JSON envelope if `mapping_passphrase`
+/// is given.
+pub fn anonymize_file(
+    input_path: &Path,
+    recipe: &AnonymizeRecipe,
+    output_path: &Path,
+    mapping_out_path: &Path,
+    mapping_passphrase: Option<&str>,
+) -> Result<AnonymizeReport> {
+    let sample = read_rows(input_path)?;
+    let resolved = resolve_columns(recipe, &sample.headers)?;
+    let (masked, mapping_entries) = mask_rows(&resolved, sample);
+
+    triplex_io::write_csv(output_path, &masked.headers, &masked.rows)?;
 
     let mapping_bytes = mapping::mapping_to_csv(&mapping_entries)?;
     match mapping_passphrase {
@@ -127,10 +194,43 @@ pub fn anonymize_file(
     }
 
     Ok(AnonymizeReport {
-        rows_processed: rows.len(),
+        rows_processed: masked.rows.len(),
         columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
         unique_tokens_minted: mapping_entries.len(),
         warning: PSEUDONYMIZATION_WARNING,
+    })
+}
+
+/// Byte-slice counterpart to `anonymize_file`, for a caller with no
+/// filesystem (`apps/triplex-web`'s browser/WASM path): takes the input
+/// file's bytes and returns the masked CSV and mapping CSV as bytes instead
+/// of writing either to disk. `salts` maps declared column name to salt —
+/// see `resolve_columns_with_salts` for why this replaces the CLI's
+/// env-var lookup. No passphrase encryption here; the mapping is offered as
+/// a plaintext download, same trust boundary as any other client-side-only
+/// output (still `PSEUDONYMIZATION_WARNING`'s responsibility to convey).
+pub fn anonymize_bytes(
+    bytes: &[u8],
+    extension: &str,
+    recipe: &AnonymizeRecipe,
+    salts: &std::collections::HashMap<String, String>,
+) -> Result<AnonymizeBytesResult> {
+    let sample = read_rows_bytes(bytes, extension)?;
+    let resolved = resolve_columns_with_salts(recipe, &sample.headers, salts)?;
+    let (masked, mapping_entries) = mask_rows(&resolved, sample);
+
+    let masked_csv = triplex_io::write_csv_bytes(&masked.headers, &masked.rows)?;
+    let mapping_csv = mapping::mapping_to_csv(&mapping_entries)?;
+
+    Ok(AnonymizeBytesResult {
+        masked_csv,
+        report: AnonymizeReport {
+            rows_processed: masked.rows.len(),
+            columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
+            unique_tokens_minted: mapping_entries.len(),
+            warning: PSEUDONYMIZATION_WARNING,
+        },
+        mapping_csv,
     })
 }
 
@@ -176,6 +276,77 @@ mod tests {
                 salt_env: salt_env.to_string(),
             }],
         }
+    }
+
+    #[test]
+    fn anonymize_bytes_masks_a_column_and_returns_a_matching_mapping() {
+        let recipe = recipe_for("name", "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string());
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+            .expect("anonymize_bytes should succeed");
+
+        assert_eq!(result.report.rows_processed, 4);
+        assert_eq!(result.report.columns_anonymized, vec!["name"]);
+        assert_eq!(result.report.unique_tokens_minted, 4);
+
+        let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+        assert_ne!(masked.rows[0][3], "widget");
+        assert_eq!(masked.rows[0][3].len(), 64);
+
+        let mapping = triplex_io::read_csv_full_bytes(&result.mapping_csv).unwrap();
+        assert!(mapping
+            .rows
+            .iter()
+            .any(|r| r[0] == "name" && r[2] == "widget" && r[1] == masked.rows[0][3]));
+    }
+
+    #[test]
+    fn anonymize_bytes_matches_anonymize_file_for_the_same_input_and_salt() {
+        std::env::set_var("TRIPLEX_TEST_SALT_BYTES_PARITY", "test-salt");
+        let recipe = recipe_for("name", "TRIPLEX_TEST_SALT_BYTES_PARITY");
+        let output = temp_path("output_bytes_parity.csv");
+        let mapping_out = temp_path("mapping_bytes_parity.csv");
+
+        anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None)
+            .expect("anonymize_file should succeed");
+        let via_path = triplex_io::read_csv_full(&output).unwrap();
+        std::fs::remove_file(&output).ok();
+        std::fs::remove_file(&mapping_out).ok();
+
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string());
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts).unwrap();
+        let via_bytes = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+
+        assert_eq!(via_bytes.rows, via_path.rows, "the same salt must mint the same tokens regardless of delivery surface");
+    }
+
+    #[test]
+    fn anonymize_bytes_with_no_salt_for_a_declared_column_is_a_clear_error_not_a_panic() {
+        let recipe = recipe_for("name", "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let salts = std::collections::HashMap::new(); // no "name" entry
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts);
+        match result {
+            Err(e) => assert_eq!(e.code(), "MISSING_SALT"),
+            Ok(_) => panic!("expected an error for a column with no supplied salt"),
+        }
+    }
+
+    #[test]
+    fn anonymize_bytes_rejects_parquet_with_a_clear_error_not_a_panic() {
+        let recipe = recipe_for("name", "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.parquet")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string());
+
+        let result = anonymize_bytes(&bytes, "parquet", &recipe, &salts);
+        assert!(result.is_err(), "parquet input isn't supported via bytes");
     }
 
     #[test]
