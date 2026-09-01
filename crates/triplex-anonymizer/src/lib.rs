@@ -136,6 +136,22 @@ pub fn anonymize_file(
     })
 }
 
+/// Decrypts a mapping file previously produced by `anonymize_file` with a
+/// passphrase, writing the recovered plaintext CSV to `output_path`. Errors
+/// clearly (not a panic, not silent corruption) on a wrong passphrase or a
+/// mapping file that was never encrypted (plain CSV, not a JSON envelope).
+pub fn reveal_mapping(mapping_path: &Path, passphrase: &str, output_path: &Path) -> Result<()> {
+    let envelope_json = std::fs::read_to_string(mapping_path)?;
+    let envelope: EncryptedMapping = serde_json::from_str(&envelope_json).map_err(|e| {
+        Error::Crypto(format!(
+            "not an encrypted mapping file (expected a JSON envelope): {e}"
+        ))
+    })?;
+    let plaintext = mapping::decrypt_mapping(&envelope, passphrase)?;
+    std::fs::write(output_path, plaintext)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,6 +309,77 @@ mod tests {
         let plaintext = decrypt_mapping(&envelope, "a strong passphrase").unwrap();
         let plaintext = String::from_utf8(plaintext).unwrap();
         assert!(plaintext.contains("widget"));
+
+        std::fs::remove_file(&output).ok();
+        std::fs::remove_file(&mapping_out).ok();
+    }
+
+    #[test]
+    fn reveal_mapping_recovers_the_original_csv_from_an_encrypted_mapping() {
+        std::env::set_var("TRIPLEX_TEST_SALT_7", "test-salt");
+        let recipe = recipe_for("name", "TRIPLEX_TEST_SALT_7");
+        let output = temp_path("output_7.csv");
+        let mapping_out = temp_path("mapping_7.enc");
+        let revealed = temp_path("revealed_7.csv");
+
+        anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            Some("a strong passphrase"),
+        )
+        .expect("anonymize should succeed");
+
+        reveal_mapping(&mapping_out, "a strong passphrase", &revealed)
+            .expect("reveal should succeed with the correct passphrase");
+
+        let plaintext = std::fs::read_to_string(&revealed).unwrap();
+        assert!(plaintext.contains("widget"));
+        assert!(plaintext.contains("column,token,original_value"));
+
+        std::fs::remove_file(&output).ok();
+        std::fs::remove_file(&mapping_out).ok();
+        std::fs::remove_file(&revealed).ok();
+    }
+
+    #[test]
+    fn reveal_mapping_with_the_wrong_passphrase_is_a_clear_error() {
+        std::env::set_var("TRIPLEX_TEST_SALT_8", "test-salt");
+        let recipe = recipe_for("name", "TRIPLEX_TEST_SALT_8");
+        let output = temp_path("output_8.csv");
+        let mapping_out = temp_path("mapping_8.enc");
+        let revealed = temp_path("revealed_8.csv");
+
+        anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            Some("correct passphrase"),
+        )
+        .expect("anonymize should succeed");
+
+        let result = reveal_mapping(&mapping_out, "wrong passphrase", &revealed);
+        assert!(result.is_err());
+
+        std::fs::remove_file(&output).ok();
+        std::fs::remove_file(&mapping_out).ok();
+    }
+
+    #[test]
+    fn reveal_mapping_on_a_plaintext_mapping_file_is_a_clear_error() {
+        std::env::set_var("TRIPLEX_TEST_SALT_9", "test-salt");
+        let recipe = recipe_for("name", "TRIPLEX_TEST_SALT_9");
+        let output = temp_path("output_9.csv");
+        let mapping_out = temp_path("mapping_9.csv");
+        let revealed = temp_path("revealed_9.csv");
+
+        anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None)
+            .expect("anonymize should succeed");
+
+        let result = reveal_mapping(&mapping_out, "any passphrase", &revealed);
+        assert!(result.is_err());
 
         std::fs::remove_file(&output).ok();
         std::fs::remove_file(&mapping_out).ok();

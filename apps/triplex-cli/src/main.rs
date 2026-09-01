@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex schema <path-to.csv>\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv>\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]";
+const USAGE: &str = "usage:\n  triplex schema <path-to.csv>\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv>\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>";
 
 /// Exit codes per the design notes: 0 success, 1
 /// non-blocking warning (no coercion modes exist yet, so unused today), 2
@@ -25,6 +25,16 @@ fn flag_value(args: &[String], flag: &str) -> Option<String> {
 fn usage_error() -> ExitCode {
     eprintln!("{USAGE}");
     ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+}
+
+/// Reads a secret (salt, passphrase) from an env var named by the user —
+/// the secret itself is never a CLI argument, so it never lands in shell
+/// history or a process listing.
+fn read_env_var(var: &str) -> std::result::Result<String, ExitCode> {
+    env::var(var).map_err(|_| {
+        eprintln!("error: environment variable \"{var}\" is not set");
+        ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+    })
 }
 
 fn main() -> ExitCode {
@@ -81,16 +91,10 @@ fn main() -> ExitCode {
                 return usage_error();
             };
 
-            // The passphrase itself is never a CLI argument — only the name of
-            // the env var holding it — so it never lands in shell history or a
-            // process listing.
             let passphrase = match flag_value(&args, "--mapping-passphrase-env") {
-                Some(var) => match env::var(&var) {
+                Some(var) => match read_env_var(&var) {
                     Ok(value) => Some(value),
-                    Err(_) => {
-                        eprintln!("error: environment variable \"{var}\" is not set");
-                        return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
-                    }
+                    Err(code) => return code,
                 },
                 None => None,
             };
@@ -113,6 +117,38 @@ fn main() -> ExitCode {
                 Ok(report) => {
                     eprintln!("warning: {}", report.warning);
                     println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+                }
+            }
+        }
+        Some("reveal-mapping") => {
+            let (Some(mapping), Some(passphrase_env), Some(output)) = (
+                flag_value(&args, "--mapping"),
+                flag_value(&args, "--passphrase-env"),
+                flag_value(&args, "--output"),
+            ) else {
+                return usage_error();
+            };
+
+            let passphrase = match read_env_var(&passphrase_env) {
+                Ok(value) => value,
+                Err(code) => return code,
+            };
+
+            match triplex_anonymizer::reveal_mapping(
+                &PathBuf::from(mapping),
+                &passphrase,
+                &PathBuf::from(&output),
+            ) {
+                Ok(()) => {
+                    eprintln!(
+                        "warning: {output} now contains real, reversible personal data — \
+                         handle it with the same care as raw customer data."
+                    );
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
