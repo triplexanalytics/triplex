@@ -3,9 +3,11 @@
 //! path is the only source of data, and nothing here transmits it anywhere.
 
 mod contract;
+mod convert;
 pub use contract::{
     validate, validate_path, DeclaredColumn, DeclaredContract, ValidationError, ValidationReport,
 };
+pub use convert::{convert_file, ConvertReport};
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -49,16 +51,35 @@ fn parses_as_finite_float(v: &str) -> bool {
     v.parse::<f64>().is_ok_and(f64::is_finite)
 }
 
+/// A whole-number-looking string with a padding zero — `"007"`, `"-0042"` —
+/// is a zip code, an employee ID, a product code: an identifier, not a
+/// quantity. `i64`/`f64` parsing accepts it anyway (`"007"` parses to `7`),
+/// so without this check it would infer as Integer/Float and silently lose
+/// its padding the moment it's written back out through a real numeric type
+/// (e.g. `triplex convert`'s Parquet output: `"007"` → `7` → `"7"`).
+/// `"0"` alone, and a genuine decimal like `"0.5"` (the zero is immediately
+/// followed by `.`, not more digits), are unaffected.
+fn has_meaningless_leading_zero(v: &str) -> bool {
+    let digits = v.strip_prefix('-').unwrap_or(v);
+    !digits.contains('.') && digits.len() > 1 && digits.starts_with('0')
+}
+
 /// A value is null for schema purposes when the CSV cell is empty. Distinguishing
 /// "empty string" from "absent" would need a quoting-aware signal CSV doesn't give us.
 fn infer_column_type(non_empty: &[&&str]) -> ColumnType {
     if non_empty.is_empty() {
         return ColumnType::String;
     }
-    if non_empty.iter().all(|v| v.parse::<i64>().is_ok()) {
+    if non_empty
+        .iter()
+        .all(|v| v.parse::<i64>().is_ok() && !has_meaningless_leading_zero(v))
+    {
         return ColumnType::Integer;
     }
-    if non_empty.iter().all(|v| parses_as_finite_float(v)) {
+    if non_empty
+        .iter()
+        .all(|v| parses_as_finite_float(v) && !has_meaningless_leading_zero(v))
+    {
         return ColumnType::Float;
     }
     if non_empty
@@ -159,7 +180,7 @@ fn infer_schema_from_parquet(path: &Path) -> Result<SchemaContract> {
     })
 }
 
-fn unsupported_extension_error(path: &Path) -> Error {
+pub(crate) fn unsupported_extension_error(path: &Path) -> Error {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     Error::UnsupportedExtension(format!(
         "unsupported file extension \"{ext}\" (expected .csv, .tsv, .jsonl, or .parquet)"
@@ -219,6 +240,32 @@ mod tests {
         assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
         assert_eq!(contract.columns[2].inferred_type, ColumnType::Boolean);
         assert_eq!(contract.columns[3].inferred_type, ColumnType::String);
+    }
+
+    #[test]
+    fn a_column_of_zero_padded_codes_infers_as_string_not_integer() {
+        let sample = Sample {
+            headers: vec!["zip".into()],
+            rows: vec![vec!["007".into()], vec!["012".into()], vec!["099".into()]],
+        };
+        let contract = infer_schema(&sample);
+        assert_eq!(
+            contract.columns[0].inferred_type,
+            ColumnType::String,
+            "a leading zero means this is an identifier, not a quantity — \
+             typing it as Integer would silently corrupt it to \"7\"/\"12\"/\"99\""
+        );
+    }
+
+    #[test]
+    fn a_bare_zero_and_a_genuine_decimal_are_unaffected_by_the_leading_zero_rule() {
+        let sample = Sample {
+            headers: vec!["count".into(), "ratio".into()],
+            rows: vec![vec!["0".into(), "0.5".into()]],
+        };
+        let contract = infer_schema(&sample);
+        assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
+        assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
     }
 
     /// Not run by default (`cargo test`). Regenerates `tests/fixtures/sample.parquet`

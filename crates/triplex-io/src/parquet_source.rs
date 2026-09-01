@@ -1,4 +1,5 @@
 use crate::statistics::{ColumnStatistics, ColumnStatisticsBuilder};
+use crate::Sample;
 use std::fs::File;
 use std::path::Path;
 use triplex_core::{Error, Result};
@@ -93,7 +94,7 @@ pub fn read_parquet_schema(path: &Path) -> Result<Vec<ParquetColumnStats>> {
 /// value — e.g. Anonymizer tokenizing real cells. Loads the whole decoded
 /// dataset into memory; revisit with a batch-by-batch streaming writer if
 /// anonymizing very large Parquet files becomes a real use case.
-pub fn read_parquet_rows(path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+pub fn read_parquet_rows(path: &Path) -> Result<Sample> {
     use arrow_cast::display::array_value_to_string;
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
@@ -127,7 +128,7 @@ pub fn read_parquet_rows(path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>)>
         }
     }
 
-    Ok((headers, rows))
+    Ok(Sample { headers, rows })
 }
 
 #[cfg(test)]
@@ -142,15 +143,15 @@ mod tests {
 
     #[test]
     fn reads_every_row_including_a_null_cell() {
-        let (headers, rows) = read_parquet_rows(&fixture("sample.parquet"))
+        let sample = read_parquet_rows(&fixture("sample.parquet"))
             .expect("parquet fixture should be readable");
 
-        assert_eq!(headers, vec!["id", "price", "in_stock", "name"]);
-        assert_eq!(rows.len(), 4);
-        assert_eq!(rows[0], vec!["1", "9.99", "true", "widget"]);
-        assert_eq!(rows[1], vec!["2", "3.5", "false", "gadget"]);
-        assert_eq!(rows[2], vec!["3", "12.0", "true", "sprocket"]);
+        assert_eq!(sample.headers, vec!["id", "price", "in_stock", "name"]);
+        assert_eq!(sample.rows.len(), 4);
+        assert_eq!(sample.rows[0], vec!["1", "9.99", "true", "widget"]);
+        assert_eq!(sample.rows[1], vec!["2", "3.5", "false", "gadget"]);
+        assert_eq!(sample.rows[2], vec!["3", "12.0", "true", "sprocket"]);
         // Row 4's price is null in the fixture.
-        assert_eq!(rows[3], vec!["4", "", "true", "doohickey"]);
+        assert_eq!(sample.rows[3], vec!["4", "", "true", "doohickey"]);
     }
 }

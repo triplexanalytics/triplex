@@ -1,8 +1,8 @@
 //! Strategy pattern: each ingestion format implements `SampleFormat` the
-//! same way, so a caller that just wants "a bounded sample of rows from
-//! this file" (like SchemaCast's type inference) picks a strategy by file
-//! extension via `sample_format_for_extension` instead of hardcoding a
-//! match arm — and calling `.read_sample()` on it — per format.
+//! same way, so a caller that just wants rows from a file — bounded (like
+//! SchemaCast's type inference) or complete (like SchemaCast's `convert`) —
+//! picks a strategy by file extension via `sample_format_for_extension`
+//! instead of hardcoding a match arm per format.
 //!
 //! Candidate for the same treatment later: Anonymizer's `AnonymizeMethod`
 //! is a single-variant match today (`TokenHmac`); once a second method
@@ -16,7 +16,10 @@ use std::path::Path;
 use triplex_core::Result;
 
 pub trait SampleFormat {
+    /// Reads a header plus up to `max_rows` data rows.
     fn read_sample(&self, path: &Path, max_rows: usize) -> Result<Sample>;
+    /// Reads a header plus every data row.
+    fn read_full(&self, path: &Path) -> Result<Sample>;
 }
 
 /// Looks up the `SampleFormat` strategy for a file extension (without the
@@ -56,6 +59,15 @@ mod tests {
                 .unwrap_or_else(|_| panic!("expected {file} to be readable via .{ext} strategy"));
             assert_eq!(sample.headers, vec!["id", "price", "in_stock", "name"]);
         }
+    }
+
+    #[test]
+    fn read_full_returns_every_row_unlike_read_sample() {
+        let format = sample_format_for_extension("csv").unwrap();
+        let full = format.read_full(&fixture("sample.csv")).unwrap();
+        let capped = format.read_sample(&fixture("sample.csv"), 2).unwrap();
+        assert_eq!(full.rows.len(), 4);
+        assert_eq!(capped.rows.len(), 2);
     }
 
     #[test]

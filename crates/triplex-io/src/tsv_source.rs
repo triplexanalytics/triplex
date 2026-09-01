@@ -10,6 +10,10 @@ impl SampleFormat for TsvFormat {
     fn read_sample(&self, path: &Path, max_rows: usize) -> Result<Sample> {
         read_tsv_sample(path, max_rows)
     }
+
+    fn read_full(&self, path: &Path) -> Result<Sample> {
+        read_tsv_full(path)
+    }
 }
 
 /// Reads a TSV header plus up to `max_rows` data rows from a local file —
@@ -17,6 +21,16 @@ impl SampleFormat for TsvFormat {
 /// shared `delimited` parsing with just a different delimiter byte.
 pub fn read_tsv_sample(path: &Path, max_rows: usize) -> Result<Sample> {
     delimited::read_sample(path, b'\t', max_rows, Error::Tsv)
+}
+
+/// Reads a TSV header plus every data row — see `csv_source::read_csv_full`.
+pub fn read_tsv_full(path: &Path) -> Result<Sample> {
+    delimited::read_full(path, b'\t', Error::Tsv)
+}
+
+/// Writes a TSV header plus rows to a local file.
+pub fn write_tsv(path: &Path, headers: &[String], rows: &[Vec<String>]) -> Result<()> {
+    delimited::write(path, b'\t', headers, rows, Error::Tsv)
 }
 
 #[cfg(test)]
@@ -44,5 +58,22 @@ mod tests {
             Err(e) => assert_eq!(e.code(), "TSV_PARSE_ERROR"),
             Ok(_) => panic!("expected an error for a missing file"),
         }
+    }
+
+    #[test]
+    fn write_tsv_round_trips_through_read_tsv_full() {
+        let path = std::env::temp_dir().join(format!(
+            "triplex_io_write_tsv_roundtrip_{}.tsv",
+            std::process::id()
+        ));
+        let headers = vec!["a".to_string(), "b".to_string()];
+        let rows = vec![vec!["1".to_string(), "x".to_string()]];
+
+        write_tsv(&path, &headers, &rows).expect("write should succeed");
+        let read_back = read_tsv_full(&path).expect("read should succeed");
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(read_back.headers, headers);
+        assert_eq!(read_back.rows, rows);
     }
 }

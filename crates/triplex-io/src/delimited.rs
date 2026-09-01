@@ -35,6 +35,28 @@ pub(crate) fn read_sample(
     Ok(Sample { headers, rows })
 }
 
+/// Writes a header plus rows to a local file as delimited text.
+pub(crate) fn write(
+    path: &Path,
+    delimiter: u8,
+    headers: &[String],
+    rows: &[Vec<String>],
+    wrap_err: fn(String) -> Error,
+) -> Result<()> {
+    let mut writer = csv::WriterBuilder::new()
+        .delimiter(delimiter)
+        .from_path(path)
+        .map_err(|e| wrap_err(e.to_string()))?;
+    writer
+        .write_record(headers)
+        .map_err(|e| wrap_err(e.to_string()))?;
+    for row in rows {
+        writer.write_record(row).map_err(|e| wrap_err(e.to_string()))?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
 pub(crate) fn read_full(path: &Path, delimiter: u8, wrap_err: fn(String) -> Error) -> Result<Sample> {
     let mut reader = csv::ReaderBuilder::new()
         .delimiter(delimiter)

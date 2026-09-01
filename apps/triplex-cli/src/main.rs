@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex schema <path-to.csv>\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv>\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>";
+const USAGE: &str = "usage:\n  triplex schema <path-to.csv>\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv>\n  triplex convert --input <path> --output <path>\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>";
 
 /// Exit codes per the design notes: 0 success, 1
 /// non-blocking warning (no coercion modes exist yet, so unused today), 2
@@ -74,6 +74,23 @@ fn main() -> ExitCode {
                     } else {
                         ExitCode::from(EXIT_CONTRACT_BREACH)
                     }
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+                }
+            }
+        }
+        Some("convert") => {
+            let (Some(input), Some(output)) =
+                (flag_value(&args, "--input"), flag_value(&args, "--output"))
+            else {
+                return usage_error();
+            };
+            match triplex_schemacast::convert_file(&PathBuf::from(input), &PathBuf::from(output)) {
+                Ok(report) => {
+                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                    ExitCode::SUCCESS
                 }
                 Err(e) => {
                     eprintln!("error: {e}");

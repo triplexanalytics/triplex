@@ -12,6 +12,10 @@ impl SampleFormat for JsonlFormat {
     fn read_sample(&self, path: &Path, max_rows: usize) -> Result<Sample> {
         read_jsonl_sample(path, max_rows)
     }
+
+    fn read_full(&self, path: &Path) -> Result<Sample> {
+        read_jsonl_full(path)
+    }
 }
 
 /// Renders a JSON scalar as the plain string our string-based pipeline
@@ -26,20 +30,25 @@ fn json_value_to_string(value: &serde_json::Value) -> String {
     }
 }
 
-/// Reads up to `max_rows` JSON objects (one per line) from a local
-/// JSONL/NDJSON file. The header is the *first* row's keys, in that row's
+/// Shared by `read_jsonl_sample`/`read_jsonl_full`: `max_rows` of `None`
+/// reads every line. The header is the *first* row's keys, in that row's
 /// order — a later row missing one of those keys gets an empty string for
 /// it, and a later row with a key the first row didn't have has that key
-/// dropped. Full schema-drift union across every sampled row isn't
-/// implemented; revisit if JSONL files with inconsistent keys per line turn
-/// out to be common.
-pub fn read_jsonl_sample(path: &Path, max_rows: usize) -> Result<Sample> {
+/// dropped. Full schema-drift union across every row isn't implemented;
+/// revisit if JSONL files with inconsistent keys per line turn out to be
+/// common.
+fn read_lines(path: &Path, max_rows: Option<usize>) -> Result<Sample> {
     let reader = BufReader::new(File::open(path)?);
 
     let mut headers: Option<Vec<String>> = None;
-    let mut rows = Vec::with_capacity(max_rows);
+    let mut rows = Vec::new();
 
-    for line in reader.lines().take(max_rows) {
+    let lines: Box<dyn Iterator<Item = std::io::Result<String>>> = match max_rows {
+        Some(n) => Box::new(reader.lines().take(n)),
+        None => Box::new(reader.lines()),
+    };
+
+    for line in lines {
         let line = line?;
         if line.trim().is_empty() {
             continue;
@@ -63,6 +72,38 @@ pub fn read_jsonl_sample(path: &Path, max_rows: usize) -> Result<Sample> {
         headers: headers.unwrap_or_default(),
         rows,
     })
+}
+
+/// Reads up to `max_rows` JSON objects (one per line) from a local
+/// JSONL/NDJSON file.
+pub fn read_jsonl_sample(path: &Path, max_rows: usize) -> Result<Sample> {
+    read_lines(path, Some(max_rows))
+}
+
+/// Reads every JSON object (one per line) from a local JSONL/NDJSON file.
+pub fn read_jsonl_full(path: &Path) -> Result<Sample> {
+    read_lines(path, None)
+}
+
+/// Writes one JSON object per row (keys = headers) to a local file. Every
+/// value is written as a JSON string — the pipeline is string-based end to
+/// end, so this can't tell a would-be number like `"1"` from a genuine
+/// string `"1"` on the way out. Round-tripping through JSONL therefore
+/// preserves structure and text, not JSON's native scalar types.
+pub fn write_jsonl(path: &Path, headers: &[String], rows: &[Vec<String>]) -> Result<()> {
+    use std::io::Write as _;
+
+    let mut file = File::create(path)?;
+    for row in rows {
+        let mut object = serde_json::Map::new();
+        for (header, value) in headers.iter().zip(row) {
+            object.insert(header.clone(), serde_json::Value::String(value.clone()));
+        }
+        let line = serde_json::to_string(&serde_json::Value::Object(object))
+            .map_err(|e| Error::Jsonl(e.to_string()))?;
+        writeln!(file, "{line}")?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -128,5 +169,28 @@ mod tests {
     fn max_rows_bounds_how_many_lines_are_read() {
         let sample = read_jsonl_sample(&fixture("sample.jsonl"), 2).expect("fixture should be readable");
         assert_eq!(sample.rows.len(), 2);
+    }
+
+    #[test]
+    fn read_jsonl_full_reads_every_line_unlike_the_bounded_sample() {
+        let full = read_jsonl_full(&fixture("sample.jsonl")).expect("fixture should be readable");
+        assert_eq!(full.rows.len(), 4);
+    }
+
+    #[test]
+    fn write_jsonl_round_trips_through_read_jsonl_full() {
+        let path = std::env::temp_dir().join(format!(
+            "triplex_io_write_jsonl_roundtrip_{}.jsonl",
+            std::process::id()
+        ));
+        let headers = vec!["a".to_string(), "b".to_string()];
+        let rows = vec![vec!["1".to_string(), "x".to_string()]];
+
+        write_jsonl(&path, &headers, &rows).expect("write should succeed");
+        let read_back = read_jsonl_full(&path).expect("read should succeed");
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(read_back.headers, headers);
+        assert_eq!(read_back.rows, rows);
     }
 }

@@ -10,6 +10,10 @@ impl SampleFormat for CsvFormat {
     fn read_sample(&self, path: &Path, max_rows: usize) -> Result<Sample> {
         read_csv_sample(path, max_rows)
     }
+
+    fn read_full(&self, path: &Path) -> Result<Sample> {
+        read_csv_full(path)
+    }
 }
 
 /// Reads a CSV header plus up to `max_rows` data rows from a local file.
@@ -28,15 +32,7 @@ pub fn read_csv_full(path: &Path) -> Result<Sample> {
 
 /// Writes a CSV header plus rows to a local file.
 pub fn write_csv(path: &Path, headers: &[String], rows: &[Vec<String>]) -> Result<()> {
-    let mut writer = csv::Writer::from_path(path).map_err(|e| Error::Csv(e.to_string()))?;
-    writer
-        .write_record(headers)
-        .map_err(|e| Error::Csv(e.to_string()))?;
-    for row in rows {
-        writer.write_record(row).map_err(|e| Error::Csv(e.to_string()))?;
-    }
-    writer.flush()?;
-    Ok(())
+    delimited::write(path, b',', headers, rows, Error::Csv)
 }
 
 #[cfg(test)]

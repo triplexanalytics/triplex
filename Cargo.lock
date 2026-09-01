@@ -997,7 +997,9 @@ version = "0.1.0"
 name = "triplex-io"
 version = "0.1.0"
 dependencies = [
+ "arrow-array",
  "arrow-cast",
+ "arrow-schema",
  "csv",
  "parquet",
  "serde",

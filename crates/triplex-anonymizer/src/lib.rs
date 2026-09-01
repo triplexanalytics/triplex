@@ -29,12 +29,9 @@ pub struct AnonymizeReport {
     pub warning: &'static str,
 }
 
-fn read_rows(path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+fn read_rows(path: &Path) -> Result<triplex_io::Sample> {
     match path.extension().and_then(|e| e.to_str()) {
-        Some("csv") => {
-            let sample = triplex_io::read_csv_full(path)?;
-            Ok((sample.headers, sample.rows))
-        }
+        Some("csv") => triplex_io::read_csv_full(path),
         Some("parquet") => triplex_io::read_parquet_rows(path),
         other => Err(Error::UnsupportedExtension(format!(
             "unsupported file extension {other:?} (expected .csv or .parquet)"
@@ -91,7 +88,8 @@ pub fn anonymize_file(
     mapping_out_path: &Path,
     mapping_passphrase: Option<&str>,
 ) -> Result<AnonymizeReport> {
-    let (headers, mut rows) = read_rows(input_path)?;
+    let sample = read_rows(input_path)?;
+    let (headers, mut rows) = (sample.headers, sample.rows);
     let resolved = resolve_columns(recipe, &headers)?;
 
     let mut mapping_entries = Vec::new();
