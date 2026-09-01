@@ -19,14 +19,16 @@ pub struct ConvertReport {
     pub output_format: String,
 }
 
-fn read_full(path: &Path) -> Result<Sample> {
-    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    if extension == "parquet" {
-        return triplex_io::read_parquet_rows(path);
+fn read_full(path: &Path, extension: &str, delimiter: Option<u8>) -> Result<Sample> {
+    match (extension, delimiter) {
+        ("csv", Some(d)) => triplex_io::read_csv_full_with_delimiter(path, d),
+        ("parquet", _) => triplex_io::read_parquet_rows(path),
+        _ => {
+            let format = triplex_io::sample_format_for_extension(extension)
+                .ok_or_else(|| unsupported_extension_error(path))?;
+            format.read_full(path)
+        }
     }
-    let format = triplex_io::sample_format_for_extension(extension)
-        .ok_or_else(|| unsupported_extension_error(path))?;
-    format.read_full(path)
 }
 
 fn to_write_column_type(column_type: ColumnType) -> WriteColumnType {
@@ -38,27 +40,44 @@ fn to_write_column_type(column_type: ColumnType) -> WriteColumnType {
     }
 }
 
+fn extension_of(path: &Path) -> String {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_string()
+}
+
 /// Converts `input_path` to `output_path`, dispatching both sides on file
 /// extension. Writing `.parquet` first runs the same type inference
 /// `triplex schema` uses, so the output is properly typed rather than an
 /// all-string dump; every other output format keeps the input's string
 /// values as-is.
 pub fn convert_file(input_path: &Path, output_path: &Path) -> Result<ConvertReport> {
-    let input_format = input_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_string();
-    let output_format = output_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_string();
+    convert_file_with_delimiters(input_path, output_path, None, None)
+}
 
-    let sample = read_full(input_path)?;
+/// Like `convert_file`, but overrides the field separator used for reading
+/// a `.csv` input and/or writing a `.csv` output — e.g. converting a
+/// semicolon-delimited European export to a pipe-delimited output. Each
+/// delimiter is ignored unless that side's extension is actually `.csv`:
+/// TSV's separator is fixed at tab, and JSONL/Parquet have no delimiter
+/// concept.
+pub fn convert_file_with_delimiters(
+    input_path: &Path,
+    output_path: &Path,
+    input_delimiter: Option<u8>,
+    output_delimiter: Option<u8>,
+) -> Result<ConvertReport> {
+    let input_format = extension_of(input_path);
+    let output_format = extension_of(output_path);
+
+    let sample = read_full(input_path, &input_format, input_delimiter)?;
 
     match output_format.as_str() {
-        "csv" => triplex_io::write_csv(output_path, &sample.headers, &sample.rows)?,
+        "csv" => match output_delimiter {
+            Some(d) => triplex_io::write_csv_with_delimiter(output_path, d, &sample.headers, &sample.rows)?,
+            None => triplex_io::write_csv(output_path, &sample.headers, &sample.rows)?,
+        },
         "tsv" => triplex_io::write_tsv(output_path, &sample.headers, &sample.rows)?,
         "jsonl" => triplex_io::write_jsonl(output_path, &sample.headers, &sample.rows)?,
         "parquet" => {
@@ -200,7 +219,7 @@ mod tests {
                 convert_file(&hubs[from], &output)
                     .unwrap_or_else(|e| panic!("{from} -> {to} should succeed: {e}"));
 
-                let actual = read_full(&output)
+                let actual = read_full(&output, to, None)
                     .unwrap_or_else(|e| panic!("{from} -> {to} output should be readable: {e}"));
                 assert_eq!(
                     actual.headers, expected_headers,
@@ -268,6 +287,28 @@ mod tests {
         ] {
             std::fs::remove_file(&p).ok();
         }
+    }
+
+    #[test]
+    fn converts_a_semicolon_delimited_csv_export_to_pipe_delimited_output() {
+        let output = temp_path("out_pipe.csv");
+        let report = convert_file_with_delimiters(
+            &fixture("sample.semicolon.csv"),
+            &output,
+            Some(b';'),
+            Some(b'|'),
+        )
+        .expect("conversion should succeed");
+        assert_eq!(report.rows_converted, 3);
+
+        let read_back = triplex_io::read_csv_full_with_delimiter(&output, b'|')
+            .expect("output should be readable with the pipe delimiter");
+        std::fs::remove_file(&output).ok();
+        assert_eq!(
+            read_back.headers,
+            vec!["id", "price", "in_stock", "name"]
+        );
+        assert_eq!(read_back.rows[0], vec!["1", "9.99", "true", "widget"]);
     }
 
     #[test]

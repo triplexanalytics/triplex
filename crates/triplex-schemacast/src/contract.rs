@@ -234,6 +234,22 @@ pub fn validate_path(
     Ok(validate(&declared, &inferred))
 }
 
+/// Validates a `.csv`-shaped file whose actual field separator isn't a
+/// comma against a declared contract — see
+/// `crate::infer_schema_from_csv_with_delimiter` for why this bypasses the
+/// usual extension-based dispatch.
+pub fn validate_csv_with_delimiter(
+    schema_path: &Path,
+    input_path: &Path,
+    delimiter: u8,
+    sample_rows: usize,
+) -> Result<ValidationReport> {
+    let declared = load_contract(schema_path)?;
+    let inferred =
+        crate::infer_schema_from_csv_with_delimiter(input_path, delimiter, sample_rows)?;
+    Ok(validate(&declared, &inferred))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

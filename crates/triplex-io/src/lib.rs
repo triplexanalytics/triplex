@@ -11,7 +11,10 @@ mod sample;
 mod statistics;
 mod tsv_source;
 
-pub use csv_source::{read_csv_full, read_csv_sample, write_csv, CsvFormat};
+pub use csv_source::{
+    read_csv_full, read_csv_full_with_delimiter, read_csv_sample, read_csv_sample_with_delimiter,
+    write_csv, write_csv_with_delimiter, CsvFormat,
+};
 pub use format::{sample_format_for_extension, SampleFormat};
 pub use jsonl_source::{read_jsonl_full, read_jsonl_sample, write_jsonl, JsonlFormat};
 pub use parquet_sink::{write_parquet, WriteColumnType};

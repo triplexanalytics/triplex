@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex schema <path-to.csv>\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv>\n  triplex convert --input <path> --output <path>\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>";
+const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.";
 
 /// Exit codes per the design notes: 0 success, 1
 /// non-blocking warning (no coercion modes exist yet, so unused today), 2
@@ -37,6 +37,29 @@ fn read_env_var(var: &str) -> std::result::Result<String, ExitCode> {
     })
 }
 
+/// Parses a `--delimiter`-style flag value into a single byte. `"tab"` is a
+/// named alias since a literal tab character is awkward to type on a
+/// command line; anything else is taken as its first byte (covers the
+/// common cases: `;`, `|`, `:`, ...).
+fn parse_delimiter(flag: &str, value: &str) -> std::result::Result<u8, ExitCode> {
+    if value.eq_ignore_ascii_case("tab") {
+        return Ok(b'\t');
+    }
+    value.bytes().next().ok_or_else(|| {
+        eprintln!("error: {flag} needs a character (or \"tab\"), got an empty value");
+        ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+    })
+}
+
+/// Resolves an optional `--delimiter`-style flag, or `Ok(None)` if the flag
+/// wasn't given at all.
+fn optional_delimiter(args: &[String], flag: &str) -> std::result::Result<Option<u8>, ExitCode> {
+    match flag_value(args, flag) {
+        Some(value) => parse_delimiter(flag, &value).map(Some),
+        None => Ok(None),
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
 
@@ -45,7 +68,21 @@ fn main() -> ExitCode {
             let Some(path) = args.get(1) else {
                 return usage_error();
             };
-            match triplex_schemacast::infer_schema_from_path(&PathBuf::from(path), SAMPLE_ROWS) {
+            let delimiter = match optional_delimiter(&args, "--delimiter") {
+                Ok(d) => d,
+                Err(code) => return code,
+            };
+            let result = match delimiter {
+                Some(d) => triplex_schemacast::infer_schema_from_csv_with_delimiter(
+                    &PathBuf::from(path),
+                    d,
+                    SAMPLE_ROWS,
+                ),
+                None => {
+                    triplex_schemacast::infer_schema_from_path(&PathBuf::from(path), SAMPLE_ROWS)
+                }
+            };
+            match result {
                 Ok(contract) => {
                     println!("{}", serde_json::to_string_pretty(&contract).unwrap());
                     ExitCode::SUCCESS
@@ -62,11 +99,24 @@ fn main() -> ExitCode {
             else {
                 return usage_error();
             };
-            match triplex_schemacast::validate_path(
-                &PathBuf::from(schema),
-                &PathBuf::from(input),
-                SAMPLE_ROWS,
-            ) {
+            let delimiter = match optional_delimiter(&args, "--delimiter") {
+                Ok(d) => d,
+                Err(code) => return code,
+            };
+            let result = match delimiter {
+                Some(d) => triplex_schemacast::validate_csv_with_delimiter(
+                    &PathBuf::from(schema),
+                    &PathBuf::from(input),
+                    d,
+                    SAMPLE_ROWS,
+                ),
+                None => triplex_schemacast::validate_path(
+                    &PathBuf::from(schema),
+                    &PathBuf::from(input),
+                    SAMPLE_ROWS,
+                ),
+            };
+            match result {
                 Ok(report) => {
                     println!("{}", serde_json::to_string_pretty(&report).unwrap());
                     if report.valid {
@@ -87,7 +137,20 @@ fn main() -> ExitCode {
             else {
                 return usage_error();
             };
-            match triplex_schemacast::convert_file(&PathBuf::from(input), &PathBuf::from(output)) {
+            let input_delimiter = match optional_delimiter(&args, "--input-delimiter") {
+                Ok(d) => d,
+                Err(code) => return code,
+            };
+            let output_delimiter = match optional_delimiter(&args, "--output-delimiter") {
+                Ok(d) => d,
+                Err(code) => return code,
+            };
+            match triplex_schemacast::convert_file_with_delimiters(
+                &PathBuf::from(input),
+                &PathBuf::from(output),
+                input_delimiter,
+                output_delimiter,
+            ) {
                 Ok(report) => {
                     println!("{}", serde_json::to_string_pretty(&report).unwrap());
                     ExitCode::SUCCESS

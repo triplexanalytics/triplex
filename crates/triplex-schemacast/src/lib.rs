@@ -5,9 +5,10 @@
 mod contract;
 mod convert;
 pub use contract::{
-    validate, validate_path, DeclaredColumn, DeclaredContract, ValidationError, ValidationReport,
+    validate, validate_csv_with_delimiter, validate_path, DeclaredColumn, DeclaredContract,
+    ValidationError, ValidationReport,
 };
-pub use convert::{convert_file, ConvertReport};
+pub use convert::{convert_file, convert_file_with_delimiters, ConvertReport};
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -206,6 +207,21 @@ pub fn infer_schema_from_path(path: &Path, sample_rows: usize) -> Result<SchemaC
     Ok(infer_schema(&sample))
 }
 
+/// Infers a schema contract from a `.csv`-shaped file whose actual field
+/// separator isn't a comma — e.g. the semicolon-delimited exports common
+/// under European Excel locale settings, or a pipe-delimited feed.
+/// Deliberately bypasses the extension-based `SampleFormat` dispatch: a
+/// custom delimiter is an explicit override, not something to infer from
+/// the file extension.
+pub fn infer_schema_from_csv_with_delimiter(
+    path: &Path,
+    delimiter: u8,
+    sample_rows: usize,
+) -> Result<SchemaContract> {
+    let sample = triplex_io::read_csv_sample_with_delimiter(path, delimiter, sample_rows)?;
+    Ok(infer_schema(&sample))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,6 +403,19 @@ mod tests {
         assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
         assert_eq!(contract.columns[2].inferred_type, ColumnType::Boolean);
         assert_eq!(contract.columns[3].inferred_type, ColumnType::String);
+    }
+
+    #[test]
+    fn infers_a_schema_from_a_semicolon_delimited_csv_with_an_explicit_delimiter() {
+        let contract = infer_schema_from_csv_with_delimiter(&fixture("sample.semicolon.csv"), b';', 100)
+            .expect("semicolon fixture should be readable");
+
+        assert_eq!(
+            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            vec!["id", "price", "in_stock", "name"]
+        );
+        assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
+        assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
     }
 
     #[test]
