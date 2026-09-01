@@ -10,3 +10,4 @@ csv = "1"
 parquet = { version = "59.2.0", default-features = false, features = ["snap", "zstd", "arrow"] }
 serde = { version = "1", features = ["derive"] }
 arrow-cast = { version = "59.2.0", default-features = false }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }

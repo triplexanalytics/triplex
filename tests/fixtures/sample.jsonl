@@ -1,0 +1,4 @@
+{"id": 1, "price": 9.99, "in_stock": true, "name": "widget"}
+{"id": 2, "price": 3.50, "in_stock": false, "name": "gadget"}
+{"id": 3, "price": 12.00, "in_stock": true, "name": "sprocket"}
+{"id": 4, "price": null, "in_stock": true, "name": "doohickey"}

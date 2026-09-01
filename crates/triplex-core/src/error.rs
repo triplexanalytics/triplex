@@ -15,6 +15,10 @@ pub enum Error {
     Yaml(String),
     /// The file was readable but is not valid Parquet.
     Parquet(String),
+    /// The file was readable but is not valid TSV.
+    Tsv(String),
+    /// The file was readable but is not valid JSONL/NDJSON.
+    Jsonl(String),
     /// The input path's extension isn't one SchemaCast/Anonymizer knows how
     /// to ingest.
     UnsupportedExtension(String),
@@ -36,6 +40,8 @@ impl Error {
             Error::Csv(_) => "CSV_PARSE_ERROR",
             Error::Yaml(_) => "YAML_PARSE_ERROR",
             Error::Parquet(_) => "PARQUET_READ_ERROR",
+            Error::Tsv(_) => "TSV_PARSE_ERROR",
+            Error::Jsonl(_) => "JSONL_PARSE_ERROR",
             Error::UnsupportedExtension(_) => "UNSUPPORTED_EXTENSION",
             Error::ColumnNotFound(_) => "COLUMN_NOT_FOUND",
             Error::MissingEnvVar(_) => "MISSING_ENV_VAR",
@@ -52,6 +58,8 @@ impl fmt::Display for Error {
             Error::Csv(e) => write!(f, "[{code}] not a valid CSV file: {e}"),
             Error::Yaml(e) => write!(f, "[{code}] not a valid .triplex.yaml file: {e}"),
             Error::Parquet(e) => write!(f, "[{code}] not a valid Parquet file: {e}"),
+            Error::Tsv(e) => write!(f, "[{code}] not a valid TSV file: {e}"),
+            Error::Jsonl(e) => write!(f, "[{code}] not a valid JSONL file: {e}"),
             Error::UnsupportedExtension(msg) => write!(f, "[{code}] {msg}"),
             Error::ColumnNotFound(name) => {
                 write!(f, "[{code}] column \"{name}\" not found in the input data")
@@ -85,6 +93,8 @@ mod tests {
             Error::Csv("unexpected end of row".into()),
             Error::Yaml("invalid mapping".into()),
             Error::Parquet("bad magic bytes".into()),
+            Error::Tsv("unexpected end of row".into()),
+            Error::Jsonl("expected a JSON object".into()),
             Error::UnsupportedExtension("unsupported file extension \"xlsx\"".into()),
             Error::ColumnNotFound("customer_id".into()),
             Error::MissingEnvVar("HASH_SALT".into()),

@@ -10,7 +10,7 @@ pub use contract::{
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use triplex_core::{Error, Result};
-use triplex_io::CsvSample;
+use triplex_io::Sample;
 
 const CONTRACT_VERSION: &str = "0.1.0";
 
@@ -96,7 +96,7 @@ fn type_consistency(non_empty: &[&&str], inferred_type: ColumnType) -> f64 {
 }
 
 /// Infers a schema contract from an already-loaded sample.
-pub fn infer_schema(sample: &CsvSample) -> SchemaContract {
+pub fn infer_schema(sample: &Sample) -> SchemaContract {
     let columns = sample
         .headers
         .iter()
@@ -162,23 +162,27 @@ fn infer_schema_from_parquet(path: &Path) -> Result<SchemaContract> {
 fn unsupported_extension_error(path: &Path) -> Error {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     Error::UnsupportedExtension(format!(
-        "unsupported file extension \"{ext}\" (expected .csv or .parquet)"
+        "unsupported file extension \"{ext}\" (expected .csv, .tsv, .jsonl, or .parquet)"
     ))
 }
 
 /// Reads a local data file and infers its schema contract in one step.
-/// Dispatches on the file extension: `.csv` samples up to `sample_rows` rows
-/// and infers types from their string values; `.parquet` reads the file's
-/// own embedded schema instead, so `sample_rows` is unused for it.
+/// Dispatches on the file extension: `.parquet` reads the file's own
+/// embedded schema, so `sample_rows` is unused for it; every other known
+/// extension (`.csv`/`.tsv`/`.jsonl`) picks its `SampleFormat` strategy
+/// (Strategy pattern — see `triplex_io::format`) and samples up to
+/// `sample_rows` rows from it.
 pub fn infer_schema_from_path(path: &Path, sample_rows: usize) -> Result<SchemaContract> {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("csv") => {
-            let sample = triplex_io::read_csv_sample(path, sample_rows)?;
-            Ok(infer_schema(&sample))
-        }
-        Some("parquet") => infer_schema_from_parquet(path),
-        _ => Err(unsupported_extension_error(path)),
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+
+    if extension == "parquet" {
+        return infer_schema_from_parquet(path);
     }
+
+    let format = triplex_io::sample_format_for_extension(extension)
+        .ok_or_else(|| unsupported_extension_error(path))?;
+    let sample = format.read_sample(path, sample_rows)?;
+    Ok(infer_schema(&sample))
 }
 
 #[cfg(test)]
@@ -195,7 +199,7 @@ mod tests {
 
     #[test]
     fn infers_each_primitive_type() {
-        let sample = CsvSample {
+        let sample = Sample {
             headers: vec![
                 "id".into(),
                 "price".into(),
@@ -324,6 +328,38 @@ mod tests {
     }
 
     #[test]
+    fn infers_a_schema_from_tsv_the_same_way_as_csv() {
+        let contract = infer_schema_from_path(&fixture("sample.tsv"), 100)
+            .expect("tsv fixture should be readable");
+
+        assert_eq!(
+            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            vec!["id", "price", "in_stock", "name"]
+        );
+        assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
+        assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
+        assert_eq!(contract.columns[2].inferred_type, ColumnType::Boolean);
+        assert_eq!(contract.columns[3].inferred_type, ColumnType::String);
+    }
+
+    #[test]
+    fn infers_a_schema_from_jsonl() {
+        let contract = infer_schema_from_path(&fixture("sample.jsonl"), 100)
+            .expect("jsonl fixture should be readable");
+
+        assert_eq!(
+            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            vec!["id", "price", "in_stock", "name"]
+        );
+        assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
+        assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
+        assert_eq!(contract.columns[2].inferred_type, ColumnType::Boolean);
+        assert_eq!(contract.columns[3].inferred_type, ColumnType::String);
+        // Row 4's price is JSON null, same treatment as an empty CSV cell.
+        assert_eq!(contract.columns[1].statistics.null_percentage, 25.0);
+    }
+
+    #[test]
     fn reads_and_infers_from_the_synthetic_fixture() {
         let contract = infer_schema_from_path(&fixture("sample.csv"), 100)
             .expect("fixture should be readable");
@@ -397,7 +433,7 @@ mod tests {
 
     #[test]
     fn nan_and_inf_placeholders_do_not_infer_a_column_as_float() {
-        let sample = CsvSample {
+        let sample = Sample {
             headers: vec!["reading".into()],
             rows: vec![
                 vec!["1".into()],

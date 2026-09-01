@@ -1,0 +1,4 @@
+id	price	in_stock	name
+1	9.99	true	widget
+2	3.50	false	gadget
+3	12.00	true	sprocket
