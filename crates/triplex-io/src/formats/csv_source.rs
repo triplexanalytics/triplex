@@ -1,5 +1,7 @@
-use crate::format::SampleFormat;
-use crate::{delimited, Sample};
+use crate::formats::format::SampleFormat;
+use crate::Sample;
+
+use super::delimited;
 use std::path::Path;
 use triplex_core::{Error, Result};
 
@@ -55,7 +57,7 @@ pub fn read_csv_full_with_delimiter(path: &Path, delimiter: u8) -> Result<Sample
 }
 
 /// Reads a CSV header plus every data row from an in-memory byte slice
-/// (comma-delimited) — see `crate::delimited::read_full_bytes` for why a
+/// (comma-delimited) — see `crate::formats::delimited::read_full_bytes` for why a
 /// bytes variant exists alongside the path-based readers (no filesystem in
 /// a browser/WASM caller like `apps/triplex-web`).
 pub fn read_csv_full_bytes(bytes: &[u8]) -> Result<Sample> {

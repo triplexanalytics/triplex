@@ -1,4 +1,4 @@
-use crate::format::SampleFormat;
+use crate::formats::format::SampleFormat;
 use crate::Sample;
 use std::fs::File;
 use std::io::{BufRead, BufReader};

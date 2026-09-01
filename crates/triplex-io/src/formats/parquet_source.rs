@@ -1,4 +1,4 @@
-use crate::statistics::{ColumnStatistics, ColumnStatisticsBuilder};
+use crate::shared::statistics::{ColumnStatistics, ColumnStatisticsBuilder};
 use crate::Sample;
 use std::fs::File;
 use std::path::Path;

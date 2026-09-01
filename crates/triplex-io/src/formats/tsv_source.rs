@@ -1,5 +1,7 @@
-use crate::format::SampleFormat;
-use crate::{delimited, Sample};
+use crate::formats::format::SampleFormat;
+use crate::Sample;
+
+use super::delimited;
 use std::path::Path;
 use triplex_core::{Error, Result};
 

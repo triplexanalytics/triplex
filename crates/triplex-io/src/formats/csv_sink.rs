@@ -1,5 +1,6 @@
-use crate::delimited;
 use std::path::Path;
+
+use super::delimited;
 use triplex_core::{Error, Result};
 
 const COMMA: u8 = b',';
@@ -29,7 +30,7 @@ pub fn write_csv_bytes(headers: &[String], rows: &[Vec<String>]) -> Result<Vec<u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::csv_source::{read_csv_full, read_csv_full_with_delimiter};
+    use super::super::csv_source::{read_csv_full, read_csv_full_with_delimiter};
 
     #[test]
     fn write_csv_round_trips_through_read_csv_full() {
@@ -58,7 +59,7 @@ mod tests {
 
         let bytes = write_csv_bytes(&headers, &rows).expect("write should succeed");
         let read_back =
-            crate::csv_source::read_csv_full_bytes(&bytes).expect("read should succeed");
+            super::super::csv_source::read_csv_full_bytes(&bytes).expect("read should succeed");
 
         assert_eq!(read_back.headers, headers);
         assert_eq!(read_back.rows, rows);

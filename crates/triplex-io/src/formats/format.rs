@@ -8,10 +8,11 @@
 //! is a single-variant match today (`TokenHmac`); once a second method
 //! (e.g. generalization/bucketing) exists, it's the same shape of problem.
 
-use crate::csv_source::CsvFormat;
-use crate::jsonl_source::JsonlFormat;
-use crate::tsv_source::TsvFormat;
 use crate::Sample;
+
+use super::csv_source::CsvFormat;
+use super::jsonl_source::JsonlFormat;
+use super::tsv_source::TsvFormat;
 use std::path::Path;
 use triplex_core::Result;
 
