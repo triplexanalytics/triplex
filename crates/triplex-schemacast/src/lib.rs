@@ -27,8 +27,13 @@ pub enum ColumnType {
 pub struct ColumnSchema {
     pub name: String,
     pub inferred_type: ColumnType,
-    pub null_percentage: f64,
     pub type_consistency_percentage: f64,
+    /// Null rate and numeric range/mean, computed once by triplex-io and
+    /// shared by every ingestion format — flattened so the JSON shape is
+    /// unchanged (null_percentage/min_value/max_value/mean_value stay
+    /// top-level keys, not nested under "statistics").
+    #[serde(flatten)]
+    pub statistics: triplex_io::ColumnStatistics,
 }
 
 #[derive(Debug, Serialize)]
@@ -103,17 +108,12 @@ pub fn infer_schema(sample: &CsvSample) -> SchemaContract {
                 .map(|row| row.get(i).map(String::as_str).unwrap_or(""))
                 .collect();
             let non_empty: Vec<&&str> = values.iter().filter(|v| !v.is_empty()).collect();
-            let null_percentage = if values.is_empty() {
-                0.0
-            } else {
-                (values.len() - non_empty.len()) as f64 / values.len() as f64 * 100.0
-            };
             let inferred_type = infer_column_type(&non_empty);
             ColumnSchema {
                 name: name.clone(),
                 inferred_type,
-                null_percentage,
                 type_consistency_percentage: type_consistency(&non_empty, inferred_type),
+                statistics: triplex_io::compute_column_statistics(&values),
             }
         })
         .collect();
@@ -143,20 +143,13 @@ fn infer_schema_from_parquet(path: &Path) -> Result<SchemaContract> {
     let stats = triplex_io::read_parquet_schema(path)?;
     let columns = stats
         .into_iter()
-        .map(|s| {
-            let null_percentage = if s.total_count == 0 {
-                0.0
-            } else {
-                s.null_count as f64 / s.total_count as f64 * 100.0
-            };
-            ColumnSchema {
-                name: s.name,
-                inferred_type: column_type_from_parquet_physical_type(&s.physical_type),
-                null_percentage,
-                // Parquet is columnar with one physical type per column — no
-                // per-value ambiguity, so there's nothing to be inconsistent with.
-                type_consistency_percentage: 100.0,
-            }
+        .map(|s| ColumnSchema {
+            name: s.name,
+            inferred_type: column_type_from_parquet_physical_type(&s.physical_type),
+            // Parquet is columnar with one physical type per column — no
+            // per-value ambiguity, so there's nothing to be inconsistent with.
+            type_consistency_percentage: 100.0,
+            statistics: s.statistics,
         })
         .collect();
 
@@ -168,9 +161,8 @@ fn infer_schema_from_parquet(path: &Path) -> Result<SchemaContract> {
 
 fn unsupported_extension_error(path: &Path) -> Error {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    Error::from(std::io::Error::new(
-        std::io::ErrorKind::InvalidInput,
-        format!("unsupported file extension \"{ext}\" (expected .csv or .parquet)"),
+    Error::UnsupportedExtension(format!(
+        "unsupported file extension \"{ext}\" (expected .csv or .parquet)"
     ))
 }
 
@@ -307,8 +299,22 @@ mod tests {
         let stats = triplex_io::read_parquet_schema(&fixture("sample.parquet"))
             .expect("parquet fixture should be readable");
         let price = stats.iter().find(|s| s.name == "price").unwrap();
-        assert_eq!(price.null_count, 1);
-        assert_eq!(price.total_count, 4);
+        assert_eq!(price.statistics.null_percentage, 25.0); // 1 null of 4 rows
+    }
+
+    #[test]
+    fn parquet_min_max_come_from_footer_statistics_too() {
+        let contract = infer_schema_from_path(&fixture("sample.parquet"), 100)
+            .expect("parquet fixture should be readable");
+        let price = &contract.columns[1];
+        assert_eq!(price.statistics.min_value, Some(3.50));
+        assert_eq!(price.statistics.max_value, Some(12.00));
+
+        let name = &contract.columns[3];
+        assert_eq!(
+            name.statistics.min_value, None,
+            "a string column has no numeric range"
+        );
     }
 
     #[test]
@@ -343,8 +349,39 @@ mod tests {
         assert_eq!(contract.columns[3].inferred_type, ColumnType::Float); // ratio, scientific notation
 
         // Row 4's blanks make description/amount/ratio 25% null; id has none.
-        assert_eq!(contract.columns[0].null_percentage, 0.0);
-        assert_eq!(contract.columns[1].null_percentage, 25.0);
+        assert_eq!(contract.columns[0].statistics.null_percentage, 0.0);
+        assert_eq!(contract.columns[1].statistics.null_percentage, 25.0);
+    }
+
+    #[test]
+    fn csv_observed_range_matches_the_sampled_values() {
+        let contract = infer_schema_from_path(&fixture("sample.csv"), 100)
+            .expect("fixture should be readable");
+        let price = &contract.columns[1];
+        assert_eq!(price.statistics.min_value, Some(3.50));
+        assert_eq!(price.statistics.max_value, Some(12.00));
+        assert_eq!(
+            price.statistics.mean_value,
+            Some((9.99 + 3.50 + 12.00) / 3.0)
+        );
+
+        let name = &contract.columns[3];
+        assert_eq!(
+            name.statistics.min_value, None,
+            "a string column has no numeric range"
+        );
+        assert_eq!(name.statistics.mean_value, None);
+    }
+
+    #[test]
+    fn parquet_has_no_mean_since_footer_statistics_carry_no_sum() {
+        let contract = infer_schema_from_path(&fixture("sample.parquet"), 100)
+            .expect("parquet fixture should be readable");
+        let price = &contract.columns[1];
+        assert_eq!(
+            price.statistics.mean_value, None,
+            "computing a real mean would require decoding row data, breaking zero-copy"
+        );
     }
 
     #[test]
@@ -355,7 +392,7 @@ mod tests {
         let note = &contract.columns[1];
         assert_eq!(note.name, "note");
         assert_eq!(note.inferred_type, ColumnType::String);
-        assert_eq!(note.null_percentage, 100.0);
+        assert_eq!(note.statistics.null_percentage, 100.0);
     }
 
     #[test]

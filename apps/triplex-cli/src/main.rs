@@ -8,11 +8,23 @@ use std::process::ExitCode;
 const SAMPLE_ROWS: usize = 1000;
 const USAGE: &str = "usage:\n  triplex schema <path-to.csv>\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv>";
 
+/// Exit codes per the design notes: 0 success, 1
+/// non-blocking warning (no coercion modes exist yet, so unused today), 2
+/// critical gate failure (a contract breach), 127 runtime/config error (bad
+/// file, bad usage — anything that isn't a data problem).
+const EXIT_RUNTIME_CONFIG_ERROR: u8 = 127;
+const EXIT_CONTRACT_BREACH: u8 = 2;
+
 fn flag_value(args: &[String], flag: &str) -> Option<String> {
     args.iter()
         .position(|a| a == flag)
         .and_then(|i| args.get(i + 1))
         .cloned()
+}
+
+fn usage_error() -> ExitCode {
+    eprintln!("{USAGE}");
+    ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
 }
 
 fn main() -> ExitCode {
@@ -21,8 +33,7 @@ fn main() -> ExitCode {
     match args.first().map(String::as_str) {
         Some("schema") => {
             let Some(path) = args.get(1) else {
-                eprintln!("{USAGE}");
-                return ExitCode::FAILURE;
+                return usage_error();
             };
             match triplex_schemacast::infer_schema_from_path(&PathBuf::from(path), SAMPLE_ROWS) {
                 Ok(contract) => {
@@ -31,7 +42,7 @@ fn main() -> ExitCode {
                 }
                 Err(e) => {
                     eprintln!("error: {e}");
-                    ExitCode::FAILURE
+                    ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
                 }
             }
         }
@@ -39,8 +50,7 @@ fn main() -> ExitCode {
             let (Some(schema), Some(input)) =
                 (flag_value(&args, "--schema"), flag_value(&args, "--input"))
             else {
-                eprintln!("{USAGE}");
-                return ExitCode::FAILURE;
+                return usage_error();
             };
             match triplex_schemacast::validate_path(
                 &PathBuf::from(schema),
@@ -52,18 +62,15 @@ fn main() -> ExitCode {
                     if report.valid {
                         ExitCode::SUCCESS
                     } else {
-                        ExitCode::from(2)
+                        ExitCode::from(EXIT_CONTRACT_BREACH)
                     }
                 }
                 Err(e) => {
                     eprintln!("error: {e}");
-                    ExitCode::FAILURE
+                    ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
                 }
             }
         }
-        _ => {
-            eprintln!("{USAGE}");
-            ExitCode::FAILURE
-        }
+        _ => usage_error(),
     }
 }

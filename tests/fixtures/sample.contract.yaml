@@ -4,7 +4,12 @@ columns:
     type: integer
   - name: price
     type: float
-    max_null_percentage: 50
+    statistics:
+      max_null_percentage: 50
+      min_value: 0
+      max_value: 100
+      expected_mean: 8.5
+      mean_epsilon: 1.0
   - name: in_stock
     type: boolean
   - name: name

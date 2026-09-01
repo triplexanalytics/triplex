@@ -1,32 +1,5 @@
 //! Shared error type and result alias used across Triplex crates.
 
-use std::fmt;
+mod error;
 
-#[derive(Debug)]
-pub enum Error {
-    Io(std::io::Error),
-    Csv(String),
-    Yaml(String),
-    Parquet(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::Io(e) => write!(f, "io error: {e}"),
-            Error::Csv(e) => write!(f, "csv error: {e}"),
-            Error::Yaml(e) => write!(f, "yaml error: {e}"),
-            Error::Parquet(e) => write!(f, "parquet error: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Error::Io(e)
-    }
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
+pub use error::{Error, Result};
