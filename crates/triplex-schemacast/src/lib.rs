@@ -4,6 +4,7 @@
 
 mod contract;
 mod convert;
+mod semantic;
 pub use contract::{
     check_patterns, check_patterns_bytes, check_patterns_path, parse_contract,
     to_declared_contract, validate, validate_csv_with_delimiter, validate_path,
@@ -11,6 +12,7 @@ pub use contract::{
     ValidationReport,
 };
 pub use convert::{convert_file, convert_file_with_delimiters, read_full_bytes, ConvertReport};
+pub use semantic::SemanticType;
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -32,6 +34,11 @@ pub enum ColumnType {
 pub struct ColumnSchema {
     pub name: String,
     pub inferred_type: ColumnType,
+    /// Sensitive-column hint layered on top of `inferred_type` — e.g. a
+    /// `String` column whose values checksum as IBANs, or whose header says
+    /// "address". `None` when nothing matched; see `semantic.rs`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub semantic_type: Option<SemanticType>,
     pub type_consistency_percentage: f64,
     /// Null rate and numeric range/mean, computed once by triplex-io and
     /// shared by every ingestion format — flattened so the JSON shape is
@@ -143,9 +150,16 @@ pub fn infer_schema(sample: &Sample) -> SchemaContract {
                 ColumnType::Integer | ColumnType::Float => triplex_io::ValueKind::Numeric,
                 ColumnType::Boolean | ColumnType::String => triplex_io::ValueKind::Categorical,
             };
+            let semantic_type = if inferred_type == ColumnType::String {
+                let non_empty_values: Vec<&str> = non_empty.iter().map(|v| **v).collect();
+                semantic::detect_semantic_type(name, &non_empty_values)
+            } else {
+                None
+            };
             ColumnSchema {
                 name: name.clone(),
                 inferred_type,
+                semantic_type,
                 type_consistency_percentage: type_consistency(&non_empty, inferred_type),
                 statistics: triplex_io::compute_column_statistics(&values),
                 distribution: Some(triplex_io::compute_column_distribution(&values, value_kind)),
@@ -178,14 +192,23 @@ fn infer_schema_from_parquet(path: &Path) -> Result<SchemaContract> {
     let stats = triplex_io::read_parquet_schema(path)?;
     let columns = stats
         .into_iter()
-        .map(|s| ColumnSchema {
-            name: s.name,
-            inferred_type: column_type_from_parquet_physical_type(&s.physical_type),
-            // Parquet is columnar with one physical type per column — no
-            // per-value ambiguity, so there's nothing to be inconsistent with.
-            type_consistency_percentage: 100.0,
-            statistics: s.statistics,
-            distribution: None,
+        .map(|s| {
+            let inferred_type = column_type_from_parquet_physical_type(&s.physical_type);
+            // No raw values in Parquet footer stats, only header-keyword
+            // detection (Address/Location) can fire here — see `semantic.rs`.
+            let semantic_type = (inferred_type == ColumnType::String)
+                .then(|| semantic::detect_semantic_type(&s.name, &[]))
+                .flatten();
+            ColumnSchema {
+                name: s.name,
+                inferred_type,
+                semantic_type,
+                // Parquet is columnar with one physical type per column — no
+                // per-value ambiguity, so there's nothing to be inconsistent with.
+                type_consistency_percentage: 100.0,
+                statistics: s.statistics,
+                distribution: None,
+            }
         })
         .collect();
 

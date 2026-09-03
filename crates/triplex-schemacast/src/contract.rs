@@ -440,6 +440,7 @@ mod tests {
                     |(name, t, null_percentage, type_consistency_percentage)| ColumnSchema {
                         name: (*name).to_string(),
                         inferred_type: *t,
+                        semantic_type: None,
                         type_consistency_percentage: *type_consistency_percentage,
                         statistics: ColumnStatistics {
                             null_percentage: *null_percentage,
@@ -460,6 +461,7 @@ mod tests {
             columns: vec![ColumnSchema {
                 name: name.to_string(),
                 inferred_type: t,
+                semantic_type: None,
                 type_consistency_percentage: 100.0,
                 statistics: ColumnStatistics {
                     null_percentage: 0.0,
@@ -478,6 +480,7 @@ mod tests {
             columns: vec![ColumnSchema {
                 name: name.to_string(),
                 inferred_type: t,
+                semantic_type: None,
                 type_consistency_percentage: 100.0,
                 statistics: ColumnStatistics {
                     null_percentage: 0.0,

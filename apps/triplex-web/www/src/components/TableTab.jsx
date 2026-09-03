@@ -39,7 +39,11 @@ export default function TableTab({
 
   const typeByName = useMemo(() => {
     const map = {};
-    for (const col of profile?.columns ?? []) map[col.name] = col.inferred_type;
+    for (const col of profile?.columns ?? []) {
+      // A detected semantic type (iban, address, ...) is more useful in the
+      // header than the bare primitive type it's layered on top of.
+      map[col.name] = col.semantic_type ?? col.inferred_type;
+    }
     return map;
   }, [profile]);
 

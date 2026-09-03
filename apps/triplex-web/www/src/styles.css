@@ -267,6 +267,43 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   transform: translateX(-50%) rotate(45deg);
 }
 
+.info-trigger {
+  position: relative;
+  display: inline-block;
+  margin-left: 0.35rem;
+  cursor: help;
+  opacity: 0.6;
+}
+
+.method-tooltip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  z-index: 50;
+  width: 240px;
+  white-space: normal;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+
+.info-trigger:hover .method-tooltip,
+.info-trigger:focus .method-tooltip {
+  display: block;
+}
+
+.method-tooltip .read-more {
+  display: block;
+  margin-top: 0.3rem;
+  opacity: 0.6;
+}
+
 .column-view-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

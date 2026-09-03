@@ -25,6 +25,12 @@ export default function ColumnCard({
       <dl>
         <dt>Type</dt>
         <dd>{col.inferred_type}</dd>
+        {col.semantic_type && (
+          <>
+            <dt>Detected</dt>
+            <dd>{col.semantic_type}</dd>
+          </>
+        )}
         <dt>Missing</dt>
         <dd>{col.null_percentage.toFixed(1)}%</dd>
         <dt>Mismatched</dt>
