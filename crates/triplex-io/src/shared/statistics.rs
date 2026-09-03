@@ -47,7 +47,7 @@ impl ColumnStatisticsBuilder {
             self.null_count += 1;
             return;
         }
-        if let Ok(n) = triplex_core::normalize_trailing_sign(value).parse::<f64>() {
+        if let Ok(n) = triplex_core::normalize_numeric_string(value).parse::<f64>() {
             if n.is_finite() {
                 self.record_number(n);
             }

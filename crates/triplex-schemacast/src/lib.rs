@@ -16,7 +16,7 @@ pub use semantic::SemanticType;
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use triplex_core::{normalize_trailing_sign, Error, Result};
+use triplex_core::{normalize_numeric_string, Error, Result};
 use triplex_io::Sample;
 
 const CONTRACT_VERSION: &str = "0.1.0";
@@ -63,7 +63,7 @@ pub struct SchemaContract {
 /// `f64::from_str` accepts "nan"/"inf"/"infinity" (case-insensitively) as valid
 /// floats, but those are missing-value placeholders in practice, not numbers —
 /// excluding them keeps a `["1", "2", "nan"]` column from inferring as Float.
-/// `v` should already be normalized via `normalize_trailing_sign`.
+/// `v` should already be normalized via `normalize_numeric_string`.
 fn parses_as_finite_float(v: &str) -> bool {
     v.parse::<f64>().is_ok_and(f64::is_finite)
 }
@@ -76,7 +76,7 @@ fn parses_as_finite_float(v: &str) -> bool {
 /// (e.g. `triplex convert`'s Parquet output: `"007"` → `7` → `"7"`).
 /// `"0"` alone, and a genuine decimal like `"0.5"` (the zero is immediately
 /// followed by `.`, not more digits), are unaffected. `v` should already be
-/// normalized via `normalize_trailing_sign`.
+/// normalized via `normalize_numeric_string`.
 fn has_meaningless_leading_zero(v: &str) -> bool {
     let digits = v.strip_prefix('-').unwrap_or(v);
     !digits.contains('.') && digits.len() > 1 && digits.starts_with('0')
@@ -89,13 +89,13 @@ fn infer_column_type(non_empty: &[&&str]) -> ColumnType {
         return ColumnType::String;
     }
     if non_empty.iter().all(|v| {
-        let n = normalize_trailing_sign(v);
+        let n = normalize_numeric_string(v);
         n.parse::<i64>().is_ok() && !has_meaningless_leading_zero(&n)
     }) {
         return ColumnType::Integer;
     }
     if non_empty.iter().all(|v| {
-        let n = normalize_trailing_sign(v);
+        let n = normalize_numeric_string(v);
         parses_as_finite_float(&n) && !has_meaningless_leading_zero(&n)
     }) {
         return ColumnType::Float;
@@ -119,11 +119,11 @@ fn type_consistency(non_empty: &[&&str], inferred_type: ColumnType) -> f64 {
     }
     let integer_matches = non_empty
         .iter()
-        .filter(|v| normalize_trailing_sign(v).parse::<i64>().is_ok())
+        .filter(|v| normalize_numeric_string(v).parse::<i64>().is_ok())
         .count();
     let float_matches = non_empty
         .iter()
-        .filter(|v| parses_as_finite_float(&normalize_trailing_sign(v)))
+        .filter(|v| parses_as_finite_float(&normalize_numeric_string(v)))
         .count();
     let bool_matches = non_empty
         .iter()
@@ -379,6 +379,24 @@ mod tests {
         assert_eq!(contract.columns[1].inferred_type, ColumnType::Integer);
         assert_eq!(contract.columns[1].statistics.min_value, Some(-3.0));
         assert_eq!(contract.columns[1].statistics.max_value, Some(7.0));
+    }
+
+    #[test]
+    fn currency_thousands_and_parenthesized_amounts_infer_as_numeric() {
+        let sample = Sample {
+            headers: vec!["amount".into(), "price".into()],
+            rows: vec![
+                vec!["$1,234.56".into(), "150,00".into()],
+                vec!["(150.00)".into(), "42,50".into()],
+            ],
+        };
+        let contract = infer_schema(&sample);
+        assert_eq!(contract.columns[0].inferred_type, ColumnType::Float);
+        assert_eq!(contract.columns[0].statistics.min_value, Some(-150.0));
+        assert_eq!(contract.columns[0].statistics.max_value, Some(1234.56));
+        assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
+        assert_eq!(contract.columns[1].statistics.min_value, Some(42.50));
+        assert_eq!(contract.columns[1].statistics.max_value, Some(150.0));
     }
 
     /// Not run by default (`cargo test`). Regenerates `tests/fixtures/sample.parquet`
