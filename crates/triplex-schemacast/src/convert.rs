@@ -32,10 +32,11 @@ pub(crate) fn read_full(path: &Path, extension: &str, delimiter: Option<u8>) -> 
 }
 
 /// Byte-slice counterpart to `read_full`, for a caller with no filesystem
-/// (`apps/triplex-web`'s browser/WASM path). No `.parquet` support here —
-/// see `crates/triplex-io/Cargo.toml` for why Parquet input is out of scope
-/// for the wasm32 target in the first place.
-pub(crate) fn read_full_bytes(bytes: &[u8], extension: &str) -> Result<Sample> {
+/// (`apps/triplex-web`'s browser/WASM path) — also the full-file grid-display
+/// read for that same browser UI, not just schema inference's internal use.
+/// No `.parquet` support here — see `crates/triplex-io/Cargo.toml` for why
+/// Parquet input is out of scope for the wasm32 target in the first place.
+pub fn read_full_bytes(bytes: &[u8], extension: &str) -> Result<Sample> {
     let format = triplex_io::sample_format_for_extension(extension).ok_or_else(|| {
         Error::UnsupportedExtension(format!(
             "unsupported file extension \"{extension}\" (expected .csv, .tsv, or .jsonl — \

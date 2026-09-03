@@ -19,5 +19,8 @@ pub use formats::parquet_sink::{write_parquet, WriteColumnType};
 pub use formats::parquet_source::{read_parquet_rows, read_parquet_schema, ParquetColumnStats};
 pub use formats::tsv_sink::{write_tsv, write_tsv_bytes};
 pub use formats::tsv_source::{read_tsv_full, read_tsv_full_bytes, read_tsv_sample, TsvFormat};
+pub use shared::distribution::{
+    compute_column_distribution, CategoryCount, ColumnDistribution, HistogramBin, ValueKind,
+};
 pub use shared::sample::Sample;
 pub use shared::statistics::{compute_column_statistics, ColumnStatistics, ColumnStatisticsBuilder};

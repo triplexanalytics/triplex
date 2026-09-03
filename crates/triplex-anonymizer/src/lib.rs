@@ -7,7 +7,9 @@ mod recipe;
 mod tokenize;
 
 pub use mapping::{decrypt_mapping, encrypt_mapping, EncryptedMapping, MappingEntry};
-pub use recipe::{load_recipe, AnonymizeColumn, AnonymizeMethod, AnonymizeRecipe};
+pub use recipe::{
+    load_recipe, verify_recipe_well_formed, AnonymizeColumn, AnonymizeMethod, AnonymizeRecipe,
+};
 pub use tokenize::hmac_token;
 
 use std::collections::HashSet;

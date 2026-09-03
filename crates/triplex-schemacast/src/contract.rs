@@ -298,6 +298,38 @@ pub fn validate_csv_with_delimiter(
     Ok(validate(&declared, &inferred))
 }
 
+/// Verifies a declared contract is internally well-formed — every declared
+/// `pattern` compiles as a regex, and no column is declared twice —
+/// independent of checking it against any actual data. Duplicate names are
+/// rejected rather than silently allowed: `validate`/`check_patterns` look a
+/// column up by `.find()`/`.position()` (first match), so a second entry for
+/// the same column would be silently ignored rather than erroring — better
+/// to catch that here, where it's built. Exists so a caller building a
+/// contract programmatically (e.g. `apps/triplex-web`'s table interactions)
+/// can catch an unusable contract before writing it out, rather than only
+/// failing later when `check_patterns`/`validate` tries to use it.
+pub fn verify_contract_well_formed(declared: &DeclaredContract) -> Result<()> {
+    let mut seen = std::collections::HashSet::new();
+    for column in &declared.columns {
+        if !seen.insert(column.name.as_str()) {
+            return Err(Error::Validation(format!(
+                "contract declares column \"{}\" more than once",
+                column.name
+            )));
+        }
+        let Some(pattern) = column.pattern.as_ref() else {
+            continue;
+        };
+        Regex::new(pattern).map_err(|e| {
+            Error::Validation(format!(
+                "column \"{}\": invalid pattern regex: {e}",
+                column.name
+            ))
+        })?;
+    }
+    Ok(())
+}
+
 /// Checks every declared `pattern` against every non-empty value in its
 /// column across a full in-memory `Sample`. Separate from `validate`: this
 /// needs the raw per-value data (not just aggregate stats), and it must
@@ -404,17 +436,20 @@ mod tests {
             version: "0.1.0".into(),
             columns: columns
                 .iter()
-                .map(|(name, t, null_percentage, type_consistency_percentage)| ColumnSchema {
-                    name: (*name).to_string(),
-                    inferred_type: *t,
-                    type_consistency_percentage: *type_consistency_percentage,
-                    statistics: ColumnStatistics {
-                        null_percentage: *null_percentage,
-                        min_value: None,
-                        max_value: None,
-                        mean_value: None,
+                .map(
+                    |(name, t, null_percentage, type_consistency_percentage)| ColumnSchema {
+                        name: (*name).to_string(),
+                        inferred_type: *t,
+                        type_consistency_percentage: *type_consistency_percentage,
+                        statistics: ColumnStatistics {
+                            null_percentage: *null_percentage,
+                            min_value: None,
+                            max_value: None,
+                            mean_value: None,
+                        },
+                        distribution: None,
                     },
-                })
+                )
                 .collect(),
         }
     }
@@ -432,6 +467,7 @@ mod tests {
                     max_value: Some(max),
                     mean_value: None,
                 },
+                distribution: None,
             }],
         }
     }
@@ -449,6 +485,7 @@ mod tests {
                     max_value: None,
                     mean_value: Some(mean),
                 },
+                distribution: None,
             }],
         }
     }
@@ -827,6 +864,35 @@ mod tests {
         d.columns[0].pattern = Some("[unterminated".to_string());
         let s = sample(&["code"], &[vec!["x"]]);
         assert!(check_patterns(&d, &s).is_err());
+    }
+
+    #[test]
+    fn verify_contract_well_formed_rejects_an_uncompilable_pattern() {
+        let mut d = declared(vec![col("code", ColumnType::String, true)]);
+        d.columns[0].pattern = Some("[unterminated".to_string());
+        let err = verify_contract_well_formed(&d).unwrap_err();
+        assert_eq!(err.code(), "VALIDATION_ERROR");
+    }
+
+    #[test]
+    fn verify_contract_well_formed_accepts_a_compilable_pattern_or_none_at_all() {
+        let mut d = declared(vec![
+            col("code", ColumnType::String, true),
+            col("name", ColumnType::String, true),
+        ]);
+        d.columns[0].pattern = Some("^[A-Z]+$".to_string());
+        // `name` has no pattern at all — nothing to check, not a failure.
+        assert!(verify_contract_well_formed(&d).is_ok());
+    }
+
+    #[test]
+    fn verify_contract_well_formed_rejects_a_column_declared_twice() {
+        let d = declared(vec![
+            col("code", ColumnType::String, true),
+            col("code", ColumnType::String, true),
+        ]);
+        let err = verify_contract_well_formed(&d).unwrap_err();
+        assert_eq!(err.code(), "VALIDATION_ERROR");
     }
 
     #[test]

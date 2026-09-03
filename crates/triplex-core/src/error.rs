@@ -36,6 +36,12 @@ pub enum Error {
     /// decryption (including a wrong passphrase, which AEAD reports as a
     /// generic authentication failure rather than a specific reason).
     Crypto(String),
+    /// A declared contract or anonymize recipe is internally inconsistent —
+    /// e.g. a column's `pattern` isn't a compilable regex, or a recipe has
+    /// no columns — independent of checking it against any actual data.
+    /// Distinct from `Yaml`: the text parses fine, its *content* doesn't
+    /// hold together.
+    Validation(String),
 }
 
 impl Error {
@@ -52,6 +58,7 @@ impl Error {
             Error::MissingEnvVar(_) => "MISSING_ENV_VAR",
             Error::MissingSalt(_) => "MISSING_SALT",
             Error::Crypto(_) => "CRYPTO_ERROR",
+            Error::Validation(_) => "VALIDATION_ERROR",
         }
     }
 }
@@ -77,6 +84,7 @@ impl fmt::Display for Error {
                 write!(f, "[{code}] no salt provided for column \"{name}\"")
             }
             Error::Crypto(msg) => write!(f, "[{code}] {msg}"),
+            Error::Validation(msg) => write!(f, "[{code}] {msg}"),
         }
     }
 }
@@ -109,6 +117,7 @@ mod tests {
             Error::MissingEnvVar("HASH_SALT".into()),
             Error::MissingSalt("email".into()),
             Error::Crypto("AEAD decryption failed".into()),
+            Error::Validation("recipe has no columns".into()),
         ];
 
         let codes: Vec<&str> = errors.iter().map(Error::code).collect();

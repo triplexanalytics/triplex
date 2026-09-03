@@ -6,10 +6,11 @@ mod contract;
 mod convert;
 pub use contract::{
     check_patterns, check_patterns_bytes, check_patterns_path, parse_contract,
-    to_declared_contract, validate, validate_csv_with_delimiter, validate_path, DeclaredColumn,
-    DeclaredContract, ValidationError, ValidationReport,
+    to_declared_contract, validate, validate_csv_with_delimiter, validate_path,
+    verify_contract_well_formed, DeclaredColumn, DeclaredContract, ValidationError,
+    ValidationReport,
 };
-pub use convert::{convert_file, convert_file_with_delimiters, ConvertReport};
+pub use convert::{convert_file, convert_file_with_delimiters, read_full_bytes, ConvertReport};
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -38,6 +39,12 @@ pub struct ColumnSchema {
     /// top-level keys, not nested under "statistics").
     #[serde(flatten)]
     pub statistics: triplex_io::ColumnStatistics,
+    /// Quantiles/histogram (numeric) or top-value counts (categorical) for
+    /// the browser table's header sparklines and column-detail view. `None`
+    /// for Parquet — footer-only stats carry no raw values to bucket or
+    /// rank, the same reason its `mean_value` is also `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distribution: Option<triplex_io::ColumnDistribution>,
 }
 
 #[derive(Debug, Serialize)]
@@ -132,11 +139,16 @@ pub fn infer_schema(sample: &Sample) -> SchemaContract {
                 .collect();
             let non_empty: Vec<&&str> = values.iter().filter(|v| !v.is_empty()).collect();
             let inferred_type = infer_column_type(&non_empty);
+            let value_kind = match inferred_type {
+                ColumnType::Integer | ColumnType::Float => triplex_io::ValueKind::Numeric,
+                ColumnType::Boolean | ColumnType::String => triplex_io::ValueKind::Categorical,
+            };
             ColumnSchema {
                 name: name.clone(),
                 inferred_type,
                 type_consistency_percentage: type_consistency(&non_empty, inferred_type),
                 statistics: triplex_io::compute_column_statistics(&values),
+                distribution: Some(triplex_io::compute_column_distribution(&values, value_kind)),
             }
         })
         .collect();
@@ -173,6 +185,7 @@ fn infer_schema_from_parquet(path: &Path) -> Result<SchemaContract> {
             // per-value ambiguity, so there's nothing to be inconsistent with.
             type_consistency_percentage: 100.0,
             statistics: s.statistics,
+            distribution: None,
         })
         .collect();
 
@@ -279,6 +292,21 @@ mod tests {
         assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
         assert_eq!(contract.columns[2].inferred_type, ColumnType::Boolean);
         assert_eq!(contract.columns[3].inferred_type, ColumnType::String);
+
+        assert!(
+            matches!(
+                contract.columns[0].distribution,
+                Some(triplex_io::ColumnDistribution::Numeric { .. })
+            ),
+            "an Integer column should get a Numeric distribution"
+        );
+        assert!(
+            matches!(
+                contract.columns[3].distribution,
+                Some(triplex_io::ColumnDistribution::Categorical { .. })
+            ),
+            "a String column should get a Categorical distribution"
+        );
     }
 
     #[test]
@@ -371,17 +399,17 @@ mod tests {
             .expect("parquet fixture should be readable");
 
         assert_eq!(
-            contract
-                .columns
-                .iter()
-                .map(|c| c.name.as_str())
-                .collect::<Vec<_>>(),
+            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
             vec!["id", "price", "in_stock", "name"]
         );
         assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
         assert_eq!(contract.columns[1].inferred_type, ColumnType::Float);
         assert_eq!(contract.columns[2].inferred_type, ColumnType::Boolean);
         assert_eq!(contract.columns[3].inferred_type, ColumnType::String);
+        assert!(
+            contract.columns.iter().all(|c| c.distribution.is_none()),
+            "Parquet's footer-only stats carry no raw values to bucket or rank"
+        );
     }
 
     #[test]

@@ -9,11 +9,66 @@
 //! everything real lives in `triplex-schemacast`/`triplex-anonymizer`.
 
 use std::collections::HashMap;
-use triplex_anonymizer::AnonymizeRecipe;
+use triplex_anonymizer::{AnonymizeMethod, AnonymizeRecipe};
+use triplex_schemacast::DeclaredContract;
 use wasm_bindgen::prelude::*;
 
 fn to_js_err<E: std::fmt::Display>(e: E) -> JsValue {
     JsValue::from_str(&e.to_string())
+}
+
+/// Table view: the whole uploaded file's headers+rows as JSON, for a grid
+/// that displays every row — unlike `generate_contract`'s schema inference,
+/// this isn't bounded to a sample (the browser already holds the whole
+/// upload in memory, so there's nothing to bound).
+#[wasm_bindgen]
+pub fn read_table(bytes: &[u8], extension: &str) -> Result<String, JsValue> {
+    let sample = triplex_schemacast::read_full_bytes(bytes, extension).map_err(to_js_err)?;
+    serde_json::to_string(&sample).map_err(to_js_err)
+}
+
+/// Table view: per-column profile (type, null%, mismatched%, and — new here
+/// — quantiles/histogram or top-value counts) as structured JSON, for the
+/// header sparklines and the Column-view tab. Same inference call as
+/// `generate_contract`, just returned as JSON instead of rendered to YAML.
+#[wasm_bindgen]
+pub fn profile_columns(bytes: &[u8], extension: &str) -> Result<String, JsValue> {
+    let schema =
+        triplex_schemacast::infer_schema_from_bytes(bytes, extension).map_err(to_js_err)?;
+    serde_json::to_string(&schema).map_err(to_js_err)
+}
+
+/// Table view: every anonymization method this build implements, as a JSON
+/// array of their `.triplex.yaml` names (e.g. `["token_hmac"]") — the
+/// per-column algorithm picker reads this instead of hardcoding a menu that
+/// can drift out of sync with `triplex-anonymizer`.
+#[wasm_bindgen]
+pub fn list_anonymize_methods() -> String {
+    serde_json::to_string(AnonymizeMethod::ALL).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// Table view: renders a contract built up from table interactions (as JSON
+/// matching `DeclaredContract`'s shape) into `.triplex.yaml` text for the
+/// navbar's "Download contract" button — Rust stays the one place that knows
+/// the YAML shape, not a JS YAML library. Verified well-formed first (e.g.
+/// every declared `pattern` actually compiles) so a broken contract fails
+/// here, immediately, rather than only when it's later used to check
+/// pattern conformance.
+#[wasm_bindgen]
+pub fn contract_json_to_yaml(contract_json: &str) -> Result<String, JsValue> {
+    let contract: DeclaredContract = serde_json::from_str(contract_json).map_err(to_js_err)?;
+    triplex_schemacast::verify_contract_well_formed(&contract).map_err(to_js_err)?;
+    serde_yaml_ng::to_string(&contract).map_err(to_js_err)
+}
+
+/// Table view: same as `contract_json_to_yaml`, for the accumulated
+/// anonymization recipe and the "Download recipe" button — verified
+/// well-formed first (at least one column, no empty column names).
+#[wasm_bindgen]
+pub fn recipe_json_to_yaml(recipe_json: &str) -> Result<String, JsValue> {
+    let recipe: AnonymizeRecipe = serde_json::from_str(recipe_json).map_err(to_js_err)?;
+    triplex_anonymizer::verify_recipe_well_formed(&recipe).map_err(to_js_err)?;
+    serde_yaml_ng::to_string(&recipe).map_err(to_js_err)
 }
 
 /// Action 1: infers a schema from an uploaded file's bytes and renders it

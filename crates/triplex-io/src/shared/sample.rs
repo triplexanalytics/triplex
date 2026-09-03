@@ -10,6 +10,7 @@
 /// `max_rows` is exposed as a large/unbounded user-facing knob, or (b) a
 /// full-file scan mode is added. Flagged for a performance pass before either
 /// of those lands, not before.
+#[derive(serde::Serialize)]
 pub struct Sample {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
