@@ -27,7 +27,7 @@ fn parse_or_none<T: std::str::FromStr>(value: &str) -> Option<T> {
     if value.is_empty() {
         None
     } else {
-        value.parse().ok()
+        triplex_core::normalize_trailing_sign(value).parse().ok()
     }
 }
 

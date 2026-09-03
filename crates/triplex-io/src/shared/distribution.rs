@@ -78,7 +78,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
 fn numeric_distribution(values: &[&str]) -> ColumnDistribution {
     let mut numbers: Vec<f64> = values
         .iter()
-        .filter_map(|v| v.parse::<f64>().ok())
+        .filter_map(|v| triplex_core::normalize_trailing_sign(v).parse::<f64>().ok())
         .filter(|n| n.is_finite())
         .collect();
     numbers.sort_by(|a, b| a.total_cmp(b));
