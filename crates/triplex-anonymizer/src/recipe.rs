@@ -2,13 +2,19 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use triplex_core::{Error, Result};
 
-/// Only `token_hmac` is implemented in this slice. Declaring any other
-/// method (e.g. the generalization/bucketing methods in the wider spec) is a
-/// clear deserialization error, not a silently ignored no-op.
+/// The four Tier 1 mechanisms from the design notes's
+/// product matrix. Declaring any other method is a clear deserialization
+/// error, not a silently ignored no-op. Each variant's own file
+/// (`tokenize.rs`/`fpe.rs`/`bucket.rs`/`partial_mask.rs`) implements the
+/// `Mechanism` trait; `mechanism::build_mechanism` is the one place that
+/// dispatches a value here to its concrete masking strategy.
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AnonymizeMethod {
     TokenHmac,
+    Fpe,
+    Bucket,
+    PartialMask,
 }
 
 impl AnonymizeMethod {
@@ -16,17 +22,49 @@ impl AnonymizeMethod {
     /// them. Grows automatically as this enum grows — a caller (e.g.
     /// `apps/triplex-web`) reads this instead of hardcoding a menu that can
     /// drift out of sync with what the engine actually implements.
-    pub const ALL: &'static [AnonymizeMethod] = &[AnonymizeMethod::TokenHmac];
+    pub const ALL: &'static [AnonymizeMethod] = &[
+        AnonymizeMethod::TokenHmac,
+        AnonymizeMethod::Fpe,
+        AnonymizeMethod::Bucket,
+        AnonymizeMethod::PartialMask,
+    ];
+}
+
+fn default_bucket_width() -> u64 {
+    10
+}
+
+fn default_keep_prefix() -> usize {
+    0
+}
+
+fn default_keep_suffix() -> usize {
+    4
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AnonymizeColumn {
     pub name: String,
     pub method: AnonymizeMethod,
-    /// Name of the environment variable holding the HMAC salt — never the
-    /// salt value itself, so it never sits in a `.triplex.yaml` file, a
-    /// shell history, or a process listing.
+    /// Name of the environment variable holding the HMAC/FPE salt — never
+    /// the salt value itself, so it never sits in a `.triplex.yaml` file, a
+    /// shell history, or a process listing. Ignored by `Bucket`/`PartialMask`,
+    /// which don't key their transform.
     pub salt_env: String,
+    /// `Bucket`-only: numeric generalization width, e.g. 10 turns `23` into
+    /// `"20-29"`. Ignored by every other method. Defaulted (not required)
+    /// so an existing `token_hmac`/`fpe` recipe doesn't need updating.
+    #[serde(default = "default_bucket_width")]
+    pub bucket_width: u64,
+    /// `PartialMask`-only: characters kept at the start of the value;
+    /// everything after `keep_prefix` and before the last `keep_suffix`
+    /// characters is replaced with `*`. Ignored by every other method.
+    #[serde(default = "default_keep_prefix")]
+    pub keep_prefix: usize,
+    /// `PartialMask`-only: characters kept at the end of the value — see
+    /// `keep_prefix`. Defaults to 4 (e.g. a card number's last 4 digits).
+    #[serde(default = "default_keep_suffix")]
+    pub keep_suffix: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -81,6 +119,17 @@ pub fn verify_recipe_well_formed(recipe: &AnonymizeRecipe) -> Result<()> {
 mod tests {
     use super::*;
 
+    fn token_hmac_column(name: &str, salt_env: &str) -> AnonymizeColumn {
+        AnonymizeColumn {
+            name: name.to_string(),
+            method: AnonymizeMethod::TokenHmac,
+            salt_env: salt_env.to_string(),
+            bucket_width: default_bucket_width(),
+            keep_prefix: default_keep_prefix(),
+            keep_suffix: default_keep_suffix(),
+        }
+    }
+
     #[test]
     fn parses_a_minimal_recipe() {
         let yaml = "
@@ -99,11 +148,58 @@ mod tests {
 
     #[test]
     fn all_lists_every_implemented_method() {
-        // Deliberate tripwire: fails the moment a second `AnonymizeMethod`
+        // Deliberate tripwire: fails the moment a fifth `AnonymizeMethod`
         // variant is added, forcing a conscious update here — the whole
         // point of `ALL` is that a UI can read it instead of hardcoding a
         // menu, so it must never silently fall behind the enum.
-        assert_eq!(AnonymizeMethod::ALL, &[AnonymizeMethod::TokenHmac]);
+        assert_eq!(
+            AnonymizeMethod::ALL,
+            &[
+                AnonymizeMethod::TokenHmac,
+                AnonymizeMethod::Fpe,
+                AnonymizeMethod::Bucket,
+                AnonymizeMethod::PartialMask,
+            ]
+        );
+    }
+
+    #[test]
+    fn bucket_and_partial_mask_pick_up_their_defaults_when_omitted() {
+        let yaml = "
+            version: 1
+            columns:
+              - name: age
+                method: bucket
+                salt_env: UNUSED
+              - name: card_number
+                method: partial_mask
+                salt_env: UNUSED
+        ";
+        let recipe: AnonymizeRecipe = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(recipe.columns[0].bucket_width, 10);
+        assert_eq!(recipe.columns[1].keep_prefix, 0);
+        assert_eq!(recipe.columns[1].keep_suffix, 4);
+    }
+
+    #[test]
+    fn bucket_width_and_keep_prefix_suffix_can_be_overridden() {
+        let yaml = "
+            version: 1
+            columns:
+              - name: age
+                method: bucket
+                salt_env: UNUSED
+                bucket_width: 5
+              - name: card_number
+                method: partial_mask
+                salt_env: UNUSED
+                keep_prefix: 1
+                keep_suffix: 2
+        ";
+        let recipe: AnonymizeRecipe = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(recipe.columns[0].bucket_width, 5);
+        assert_eq!(recipe.columns[1].keep_prefix, 1);
+        assert_eq!(recipe.columns[1].keep_suffix, 2);
     }
 
     #[test]
@@ -133,11 +229,7 @@ mod tests {
     fn a_recipe_with_an_empty_column_name_fails_verification() {
         let recipe = AnonymizeRecipe {
             version: 1,
-            columns: vec![AnonymizeColumn {
-                name: String::new(),
-                method: AnonymizeMethod::TokenHmac,
-                salt_env: "HASH_SALT".to_string(),
-            }],
+            columns: vec![token_hmac_column("", "HASH_SALT")],
         };
         let err = verify_recipe_well_formed(&recipe).unwrap_err();
         assert_eq!(err.code(), "VALIDATION_ERROR");
@@ -145,14 +237,12 @@ mod tests {
 
     #[test]
     fn a_recipe_with_the_same_column_declared_twice_fails_verification() {
-        let column = || AnonymizeColumn {
-            name: "email".to_string(),
-            method: AnonymizeMethod::TokenHmac,
-            salt_env: "HASH_SALT".to_string(),
-        };
         let recipe = AnonymizeRecipe {
             version: 1,
-            columns: vec![column(), column()],
+            columns: vec![
+                token_hmac_column("email", "HASH_SALT"),
+                token_hmac_column("email", "HASH_SALT"),
+            ],
         };
         let err = verify_recipe_well_formed(&recipe).unwrap_err();
         assert_eq!(err.code(), "VALIDATION_ERROR");
@@ -162,11 +252,7 @@ mod tests {
     fn a_well_formed_recipe_passes_verification() {
         let recipe = AnonymizeRecipe {
             version: 1,
-            columns: vec![AnonymizeColumn {
-                name: "email".to_string(),
-                method: AnonymizeMethod::TokenHmac,
-                salt_env: "HASH_SALT".to_string(),
-            }],
+            columns: vec![token_hmac_column("email", "HASH_SALT")],
         };
         assert!(verify_recipe_well_formed(&recipe).is_ok());
     }

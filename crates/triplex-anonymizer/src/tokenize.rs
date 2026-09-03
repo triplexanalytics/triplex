@@ -1,7 +1,27 @@
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
+use crate::mechanism::Mechanism;
+
 type HmacSha256 = Hmac<Sha256>;
+
+pub(crate) struct HmacTokenizer {
+    salt: Vec<u8>,
+}
+
+impl HmacTokenizer {
+    pub(crate) fn new(salt: &[u8]) -> Self {
+        Self {
+            salt: salt.to_vec(),
+        }
+    }
+}
+
+impl Mechanism for HmacTokenizer {
+    fn mask(&self, value: &str) -> String {
+        hmac_token(&self.salt, value)
+    }
+}
 
 /// Deterministic HMAC-SHA256 tokenization: the same value under the same
 /// salt always produces the same token, so repeated entity references stay

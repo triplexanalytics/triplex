@@ -5,18 +5,20 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use triplex_core::{Error, Result};
 
-/// One reversible entry in the mapping file: which column, the surrogate
-/// token that now sits in the anonymized output, and the real value it
+/// One reversible entry in the mapping file: which column, the masked
+/// value that now sits in the anonymized output (a token, a
+/// format-preserving substitution, a bucket label, or a partially-masked
+/// string, depending on the column's mechanism), and the real value it
 /// stands for. One entry per distinct (column, original_value) pair that
 /// actually appeared in the data — not one per row.
 #[derive(Debug, Serialize)]
 pub struct MappingEntry {
     pub column: String,
-    pub token: String,
+    pub masked_value: String,
     pub original_value: String,
 }
 
-/// Serializes mapping entries as CSV bytes (`column,token,original_value`).
+/// Serializes mapping entries as CSV bytes (`column,masked_value,original_value`).
 pub fn mapping_to_csv(entries: &[MappingEntry]) -> Result<Vec<u8>> {
     let mut writer = csv::Writer::from_writer(Vec::new());
     for entry in entries {
@@ -99,7 +101,7 @@ mod tests {
     fn mapping_csv_round_trips_its_fields() {
         let entries = vec![MappingEntry {
             column: "email".into(),
-            token: "abc123".into(),
+            masked_value: "abc123".into(),
             original_value: "alice@example.com".into(),
         }];
         let bytes = mapping_to_csv(&entries).unwrap();

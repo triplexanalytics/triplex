@@ -1,12 +1,23 @@
-//! Tier 1 pseudonymization: deterministic HMAC-SHA256 tokenization of
-//! declared columns, with a separate reversible mapping file that never
-//! leaves the client machine. No network calls.
+//! Tier 1 pseudonymization: deterministic masking of declared columns —
+//! HMAC-SHA256 tokenization, format-preserving substitution, k-anonymity
+//! bucketing, or prefix/suffix-preserving partial masking (see
+//! `mechanism.rs` for how a column's declared method dispatches to one of
+//! these) — with a separate reversible mapping file that never leaves the
+//! client machine. No network calls.
 
+mod bucket;
+mod fpe;
 mod mapping;
+mod mechanism;
+mod partial_mask;
 mod recipe;
 mod tokenize;
 
+pub use bucket::{bucket_value, evaluate_risk_model, k_anonymity, l_diversity, t_closeness};
+pub use bucket::{RiskAssessment, RiskModel};
+pub use fpe::fpe_mask;
 pub use mapping::{decrypt_mapping, encrypt_mapping, EncryptedMapping, MappingEntry};
+pub use partial_mask::partial_mask;
 pub use recipe::{
     load_recipe, verify_recipe_well_formed, AnonymizeColumn, AnonymizeMethod, AnonymizeRecipe,
 };
@@ -27,7 +38,7 @@ Keep the mapping file secured and separate from the anonymized dataset.";
 pub struct AnonymizeReport {
     pub rows_processed: usize,
     pub columns_anonymized: Vec<String>,
-    pub unique_tokens_minted: usize,
+    pub unique_masked_values_minted: usize,
     pub warning: &'static str,
 }
 
@@ -66,17 +77,7 @@ fn read_rows_bytes(bytes: &[u8], extension: &str) -> Result<triplex_io::Sample> 
 struct ResolvedColumn<'a> {
     header_index: usize,
     declared: &'a AnonymizeColumn,
-    salt: Vec<u8>,
-}
-
-/// `AnonymizeMethod` has exactly one variant today; matching (rather than
-/// ignoring it) means adding a second variant forces every call site that
-/// cares to be updated instead of silently defaulting to token_hmac
-/// behavior.
-fn check_method_is_supported(method: &AnonymizeMethod) {
-    match method {
-        AnonymizeMethod::TokenHmac => {}
-    }
+    mechanism: Box<dyn mechanism::Mechanism>,
 }
 
 fn resolve_columns<'a>(
@@ -94,11 +95,10 @@ fn resolve_columns<'a>(
             let salt = std::env::var(&declared.salt_env)
                 .map_err(|_| Error::MissingEnvVar(declared.salt_env.clone()))?
                 .into_bytes();
-            check_method_is_supported(&declared.method);
             Ok(ResolvedColumn {
                 header_index,
                 declared,
-                salt,
+                mechanism: mechanism::build_mechanism(declared, &salt),
             })
         })
         .collect()
@@ -126,20 +126,21 @@ fn resolve_columns_with_salts<'a>(
                 .ok_or_else(|| Error::MissingSalt(declared.name.clone()))?
                 .clone()
                 .into_bytes();
-            check_method_is_supported(&declared.method);
             Ok(ResolvedColumn {
                 header_index,
                 declared,
-                salt,
+                mechanism: mechanism::build_mechanism(declared, &salt),
             })
         })
         .collect()
 }
 
-/// The masking loop shared by every entry point: tokenizes every resolved
-/// column's values in place, minting one mapping entry per distinct
-/// (column, original_value) pair. Pure — no I/O — so it runs the same way
-/// whether the `Sample` came from a local file or from browser bytes.
+/// The masking loop shared by every entry point: runs each resolved
+/// column's `Mechanism` over its values in place, minting one mapping entry
+/// per distinct (column, original_value) pair. Pure — no I/O — so it runs
+/// the same way whether the `Sample` came from a local file or from
+/// browser bytes. Oblivious to *which* mechanism a column uses — adding a
+/// fifth one (see `mechanism.rs`) never touches this loop.
 fn mask_rows(resolved: &[ResolvedColumn], sample: triplex_io::Sample) -> (triplex_io::Sample, Vec<mapping::MappingEntry>) {
     let (headers, mut rows) = (sample.headers, sample.rows);
     let mut mapping_entries = Vec::new();
@@ -151,22 +152,22 @@ fn mask_rows(resolved: &[ResolvedColumn], sample: triplex_io::Sample) -> (triple
             if value.is_empty() {
                 continue; // nothing to mask/reveal for a missing cell
             }
-            let token = tokenize::hmac_token(&col.salt, value);
+            let masked = col.mechanism.mask(value);
             if seen.insert((col.header_index, value.clone())) {
                 mapping_entries.push(mapping::MappingEntry {
                     column: col.declared.name.clone(),
-                    token: token.clone(),
+                    masked_value: masked.clone(),
                     original_value: value.clone(),
                 });
             }
-            *value = token;
+            *value = masked;
         }
     }
 
     (triplex_io::Sample { headers, rows }, mapping_entries)
 }
 
-/// Reads `input_path` (`.csv` or `.parquet`), tokenizes every column the
+/// Reads `input_path` (`.csv` or `.parquet`), masks every column the
 /// recipe declares, writes the masked dataset to `output_path` as CSV, and
 /// writes a separate reversible mapping to `mapping_out_path` — plaintext
 /// CSV, or an AES-256-GCM-encrypted JSON envelope if `mapping_passphrase`
@@ -198,7 +199,7 @@ pub fn anonymize_file(
     Ok(AnonymizeReport {
         rows_processed: masked.rows.len(),
         columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
-        unique_tokens_minted: mapping_entries.len(),
+        unique_masked_values_minted: mapping_entries.len(),
         warning: PSEUDONYMIZATION_WARNING,
     })
 }
@@ -229,7 +230,7 @@ pub fn anonymize_bytes(
         report: AnonymizeReport {
             rows_processed: masked.rows.len(),
             columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
-            unique_tokens_minted: mapping_entries.len(),
+            unique_masked_values_minted: mapping_entries.len(),
             warning: PSEUDONYMIZATION_WARNING,
         },
         mapping_csv,
@@ -270,12 +271,23 @@ mod tests {
     }
 
     fn recipe_for(column: &str, salt_env: &str) -> AnonymizeRecipe {
+        recipe_with_method(column, AnonymizeMethod::TokenHmac, salt_env)
+    }
+
+    fn recipe_with_method(
+        column: &str,
+        method: AnonymizeMethod,
+        salt_env: &str,
+    ) -> AnonymizeRecipe {
         AnonymizeRecipe {
             version: 1,
             columns: vec![AnonymizeColumn {
                 name: column.to_string(),
-                method: AnonymizeMethod::TokenHmac,
+                method,
                 salt_env: salt_env.to_string(),
+                bucket_width: 10,
+                keep_prefix: 0,
+                keep_suffix: 4,
             }],
         }
     }
@@ -292,7 +304,7 @@ mod tests {
 
         assert_eq!(result.report.rows_processed, 4);
         assert_eq!(result.report.columns_anonymized, vec!["name"]);
-        assert_eq!(result.report.unique_tokens_minted, 4);
+        assert_eq!(result.report.unique_masked_values_minted, 4);
 
         let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
         assert_ne!(masked.rows[0][3], "widget");
@@ -303,6 +315,57 @@ mod tests {
             .rows
             .iter()
             .any(|r| r[0] == "name" && r[2] == "widget" && r[1] == masked.rows[0][3]));
+    }
+
+    #[test]
+    fn anonymize_bytes_with_fpe_preserves_length_and_character_class() {
+        let recipe = recipe_with_method("name", AnonymizeMethod::Fpe, "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string());
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+            .expect("anonymize_bytes should succeed");
+        let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+
+        assert_ne!(masked.rows[0][3], "widget");
+        assert_eq!(masked.rows[0][3].len(), "widget".len());
+        assert!(masked.rows[0][3].chars().all(|c| c.is_ascii_lowercase()));
+    }
+
+    #[test]
+    fn anonymize_bytes_with_bucket_generalizes_a_numeric_column() {
+        let recipe = recipe_with_method("id", AnonymizeMethod::Bucket, "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("id".to_string(), "unused".to_string()); // Bucket ignores the salt
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+            .expect("anonymize_bytes should succeed");
+        let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+
+        // ids 1..4 (recipe_with_method's default bucket_width: 10) all fall
+        // in the same "0-9" bucket.
+        assert!(masked.rows.iter().all(|r| r[0] == "0-9"));
+    }
+
+    #[test]
+    fn anonymize_bytes_with_partial_mask_keeps_only_the_configured_suffix() {
+        let recipe = recipe_with_method(
+            "name",
+            AnonymizeMethod::PartialMask,
+            "unused_in_the_bytes_path",
+        );
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "unused".to_string()); // PartialMask ignores the salt
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+            .expect("anonymize_bytes should succeed");
+        let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+
+        // recipe_with_method's default keep_suffix: 4 — "widget" keeps "dget".
+        assert_eq!(masked.rows[0][3], "**dget");
     }
 
     #[test]
@@ -369,7 +432,7 @@ mod tests {
 
         assert_eq!(report.rows_processed, 4);
         assert_eq!(report.columns_anonymized, vec!["name"]);
-        assert_eq!(report.unique_tokens_minted, 4); // widget/gadget/sprocket/doohickey
+        assert_eq!(report.unique_masked_values_minted, 4); // widget/gadget/sprocket/doohickey
 
         let masked = triplex_io::read_csv_full(&output).unwrap();
         assert_eq!(masked.headers, vec!["id", "price", "in_stock", "name"]);
@@ -507,7 +570,7 @@ mod tests {
 
         let plaintext = std::fs::read_to_string(&revealed).unwrap();
         assert!(plaintext.contains("widget"));
-        assert!(plaintext.contains("column,token,original_value"));
+        assert!(plaintext.contains("column,masked_value,original_value"));
 
         std::fs::remove_file(&output).ok();
         std::fs::remove_file(&mapping_out).ok();
