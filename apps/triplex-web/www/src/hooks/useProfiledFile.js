@@ -31,6 +31,7 @@ export function useProfiledFile(wasm) {
 
   const loadFile = useCallback(async (file) => {
     setError("");
+    const t0 = performance.now();
     const buf = new Uint8Array(await file.arrayBuffer());
     const ext = file.name.split(".").pop().toLowerCase();
     setFileBytes(buf);
@@ -42,6 +43,7 @@ export function useProfiledFile(wasm) {
       setContract(buildContractFromProfile(readProfile));
       setRecipe(createEmptyRecipe());
       setSalt("");
+      console.log(`[main] total loadFile: ${(performance.now() - t0).toFixed(1)}ms`);
     } catch (err) {
       setError(String(err.message || err));
     }

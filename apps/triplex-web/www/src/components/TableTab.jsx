@@ -54,7 +54,7 @@ export default function TableTab({
 
   const getCellContent = useCallback(
     ([col, row]) => {
-      const value = sample.rows[row]?.[col] ?? "";
+      const value = sample.getCell(row, col);
       return {
         kind: GridCellKind.Text,
         data: value,
@@ -62,7 +62,7 @@ export default function TableTab({
         allowOverlay: false,
       };
     },
-    [sample.rows],
+    [sample],
   );
 
   // Whether the last draw pass had to truncate each column's name — read by
@@ -208,7 +208,7 @@ export default function TableTab({
     <div style={{ position: "relative", height: "100%" }}>
       <DataEditor
         columns={columns}
-        rows={sample.rows.length}
+        rows={sample.rowCount}
         getCellContent={getCellContent}
         onHeaderClicked={onHeaderClicked}
         drawHeader={drawHeader}

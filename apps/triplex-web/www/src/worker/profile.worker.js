@@ -12,9 +12,25 @@ self.onmessage = async (event) => {
 
   try {
     await ready;
-    const sampleJson = wasm.read_table(new Uint8Array(bytes), extension);
-    const profileJson = wasm.profile_columns(new Uint8Array(bytes), extension);
-    self.postMessage({ type: "profile:ok", requestId, sampleJson, profileJson });
+    const t0 = performance.now();
+    const result = wasm.read_and_profile_table(new Uint8Array(bytes), extension);
+    console.log(
+      `[wasm worker] read_and_profile_table: ${(performance.now() - t0).toFixed(1)}ms ` +
+        `(${result.table_arrow.length} arrow bytes, ${result.profile_json.length} profile chars) ` +
+        `for ${bytes.length} input bytes`,
+    );
+    // table_arrow is a Vec<u8> wasm-bindgen copied out of wasm memory into a
+    // fresh Uint8Array/ArrayBuffer, not a view into live wasm memory — safe
+    // to transfer (zero-copy handoff), since nothing here needs it again.
+    self.postMessage(
+      {
+        type: "profile:ok",
+        requestId,
+        profileJson: result.profile_json,
+        tableArrow: result.table_arrow,
+      },
+      [result.table_arrow.buffer],
+    );
   } catch (err) {
     self.postMessage({ type: "profile:error", requestId, message: String(err) });
   }
