@@ -42,6 +42,11 @@ pub enum Error {
     /// Distinct from `Yaml`: the text parses fine, its *content* doesn't
     /// hold together.
     Validation(String),
+    /// An Arrow `RecordBatch` could not be built or serialized to IPC bytes
+    /// — the columnar wire format used for the browser table view. Distinct
+    /// from `Parquet`: this is about the in-memory Arrow representation and
+    /// its IPC framing, not a Parquet file.
+    Arrow(String),
 }
 
 impl Error {
@@ -59,6 +64,7 @@ impl Error {
             Error::MissingSalt(_) => "MISSING_SALT",
             Error::Crypto(_) => "CRYPTO_ERROR",
             Error::Validation(_) => "VALIDATION_ERROR",
+            Error::Arrow(_) => "ARROW_ERROR",
         }
     }
 }
@@ -85,6 +91,7 @@ impl fmt::Display for Error {
             }
             Error::Crypto(msg) => write!(f, "[{code}] {msg}"),
             Error::Validation(msg) => write!(f, "[{code}] {msg}"),
+            Error::Arrow(msg) => write!(f, "[{code}] arrow serialization failed: {msg}"),
         }
     }
 }
@@ -118,11 +125,16 @@ mod tests {
             Error::MissingSalt("email".into()),
             Error::Crypto("AEAD decryption failed".into()),
             Error::Validation("recipe has no columns".into()),
+            Error::Arrow("schema field count does not match column count".into()),
         ];
 
         let codes: Vec<&str> = errors.iter().map(Error::code).collect();
         let unique: std::collections::HashSet<&&str> = codes.iter().collect();
-        assert_eq!(unique.len(), codes.len(), "codes must not collide: {codes:?}");
+        assert_eq!(
+            unique.len(),
+            codes.len(),
+            "codes must not collide: {codes:?}"
+        );
 
         for e in &errors {
             let message = e.to_string();

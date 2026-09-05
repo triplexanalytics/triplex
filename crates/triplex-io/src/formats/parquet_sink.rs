@@ -36,8 +36,9 @@ fn parse_or_none<T: std::str::FromStr>(value: &str) -> Option<T> {
 /// not just an empty cell) becomes `null` rather than failing the whole
 /// write — the caller is expected to have already inferred `column_type`
 /// from this same data, so mismatches should be rare, but a stray bad value
-/// shouldn't block writing everything else.
-fn build_array(column_type: WriteColumnType, values: &[&str]) -> ArrayRef {
+/// shouldn't block writing everything else. `pub(crate)`: also used by
+/// `arrow_ipc_sink.rs`, the other Arrow-array-building consumer.
+pub(crate) fn build_array(column_type: WriteColumnType, values: &[&str]) -> ArrayRef {
     match column_type {
         WriteColumnType::Integer => Arc::new(Int64Array::from(
             values
@@ -66,15 +67,12 @@ fn build_array(column_type: WriteColumnType, values: &[&str]) -> ArrayRef {
     }
 }
 
-/// Writes a typed Parquet file: `column_types[i]` is the physical type for
-/// `headers[i]`. Every column is nullable — an empty cell becomes Parquet
-/// `null`, matching how the rest of this crate treats a missing value.
-pub fn write_parquet(
-    path: &Path,
-    headers: &[String],
-    column_types: &[WriteColumnType],
-    rows: &[Vec<String>],
-) -> Result<()> {
+/// Builds the Arrow `Schema` for `headers`/`column_types` — every field
+/// nullable, matching how this crate treats a missing/mismatched cell as
+/// `null` rather than failing the whole column. `pub(crate)`: shared with
+/// `arrow_ipc_sink.rs`, so a Parquet file and an IPC stream built from the
+/// same rows always agree on field types.
+pub(crate) fn schema_for(headers: &[String], column_types: &[WriteColumnType]) -> Arc<Schema> {
     let fields: Vec<Field> = headers
         .iter()
         .zip(column_types)
@@ -88,16 +86,33 @@ pub fn write_parquet(
             Field::new(name, data_type, true)
         })
         .collect();
-    let schema = Arc::new(Schema::new(fields));
+    Arc::new(Schema::new(fields))
+}
 
-    let arrays: Vec<ArrayRef> = column_types
+/// Builds one Arrow array per column from `rows`, in `column_types` order.
+/// `pub(crate)`: shared with `arrow_ipc_sink.rs`.
+pub(crate) fn arrays_for(column_types: &[WriteColumnType], rows: &[Vec<String>]) -> Vec<ArrayRef> {
+    column_types
         .iter()
         .enumerate()
         .map(|(col_idx, column_type)| {
             let values: Vec<&str> = rows.iter().map(|row| row[col_idx].as_str()).collect();
             build_array(*column_type, &values)
         })
-        .collect();
+        .collect()
+}
+
+/// Writes a typed Parquet file: `column_types[i]` is the physical type for
+/// `headers[i]`. Every column is nullable — an empty cell becomes Parquet
+/// `null`, matching how the rest of this crate treats a missing value.
+pub fn write_parquet(
+    path: &Path,
+    headers: &[String],
+    column_types: &[WriteColumnType],
+    rows: &[Vec<String>],
+) -> Result<()> {
+    let schema = schema_for(headers, column_types);
+    let arrays = arrays_for(column_types, rows);
 
     let batch =
         RecordBatch::try_new(schema.clone(), arrays).map_err(|e| Error::Parquet(e.to_string()))?;

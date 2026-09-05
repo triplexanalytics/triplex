@@ -17,25 +17,31 @@ fn to_js_err<E: std::fmt::Display>(e: E) -> JsValue {
     JsValue::from_str(&e.to_string())
 }
 
-/// Table view: the whole uploaded file's headers+rows as JSON, for a grid
-/// that displays every row — unlike `generate_contract`'s schema inference,
-/// this isn't bounded to a sample (the browser already holds the whole
-/// upload in memory, so there's nothing to bound).
-#[wasm_bindgen]
-pub fn read_table(bytes: &[u8], extension: &str) -> Result<String, JsValue> {
-    let sample = triplex_schemacast::read_full_bytes(bytes, extension).map_err(to_js_err)?;
-    serde_json::to_string(&sample).map_err(to_js_err)
+/// Table view's result: the per-column profile (type, null%, mismatched%,
+/// quantiles/histogram or top-value counts — small, stays JSON) and the
+/// whole uploaded file's row data as Arrow IPC bytes (typed columns, not a
+/// JSON string of every stringified cell — unlike `generate_contract`'s
+/// schema inference, the row data isn't bounded to a sample, since the
+/// browser already holds the whole upload in memory).
+#[wasm_bindgen(getter_with_clone)]
+pub struct TableAndProfile {
+    pub profile_json: String,
+    pub table_arrow: Vec<u8>,
 }
 
-/// Table view: per-column profile (type, null%, mismatched%, and — new here
-/// — quantiles/histogram or top-value counts) as structured JSON, for the
-/// header sparklines and the Column-view tab. Same inference call as
-/// `generate_contract`, just returned as JSON instead of rendered to YAML.
+/// Table view: parses `bytes` once and returns both the schema profile (for
+/// the header sparklines and Column-view tab) and the row data, replacing
+/// the old `read_table`+`profile_columns` pair — each of which independently
+/// re-parsed the whole file. See the design notes.
 #[wasm_bindgen]
-pub fn profile_columns(bytes: &[u8], extension: &str) -> Result<String, JsValue> {
-    let schema =
-        triplex_schemacast::infer_schema_from_bytes(bytes, extension).map_err(to_js_err)?;
-    serde_json::to_string(&schema).map_err(to_js_err)
+pub fn read_and_profile_table(bytes: &[u8], extension: &str) -> Result<TableAndProfile, JsValue> {
+    let (schema, table_arrow) =
+        triplex_schemacast::read_and_profile_bytes(bytes, extension).map_err(to_js_err)?;
+    let profile_json = serde_json::to_string(&schema).map_err(to_js_err)?;
+    Ok(TableAndProfile {
+        profile_json,
+        table_arrow,
+    })
 }
 
 /// Table view: every anonymization method this build implements, as a JSON

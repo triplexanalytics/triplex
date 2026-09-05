@@ -5,6 +5,7 @@
 mod formats;
 mod shared;
 
+pub use formats::arrow_ipc_sink::rows_to_arrow_ipc;
 pub use formats::csv_sink::{write_csv, write_csv_bytes, write_csv_with_delimiter};
 pub use formats::csv_source::{
     read_csv_full, read_csv_full_bytes, read_csv_full_with_delimiter, read_csv_sample,

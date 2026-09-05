@@ -277,6 +277,24 @@ pub fn infer_schema_from_bytes(bytes: &[u8], extension: &str) -> Result<SchemaCo
     Ok(infer_schema(&sample))
 }
 
+/// The browser table view's single entry point: parses `bytes` **once**
+/// (unlike calling `infer_schema_from_bytes` and a separate full-row read
+/// side by side, which each independently re-parse the whole file) and
+/// returns both the inferred schema and the row data serialized as Arrow
+/// IPC bytes — typed columns, not a JSON string of every stringified cell.
+/// See the design notes.
+pub fn read_and_profile_bytes(bytes: &[u8], extension: &str) -> Result<(SchemaContract, Vec<u8>)> {
+    let sample = convert::read_full_bytes(bytes, extension)?;
+    let schema = infer_schema(&sample);
+    let column_types: Vec<triplex_io::WriteColumnType> = schema
+        .columns
+        .iter()
+        .map(|c| convert::to_write_column_type(c.inferred_type))
+        .collect();
+    let table_arrow = triplex_io::rows_to_arrow_ipc(&sample.headers, &column_types, &sample.rows)?;
+    Ok((schema, table_arrow))
+}
+
 /// Infers a schema from bytes and renders it as a starting `.triplex.yaml`
 /// contract — `apps/triplex-web`'s "generate contract" action in one call.
 /// See `to_declared_contract` for the inferred-to-declared mapping.
@@ -559,6 +577,64 @@ mod tests {
             from_bytes.columns.iter().map(|c| c.inferred_type).collect::<Vec<_>>(),
             from_path.columns.iter().map(|c| c.inferred_type).collect::<Vec<_>>()
         );
+    }
+
+    /// The single-parse path must agree with the old two-call path it
+    /// replaces: same inferred schema, and the Arrow IPC bytes decode back
+    /// to the exact same headers/values `infer_schema_from_bytes` saw.
+    #[test]
+    fn read_and_profile_bytes_matches_infer_schema_from_bytes_and_round_trips_through_arrow() {
+        use arrow_array::Array;
+        use arrow_ipc::reader::StreamReader;
+        use std::io::Cursor;
+
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let (schema, table_arrow) =
+            read_and_profile_bytes(&bytes, "csv").expect("bytes should parse and profile");
+        let expected_schema = infer_schema_from_bytes(&bytes, "csv").unwrap();
+
+        assert_eq!(
+            schema
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+            expected_schema
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(
+            schema
+                .columns
+                .iter()
+                .map(|c| c.inferred_type)
+                .collect::<Vec<_>>(),
+            expected_schema
+                .columns
+                .iter()
+                .map(|c| c.inferred_type)
+                .collect::<Vec<_>>(),
+        );
+
+        let mut reader = StreamReader::try_new(Cursor::new(table_arrow), None).unwrap();
+        let field_names: Vec<String> = reader
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| f.name().clone())
+            .collect();
+        assert_eq!(field_names, vec!["id", "price", "in_stock", "name"]);
+
+        let batch = reader.next().unwrap().unwrap();
+        assert_eq!(batch.num_rows(), 4);
+        let ids = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<arrow_array::Int64Array>()
+            .expect("id is Integer-inferred, so it must come back as a typed Int64Array");
+        assert_eq!(ids.value(0), 1);
     }
 
     #[test]

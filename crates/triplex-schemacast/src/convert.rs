@@ -46,7 +46,7 @@ pub fn read_full_bytes(bytes: &[u8], extension: &str) -> Result<Sample> {
     format.read_full_bytes(bytes)
 }
 
-fn to_write_column_type(column_type: ColumnType) -> WriteColumnType {
+pub(crate) fn to_write_column_type(column_type: ColumnType) -> WriteColumnType {
     match column_type {
         ColumnType::Integer => WriteColumnType::Integer,
         ColumnType::Float => WriteColumnType::Float,

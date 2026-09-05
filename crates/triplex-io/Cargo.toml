@@ -12,6 +12,7 @@ arrow-cast = { version = "59.2.0", default-features = false }
 serde_json = { version = "1.0.151", features = ["preserve_order"] }
 arrow-array = { version = "59.2.0", default-features = false }
 arrow-schema = { version = "59.2.0", default-features = false }
+arrow-ipc = { version = "59.2.0", default-features = false }
 
 # Parquet's snap/zstd codecs pull in C code (zstd-sys) that doesn't build for
 # wasm32-unknown-unknown without a C toolchain targeting it. Parquet input is

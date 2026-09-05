@@ -14,3 +14,5 @@ regex = "1"
 
 [dev-dependencies]
 parquet = { version = "59.2.0", default-features = false }
+arrow-array = { version = "59.2.0", default-features = false }
+arrow-ipc = { version = "59.2.0", default-features = false }

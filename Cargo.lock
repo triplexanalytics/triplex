@@ -1005,7 +1005,7 @@ dependencies = [
 
 [[package]]
 name = "triplex-anonymizer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -1023,7 +1023,7 @@ dependencies = [
 
 [[package]]
 name = "triplex-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "triplex-anonymizer",
@@ -1032,14 +1032,15 @@ dependencies = [
 
 [[package]]
 name = "triplex-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "triplex-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-cast",
+ "arrow-ipc",
  "arrow-schema",
  "csv",
  "parquet",
@@ -1050,8 +1051,10 @@ dependencies = [
 
 [[package]]
 name = "triplex-schemacast"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "arrow-array",
+ "arrow-ipc",
  "parquet",
  "regex",
  "serde",
@@ -1063,7 +1066,7 @@ dependencies = [
 
 [[package]]
 name = "triplex-web"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "serde_yaml_ng",

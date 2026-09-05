@@ -2,6 +2,7 @@
 //! shared by CSV/TSV and the `format` strategy trait that dispatches across
 //! all of them by file extension.
 
+pub(crate) mod arrow_ipc_sink;
 pub(crate) mod csv_sink;
 pub(crate) mod csv_source;
 pub(crate) mod delimited;
