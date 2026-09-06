@@ -13,8 +13,7 @@ mod partial_mask;
 mod recipe;
 mod tokenize;
 
-pub use bucket::{bucket_value, evaluate_risk_model, k_anonymity, l_diversity, t_closeness};
-pub use bucket::{RiskAssessment, RiskModel};
+pub use bucket::{bucket_numeric, bucket_value};
 pub use fpe::fpe_mask;
 pub use mapping::{decrypt_mapping, encrypt_mapping, EncryptedMapping, MappingEntry};
 pub use partial_mask::partial_mask;
@@ -22,6 +21,11 @@ pub use recipe::{
     load_recipe, verify_recipe_well_formed, AnonymizeColumn, AnonymizeMethod, AnonymizeRecipe,
 };
 pub use tokenize::hmac_token;
+// Risk-model scoring moved to `triplex-datasetcard` — kept
+// re-exported here so nothing that already does
+// `use triplex_anonymizer::{RiskModel, ...}` breaks.
+pub use triplex_datasetcard::{evaluate_risk_model, k_anonymity, l_diversity, t_closeness};
+pub use triplex_datasetcard::{RiskAssessment, RiskModel};
 
 use std::collections::HashSet;
 use std::path::Path;

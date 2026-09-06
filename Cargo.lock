@@ -1018,6 +1018,7 @@ dependencies = [
  "serde_yaml_ng",
  "sha2",
  "triplex-core",
+ "triplex-datasetcard",
  "triplex-io",
 ]
 
@@ -1033,6 +1034,15 @@ dependencies = [
 [[package]]
 name = "triplex-core"
 version = "0.2.0"
+
+[[package]]
+name = "triplex-datasetcard"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "triplex-core",
+]
 
 [[package]]
 name = "triplex-io"
@@ -1071,6 +1081,7 @@ dependencies = [
  "serde_json",
  "serde_yaml_ng",
  "triplex-anonymizer",
+ "triplex-datasetcard",
  "triplex-schemacast",
  "wasm-bindgen",
 ]

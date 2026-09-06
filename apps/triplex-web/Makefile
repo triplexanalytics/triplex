@@ -46,13 +46,13 @@ preview:
 	cd www && npm run preview
 
 # Rust tests for this crate and every crate it depends on (triplex-io,
-# triplex-schemacast, triplex-anonymizer) — no JS tests exist yet.
+# triplex-schemacast, triplex-datasetcard, triplex-anonymizer) — no JS tests exist yet.
 test:
-	cargo test -p triplex-io -p triplex-schemacast -p triplex-anonymizer -p triplex-web
+	cargo test -p triplex-io -p triplex-schemacast -p triplex-datasetcard -p triplex-anonymizer -p triplex-web
 
 # Same crate set as `test`, run through clippy instead.
 clippy:
-	cargo clippy -p triplex-io -p triplex-schemacast -p triplex-anonymizer -p triplex-web --all-targets
+	cargo clippy -p triplex-io -p triplex-schemacast -p triplex-datasetcard -p triplex-anonymizer -p triplex-web --all-targets
 
 # Check-only, not `cargo fmt`: this crate's dependencies have pre-existing
 # formatting the installed rustfmt disagrees with, so applying it here would

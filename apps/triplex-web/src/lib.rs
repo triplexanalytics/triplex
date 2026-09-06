@@ -148,3 +148,64 @@ pub fn check_pattern_conformance(
         triplex_schemacast::check_patterns_bytes(&declared, bytes, extension).map_err(to_js_err)?;
     serde_json::to_string(&report).map_err(to_js_err)
 }
+
+/// Column-view tab: a pre-anonymize privacy-risk advisory
+///  — k-anonymity for one numeric column's raw values, computed
+/// straight from the upload, before the user has picked any anonymization
+/// method or recipe. `values` is that column's values as a typed `f64`
+/// array (every current caller pre-filters to integer-inferred columns, so
+/// this is a real typed array from the browser's Arrow-backed table, not a
+/// JSON string of stringified cells — see the design notes follow-up);
+/// `NaN` marks a missing/non-numeric cell, bucketed into its own singleton
+/// bucket same as `bucket_numeric`'s doc comment describes. Returns a
+/// `RiskAssessment` as JSON. k-anonymity alone needs no second column — see
+/// `score_column_pair_risk` for l-diversity/t-closeness, which do.
+#[wasm_bindgen]
+pub fn score_column_risk(values: &[f64], bucket_width: u32) -> Result<String, JsValue> {
+    let bucketed: Vec<String> = values
+        .iter()
+        .map(|v| triplex_anonymizer::bucket_numeric(bucket_width as u64, *v))
+        .collect();
+    let assessment = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::KAnonymity,
+        &bucketed,
+        &[],
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&assessment).map_err(to_js_err)
+}
+
+/// Dataset Anonymity Analysis tab: l-diversity and t-closeness for one
+/// user-chosen pair of columns — `quasi_values` (the quasi-identifier,
+/// typed and generalized the same way as `score_column_risk`) and
+/// `sensitive_values_json` (the attribute checked for diversity/skew within
+/// each generalized group — a JSON array of strings, not typed, since a
+/// candidate sensitive column can be any type, not just numeric), both
+/// that column's raw values in row order. Returns a two-element JSON array
+/// of `RiskAssessment` (`[l_diversity, t_closeness]`).
+#[wasm_bindgen]
+pub fn score_column_pair_risk(
+    quasi_values: &[f64],
+    sensitive_values_json: &str,
+    bucket_width: u32,
+) -> Result<String, JsValue> {
+    let sensitive_values: Vec<String> =
+        serde_json::from_str(sensitive_values_json).map_err(to_js_err)?;
+    let bucketed: Vec<String> = quasi_values
+        .iter()
+        .map(|v| triplex_anonymizer::bucket_numeric(bucket_width as u64, *v))
+        .collect();
+    let l_diversity = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::LDiversity,
+        &bucketed,
+        &sensitive_values,
+    )
+    .map_err(to_js_err)?;
+    let t_closeness = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::TCloseness,
+        &bucketed,
+        &sensitive_values,
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&[l_diversity, t_closeness]).map_err(to_js_err)
+}

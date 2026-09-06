@@ -5,6 +5,7 @@ members = [
     "crates/triplex-io",
     "crates/triplex-schemacast",
     "crates/triplex-anonymizer",
+    "crates/triplex-datasetcard",
     "apps/triplex-cli",
     "apps/triplex-web",
 ]
