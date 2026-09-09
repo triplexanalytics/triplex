@@ -1,3 +1,5 @@
+/* === Theme tokens (light + dark) === */
+
 :root {
   color-scheme: light dark;
   --bg: #f7f8fa;
@@ -81,6 +83,8 @@ button.primary {
 
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 
+/* === App shell, navbar, tier picker === */
+
 .app-shell { display: flex; flex-direction: column; height: 100%; }
 
 .navbar {
@@ -142,6 +146,8 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 
 .lock-icon { flex: none; }
 
+/* === Tabs, main content layout === */
+
 .tabs { display: flex; gap: 0.25rem; padding: 0.5rem 1rem 0; background: var(--surface); border-bottom: 1px solid var(--border); }
 
 .tab-button {
@@ -155,7 +161,14 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 
 .tab-button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 
-.main-content { flex: 1; overflow: auto; padding: 1rem; }
+.main-content { position: relative; flex: 1; overflow: auto; padding: 1rem; }
+
+/* Breathing room between the grid's own content/scrollbars and the rest of
+   the page — Glide renders its scrollbars flush against its container's
+   edge otherwise. */
+.table-grid-wrap { padding: 0 8px 8px 0; }
+
+/* === Upload / dropzone === */
 
 .upload-prompt {
   display: flex;
@@ -197,6 +210,8 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   outline-offset: 2px;
 }
 
+/* === Banners, form fields === */
+
 .banner {
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
@@ -221,6 +236,8 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 }
 
 .field-hint { font-size: 0.72rem; color: var(--text-faint); margin: 0.3rem 0 0; }
+
+/* === Tooltips: header hover, histogram bins, InfoTrigger === */
 
 .header-tooltip {
   z-index: 50;
@@ -255,6 +272,11 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 
 .bin-tooltip strong { font-size: 0.8rem; }
 .bin-tooltip span { opacity: 0.75; }
+
+/* Existing bin/header tooltips are always short labels, so nowrap suits
+   them; a matrix cell's tooltip carries a full sentence and needs to wrap
+   to a bounded width instead of stretching across the viewport. */
+.bin-tooltip.wrap { white-space: normal; max-width: 260px; }
 
 .bin-tooltip::after {
   content: "";
@@ -304,9 +326,107 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   opacity: 0.6;
 }
 
+/* InfoTrigger.jsx — supersedes .info-trigger/.method-tooltip above for new
+   usage (ColumnMenu/ColumnCard/RiskMatrix all go through the component
+   now). Left the old rules in place rather than deleting: nothing here
+   references them anymore, but removing them widens this diff for no
+   functional gain and risks a needless conflict with unrelated branches
+   still using them directly. */
+.info-trigger-glyph {
+  position: relative;
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.85rem;
+  cursor: help;
+  color: var(--text-faint);
+}
+
+/* The wide variant is the trigger itself (e.g. a full-width bar), not a
+   small glyph next to text, so none of the icon-tuned defaults apply. */
+.info-trigger-wide {
+  display: block;
+  width: 100%;
+  margin-left: 0;
+  cursor: default;
+  color: inherit;
+}
+
+/* The outer element owns position and hit-testing; its bottom padding
+   bridges the visual gap up to the trigger so the cursor stays inside
+   the hoverable area while moving from the glyph into the tooltip. A
+   plain margin there breaks `:hover` the instant the mouse crosses it,
+   which made "Read more" impossible to reach. The inner box carries
+   all the visible chrome, positioned by the padded outer box. */
+.info-trigger-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  padding-bottom: 8px;
+  z-index: 50;
+}
+
+.info-trigger-tooltip-center { left: 50%; transform: translateX(-50%); }
+.info-trigger-tooltip-left { left: 0; }
+
+.info-trigger-tooltip-left .info-trigger-tooltip-box::after {
+  left: 12px;
+  transform: rotate(45deg);
+}
+
+.info-trigger-tooltip-box {
+  display: block;
+  position: relative;
+  width: 280px;
+  white-space: normal;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.8rem;
+  /* Explicit, not inherited: RiskMatrix nests its trigger inside an <h4>,
+     whose user-agent-default bold weight would otherwise cascade down and
+     make the whole tooltip body bold — leaving a <strong> inside it (e.g.
+     "Higher is safer") almost invisible against that already-bold text. */
+  font-weight: normal;
+  line-height: 1.5;
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+  box-shadow: var(--shadow), 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* Small pointer back to the trigger, same language as .bin-tooltip's. */
+.info-trigger-tooltip-box::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  background: var(--text);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.info-trigger-glyph:hover .info-trigger-tooltip,
+.info-trigger-glyph:focus .info-trigger-tooltip {
+  display: block;
+}
+
+.info-trigger-readmore {
+  display: block;
+  width: fit-content;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  opacity: 0.85;
+}
+
+.info-trigger-readmore:hover { opacity: 1; }
+
+/* === Column view: card grid, per-card risk bar === */
+
 .column-view-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-items: start;
   gap: 0.75rem;
 }
 
@@ -327,8 +447,147 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 .column-card dl dt { font-weight: 500; }
 .column-card dl dd { margin: 0; }
 
+.type-with-icon { display: inline-flex; align-items: center; gap: 0.3rem; }
+.type-with-icon svg { color: var(--text-faint); flex-shrink: 0; }
+
 .conformance-ok { color: var(--success-text); }
 .conformance-bad { color: var(--error-text); }
+
+.risk-bar-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-alt);
+  overflow: hidden;
+  margin-bottom: 0.2rem;
+}
+
+.risk-bar-fill { height: 100%; border-radius: 3px; }
+
+.risk-bar-label { font-size: 0.72rem; color: var(--text-muted); }
+
+/* === Diversity check: section, risk-matrix heatmap === */
+
+.diversity-check-section {
+  margin-top: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.9rem 1rem;
+}
+
+.diversity-check-section h3 { margin: 0 0 0.35rem; font-size: 0.92rem; }
+
+.diversity-check-intro { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 0.6rem; max-width: 640px; }
+
+.risk-matrix-pair { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+
+.risk-matrix { position: relative; }
+
+.risk-matrix h4 { margin: 0 0 0.3rem; font-size: 0.8rem; color: var(--text-muted); }
+
+.risk-matrix canvas { cursor: default; }
+
+.risk-matrix-canvas-stack { position: relative; }
+
+/* Layered on top of the main heatmap canvas — see RiskMatrix.jsx's doc
+   comment for why the hovered cell's value fades in via this layer's own
+   opacity transition instead of being redrawn into the main canvas. */
+.risk-matrix-hover-value {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.risk-matrix-hover-value.visible { opacity: 1; }
+
+/* === Loading: full-panel overlay, spinner, skeletons === */
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: var(--bg);
+}
+
+.loading-overlay p { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.skeleton-block {
+  border-radius: 6px;
+  background: var(--surface-alt);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+/* A gray pulse alone reads as "empty/broken," not "loading" — same
+   confusion the k-anonymity bar hit before. Centering an actual spinner
+   inside makes it unambiguous — a label next to it too, since a small
+   spinner alone can get lost against a much larger block at normal page
+   viewing scale (confirmed the spinner itself renders fine; it was just
+   easy to overlook, not actually missing). */
+.skeleton-block-center { display: flex; align-items: center; justify-content: center; }
+
+.skeleton-block-loading { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+
+.skeleton-block-loading p { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+
+.risk-matrix-skeleton {
+  position: relative;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.risk-matrix-skeleton-cell { position: absolute; }
+
+.risk-matrix-skeleton .skeleton-block-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--surface);
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.skeleton-line {
+  display: inline-block;
+  height: 0.85em;
+  width: 90px;
+  vertical-align: middle;
+  border-radius: 4px;
+  background: var(--surface-alt);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+/* === Column menu (anonymization + imputation dropdown) === */
 
 .menu-backdrop {
   position: fixed;

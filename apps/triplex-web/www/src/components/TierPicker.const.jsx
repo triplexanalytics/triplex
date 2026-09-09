@@ -9,7 +9,7 @@ export const TIERS = [
     id: 1,
     label: "Basic Anonymization",
     caption: "Uses existing data for masking private data columns",
-    reversibility: "100% reversible — mapping key",
+    reversibility: "100% reversible (mapping key)",
     lockStrength: 1,
   },
   {
@@ -17,14 +17,14 @@ export const TIERS = [
     label: "Synthetic Data Generation",
     caption:
       "Uses existing data to generate synthetic data based on (advanced) privacy-preserving algorithms",
-    reversibility: "Irreversible — synthetic",
+    reversibility: "Irreversible (synthetic)",
     lockStrength: 2,
   },
   {
     id: 3,
     label: "Pattern-persistent Data Generation",
     caption: "Advanced and pattern-persistent data anonymization",
-    reversibility: "Irreversible — synthetic",
+    reversibility: "Irreversible (synthetic)",
     lockStrength: 3,
   },
 ];

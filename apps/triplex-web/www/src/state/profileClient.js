@@ -1,6 +1,7 @@
 // Thin request/response wrapper around the profiling worker — one
 // outstanding request at a time is all this view needs (one uploaded file).
 import { tableFromIPC } from "apache-arrow";
+import { timingLog } from "./wasmTiming";
 
 let worker;
 let nextRequestId = 1;
@@ -28,6 +29,21 @@ function sampleFromArrowTable(table) {
     getCell(row, colIndex) {
       return cellToString(columns[colIndex]?.get(row));
     },
+    // Raw numeric values as a typed Float64Array (NaN for null/non-numeric)
+    // instead of stringified cells — the risk-scoring wasm calls
+    // (score_column_risk/score_column_pair_risk) take a typed array
+    // directly, not a JSON string, so callers that already know a column
+    // is numeric (every current one pre-filters to integer-inferred
+    // columns) should read it this way, not through getCell + reparse.
+    getNumericColumn(colIndex) {
+      const col = columns[colIndex];
+      const out = new Float64Array(table.numRows);
+      for (let row = 0; row < table.numRows; row++) {
+        const v = col?.get(row);
+        out[row] = v === null || v === undefined ? NaN : Number(v);
+      }
+      return out;
+    },
   };
 }
 
@@ -46,7 +62,7 @@ function getWorker() {
         const table = tableFromIPC(rest.tableArrow);
         const sample = sampleFromArrowTable(table);
         const profile = JSON.parse(rest.profileJson);
-        console.log(
+        timingLog(
           `[main] postMessage round trip done, tableFromIPC + JSON.parse(profile): ` +
             `${(performance.now() - t0).toFixed(1)}ms`,
         );

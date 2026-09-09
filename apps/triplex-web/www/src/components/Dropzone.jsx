@@ -36,7 +36,7 @@ export default function Dropzone({ onFileSelected }) {
       <p>Drag a .csv, .tsv, or .jsonl file here, or click to choose one.</p>
       <p className="hint">
         .parquet isn't supported in the browser (its codecs need a C toolchain
-        wasm32-unknown-unknown doesn't have) — the <code>triplex</code> CLI handles it natively.
+        wasm32-unknown-unknown doesn't have). The <code>triplex</code> CLI handles it natively.
       </p>
       <input
         ref={inputRef}

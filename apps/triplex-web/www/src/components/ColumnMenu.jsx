@@ -1,14 +1,7 @@
-import { IMPUTATION_OPTIONS } from "./ColumnMenu.const";
+import { IMPUTATION_OPTIONS, METHOD_INFO } from "./ColumnMenu.const";
+import InfoTrigger from "./InfoTrigger";
 
-// One-line descriptions for the info tooltip next to each method radio.
-// `methods` itself comes from `list_anonymize_methods()` (backend stays the
-// source of truth for *which* methods exist); this map only supplies the
-// human-readable blurb and is missing-safe for a method it doesn't know yet.
 // "Read more" is inert until the glossary page (see task) exists to link to.
-const METHOD_INFO = {
-  token_hmac:
-    "Deterministic HMAC token: the same input always produces the same pseudonym under a given salt, so joins across columns/files still work. Not reversible without the salt.",
-};
 
 /** Anchored dropdown opened from the small icon next to a column's name in
  * the Table tab's header — the per-column decisions (anonymization now,
@@ -23,6 +16,7 @@ export default function ColumnMenu({
   onPickMethod,
   onSaltChange,
   onAnonymize,
+  anonymizing,
   onClose,
 }) {
   return (
@@ -46,13 +40,14 @@ export default function ColumnMenu({
                   {method}
                 </label>
                 {METHOD_INFO[method] && (
-                  <span className="info-trigger" tabIndex={0}>
-                    ⓘ
-                    <span className="method-tooltip">
-                      {METHOD_INFO[method]}
-                      <span className="read-more">Read more…</span>
-                    </span>
-                  </span>
+                  <InfoTrigger
+                    tooltip={
+                      <>
+                        {METHOD_INFO[method]}
+                        <span className="info-trigger-readmore">Read more…</span>
+                      </>
+                    }
+                  />
                 )}
               </li>
             ))}
@@ -66,7 +61,7 @@ export default function ColumnMenu({
               onChange={(e) => onSaltChange(e.target.value)}
             />
             <p className="field-hint">
-              Shared across every column — the same source value must map to the same token
+              Shared across every column: the same source value must map to the same token
               wherever it recurs for joins to still work; a different salt per column would break
               that.
             </p>
@@ -74,9 +69,9 @@ export default function ColumnMenu({
           <button
             className="primary"
             onClick={onAnonymize}
-            disabled={!currentMethod || !currentSalt}
+            disabled={!currentMethod || !currentSalt || anonymizing}
           >
-            Anonymize
+            {anonymizing ? "Anonymizing…" : "Anonymize"}
           </button>
         </div>
 

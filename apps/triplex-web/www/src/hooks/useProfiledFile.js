@@ -6,6 +6,7 @@ import {
   upsertRecipeColumn,
 } from "../state/yamlBuilder";
 import { downloadBlob } from "../utils";
+import { timingLog } from "../state/wasmTiming";
 
 /** Owns the uploaded file's lifecycle: raw bytes, the worker-computed
  * sample/profile, the contract/recipe built up from table interactions, and
@@ -28,24 +29,34 @@ export function useProfiledFile(wasm) {
   const [recipe, setRecipe] = useState(createEmptyRecipe());
   const [salt, setSalt] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingFileName, setLoadingFileName] = useState("");
 
   const loadFile = useCallback(async (file) => {
     setError("");
-    const t0 = performance.now();
-    const buf = new Uint8Array(await file.arrayBuffer());
-    const ext = file.name.split(".").pop().toLowerCase();
-    setFileBytes(buf);
-    setExtension(ext);
+    setIsLoading(true);
+    setLoadingFileName(file.name);
     try {
+      const t0 = performance.now();
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const t1 = performance.now();
+      const ext = file.name.split(".").pop().toLowerCase();
+      setFileBytes(buf);
+      setExtension(ext);
+      timingLog(`[main] file.arrayBuffer(): ${(t1 - t0).toFixed(1)}ms for ${buf.length} bytes`);
       const { sample: readSample, profile: readProfile } = await profileFile(buf, ext);
+      const t2 = performance.now();
+      timingLog(`[main] profileFile round trip (postMessage + worker + parse): ${(t2 - t1).toFixed(1)}ms`);
       setSample(readSample);
       setProfile(readProfile);
       setContract(buildContractFromProfile(readProfile));
       setRecipe(createEmptyRecipe());
       setSalt("");
-      console.log(`[main] total loadFile: ${(performance.now() - t0).toFixed(1)}ms`);
+      timingLog(`[main] total loadFile: ${(performance.now() - t0).toFixed(1)}ms`);
     } catch (err) {
       setError(String(err.message || err));
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -83,6 +94,8 @@ export function useProfiledFile(wasm) {
     salt,
     setSalt,
     error,
+    isLoading,
+    loadingFileName,
     loadFile,
     downloadContract,
     downloadRecipe,

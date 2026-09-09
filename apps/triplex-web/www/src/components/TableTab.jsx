@@ -1,18 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataEditor, GridCellKind } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
 import ColumnMenu from "./ColumnMenu";
-import { barsFor, binTooltip } from "../state/binTooltip";
-import { truncateToWidth, menuIconLocalRect, drawMenuIcon } from "../utils";
-import {
-  HEADER_PADDING,
-  NAME_ROW_HEIGHT,
-  TYPE_ROW_HEIGHT,
-  SPARK_HEIGHT,
-  SPARK_TOP,
-  HEADER_HEIGHT,
-  MENU_ICON_SIZE,
-} from "./TableTab.const";
+import { menuIconLocalRect } from "../utils";
+import { useTableHeaderCanvas } from "../hooks/useTableHeaderCanvas";
+import { HEADER_PADDING, NAME_ROW_HEIGHT, HEADER_HEIGHT, MENU_ICON_SIZE } from "./TableTab.const";
 
 const ICON_LAYOUT = {
   headerPadding: HEADER_PADDING,
@@ -29,7 +21,10 @@ export default function TableTab({
   onPickMethod,
   onSaltChange,
   onAnonymize,
+  anonymizing,
   anonymizeResult,
+  riskByName,
+  riskLoading,
 }) {
   const distributionByName = useMemo(() => {
     const map = {};
@@ -41,9 +36,19 @@ export default function TableTab({
     const map = {};
     for (const col of profile?.columns ?? []) {
       // A detected semantic type (iban, address, ...) is more useful in the
-      // header than the bare primitive type it's layered on top of.
+      // header than the bare primitive type it's layered on top of — also
+      // the lookup key for both the icon (TYPE_ICON_NODES) and the label.
       map[col.name] = col.semantic_type ?? col.inferred_type;
     }
+    return map;
+  }, [profile]);
+
+  // Separate from typeByName: the risk bar is k-anonymity-only (integer
+  // columns), which needs the bare primitive type regardless of whatever
+  // semantic type is also displayed.
+  const isIntegerByName = useMemo(() => {
+    const map = {};
+    for (const col of profile?.columns ?? []) map[col.name] = col.inferred_type === "integer";
     return map;
   }, [profile]);
 
@@ -52,9 +57,33 @@ export default function TableTab({
     [sample.headers],
   );
 
+  // Glide has no built-in sort — clicking a column name (see onHeaderClicked
+  // below) cycles asc -> desc -> none, and this reorders row *indices* only.
+  // sample itself stays untouched: every other consumer of the raw sample
+  // (risk scoring, the diversity matrix, CSV export) keys off original row
+  // order and must keep doing so regardless of how the table happens to be
+  // displayed.
+  const [sort, setSort] = useState(null); // { column, direction: "asc" | "desc" } | null
+
+  const sortedRowIndices = useMemo(() => {
+    const indices = Array.from({ length: sample.rowCount }, (_, i) => i);
+    if (!sort) return indices;
+    const colIndex = sample.headers.indexOf(sort.column);
+    if (colIndex === -1) return indices;
+    // Intl.Collator's numeric mode sorts "2" before "10" (not lexically)
+    // and falls back to ordinary text comparison for non-numeric columns —
+    // one comparator that works reasonably for every column type without
+    // needing to branch on inferred_type here.
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+    const sign = sort.direction === "asc" ? 1 : -1;
+    indices.sort((a, b) => sign * collator.compare(sample.getCell(a, colIndex), sample.getCell(b, colIndex)));
+    return indices;
+  }, [sample, sort]);
+
   const getCellContent = useCallback(
     ([col, row]) => {
-      const value = sample.getCell(row, col);
+      const originalRow = sortedRowIndices[row];
+      const value = sample.getCell(originalRow, col);
       return {
         kind: GridCellKind.Text,
         data: value,
@@ -62,16 +91,32 @@ export default function TableTab({
         allowOverlay: false,
       };
     },
-    [sample],
+    [sample, sortedRowIndices],
   );
 
-  // Whether the last draw pass had to truncate each column's name — read by
-  // the hover tooltip below to decide whether there's anything worth
-  // showing. A plain ref, not state: it's written every paint and read only
-  // on hover, so it doesn't need to trigger a re-render itself.
-  const truncatedRef = useRef({});
-  const [hoveredHeader, setHoveredHeader] = useState(null);
-  const [hoveredBin, setHoveredBin] = useState(null);
+  // Glide draws each header cell once via `drawHeader` and caches it on its
+  // own canvas — it has no way to know a header needs repainting (the risk
+  // bar going from "loading" to "done", or a sort arrow appearing) purely
+  // because `drawHeader`'s closure captured new values. Tried `updateCells`
+  // ("damage", Glide's imperative repaint API) with row -1 (Glide's own
+  // internal sentinel for a column header, per its source) first, since
+  // that would be more surgical than a remount — it didn't actually
+  // repaint the header in practice, only body cells. Remounting the grid
+  // is the one approach confirmed to work; resetting scroll-to-top is also
+  // just normal, expected behavior right after a sort anyway, not a
+  // regression the way it would be for the risk-bar-loading case.
+  const [gridKey, setGridKey] = useState(0);
+  const wasRiskLoading = useRef(riskLoading);
+  useEffect(() => {
+    if (wasRiskLoading.current && !riskLoading) {
+      setGridKey((k) => k + 1);
+    }
+    wasRiskLoading.current = riskLoading;
+  }, [riskLoading]);
+  useEffect(() => {
+    setGridKey((k) => k + 1);
+  }, [sort]);
+
   const [menu, setMenu] = useState(null); // { name, x, y } | null
 
   const onHeaderClicked = useCallback(
@@ -84,129 +129,44 @@ export default function TableTab({
         event.localEventX <= icon.x + icon.size &&
         (event.localEventY ?? -1) >= icon.y &&
         event.localEventY <= icon.y + icon.size;
-      if (!withinIcon) return;
-      setMenu({
-        name: column.id,
-        x: event.bounds.x + icon.x,
-        y: event.bounds.y + icon.y + icon.size,
-      });
+      if (withinIcon) {
+        setMenu({
+          name: column.id,
+          x: event.bounds.x + icon.x,
+          y: event.bounds.y + icon.y + icon.size,
+        });
+        return;
+      }
+      // Clicking the name row (anywhere but the menu icon) cycles this
+      // column's sort: none -> asc -> desc -> none. Picking a different
+      // column always starts it fresh at asc, not wherever the previous
+      // column's cycle left off.
+      const localY = event.localEventY ?? -1;
+      if (localY >= 0 && localY < NAME_ROW_HEIGHT) {
+        setSort((prev) => {
+          if (!prev || prev.column !== column.id) return { column: column.id, direction: "asc" };
+          if (prev.direction === "asc") return { column: column.id, direction: "desc" };
+          return null;
+        });
+      }
     },
     [columns],
   );
 
-  // Header cells are canvas-rendered by the grid itself (not DOM), so the
-  // name/type/sparkline/menu-icon layout has to be drawn directly into the
-  // grid's own header-drawing pass rather than mounted as React nodes.
-  // Returning `true` tells Glide we drew the whole cell ourselves —
-  // including the title, laid out here on its own line above the type — so
-  // it shouldn't also draw its default single-line title on top.
-  const drawHeader = useCallback(
-    (args) => {
-      const { ctx, rect, column, theme } = args;
-      const innerX = rect.x + HEADER_PADDING;
-      const icon = menuIconLocalRect(rect.width, ICON_LAYOUT);
-      const nameMaxWidth = icon.x - HEADER_PADDING - 4;
-      const fontFamily = theme?.fontFamily ?? "sans-serif";
-
-      ctx.textBaseline = "middle";
-
-      ctx.font = `600 13px ${fontFamily}`;
-      ctx.fillStyle = theme?.textHeader ?? "#1a1d24";
-      const { text: nameText, truncated } = truncateToWidth(ctx, column.title, nameMaxWidth);
-      ctx.fillText(nameText, innerX, rect.y + NAME_ROW_HEIGHT / 2 + 2);
-      truncatedRef.current[column.id] = truncated;
-
-      drawMenuIcon(ctx, rect.x + icon.x, rect.y + icon.y, icon.size, theme);
-
-      const colType = typeByName[column.id];
-      if (colType) {
-        ctx.font = `italic 11px ${fontFamily}`;
-        ctx.fillStyle = theme?.textLight ?? "#8890a0";
-        ctx.fillText(colType, innerX, rect.y + NAME_ROW_HEIGHT + TYPE_ROW_HEIGHT / 2);
-      }
-
-      const bars = barsFor(distributionByName[column.id]);
-      const max = Math.max(0, ...bars);
-      if (max > 0) {
-        const barAreaTop = rect.y + rect.height - SPARK_HEIGHT - 4;
-        const barWidth = rect.width / bars.length;
-        ctx.fillStyle = "#818cf8";
-        bars.forEach((count, i) => {
-          const h = (count / max) * SPARK_HEIGHT;
-          ctx.fillRect(
-            rect.x + i * barWidth,
-            barAreaTop + (SPARK_HEIGHT - h),
-            Math.max(barWidth - 1, 1),
-            h,
-          );
-        });
-      }
-
-      return true;
-    },
-    [distributionByName, typeByName],
-  );
-
-  // Same header hover callback drives two mutually-exclusive tooltips: the
-  // truncated-name one (top two rows) and the histogram-bin one (bottom
-  // sparkline row) — whichever region the cursor is actually over.
-  const onItemHovered = useCallback(
-    (args) => {
-      if (args.kind !== "header") {
-        setHoveredHeader(null);
-        setHoveredBin(null);
-        return;
-      }
-      const column = columns[args.location[0]];
-      if (!column) {
-        setHoveredHeader(null);
-        setHoveredBin(null);
-        return;
-      }
-
-      const localX = args.localEventX ?? 0;
-      const localY = args.localEventY ?? 0;
-      if (localY >= SPARK_TOP) {
-        const distribution = distributionByName[column.id];
-        const bars = barsFor(distribution);
-        if (bars.length > 0) {
-          const barWidth = args.bounds.width / bars.length;
-          const index = Math.min(Math.max(Math.floor(localX / barWidth), 0), bars.length - 1);
-          const info = binTooltip(distribution, index);
-          if (info) {
-            setHoveredHeader(null);
-            // Anchored to the cursor's own position (bounds + local offset
-            // reconstructs the exact viewport coordinate), not to a
-            // re-derived bar center — immune to any bar-geometry mismatch
-            // between this calculation and what `drawHeader` actually drew.
-            setHoveredBin({
-              ...info,
-              x: args.bounds.x + localX,
-              y: args.bounds.y + localY,
-            });
-            return;
-          }
-        }
-      }
-      setHoveredBin(null);
-
-      if (truncatedRef.current[column.id]) {
-        setHoveredHeader({
-          name: column.title,
-          type: typeByName[column.id],
-          x: args.bounds.x,
-          y: args.bounds.y + args.bounds.height,
-        });
-      } else {
-        setHoveredHeader(null);
-      }
-    },
-    [columns, typeByName, distributionByName],
-  );
+  const { drawHeader, onItemHovered, hoveredHeader, hoveredBin } = useTableHeaderCanvas({
+    columns,
+    sort,
+    typeByName,
+    isIntegerByName,
+    distributionByName,
+    riskByName,
+    riskLoading,
+  });
 
   return (
-    <div style={{ position: "relative", height: "100%" }}>
+    <div className="table-grid-wrap" style={{ position: "relative", height: "100%" }}>
       <DataEditor
+        key={gridKey}
         columns={columns}
         rows={sample.rowCount}
         getCellContent={getCellContent}
@@ -223,12 +183,12 @@ export default function TableTab({
           style={{ position: "fixed", left: hoveredHeader.x, top: hoveredHeader.y }}
         >
           <strong>{hoveredHeader.name}</strong>
-          {hoveredHeader.type && <em> — {hoveredHeader.type}</em>}
+          {hoveredHeader.type && <em> ({hoveredHeader.type})</em>}
         </div>
       )}
       {hoveredBin && (
         <div
-          className="bin-tooltip"
+          className={`bin-tooltip${hoveredBin.wrap ? " wrap" : ""}`}
           style={{
             position: "fixed",
             left: hoveredBin.x,
@@ -251,6 +211,7 @@ export default function TableTab({
           onPickMethod={(method) => onPickMethod(menu.name, method)}
           onSaltChange={onSaltChange}
           onAnonymize={onAnonymize}
+          anonymizing={anonymizing}
           onClose={() => setMenu(null)}
         />
       )}

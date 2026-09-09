@@ -10,7 +10,7 @@ export default function TierPicker() {
           type="button"
           className={`tier-option${tier.id === 1 ? " active" : ""}`}
           disabled={tier.id !== 1}
-          title={`${tier.caption} — ${tier.reversibility}`}
+          title={`${tier.caption}. ${tier.reversibility}.`}
         >
           <span className="tier-head">
             <LockIcon strength={tier.lockStrength} />

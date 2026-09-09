@@ -3,6 +3,7 @@
 // cheap to instantiate, and nothing here needs shared memory with it.
 import init, * as wasm from "../../pkg/triplex_web.js";
 import wasmUrl from "../../pkg/triplex_web_bg.wasm?url";
+import { timingLog } from "../state/wasmTiming";
 
 const ready = init(wasmUrl);
 
@@ -14,7 +15,7 @@ self.onmessage = async (event) => {
     await ready;
     const t0 = performance.now();
     const result = wasm.read_and_profile_table(new Uint8Array(bytes), extension);
-    console.log(
+    timingLog(
       `[wasm worker] read_and_profile_table: ${(performance.now() - t0).toFixed(1)}ms ` +
         `(${result.table_arrow.length} arrow bytes, ${result.profile_json.length} profile chars) ` +
         `for ${bytes.length} input bytes`,

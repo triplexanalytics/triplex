@@ -1,6 +1,6 @@
 const TABS = [
   { id: "table", label: "Table" },
-  { id: "column", label: "Column view" },
+  { id: "column", label: "Dataset Anonymity Analysis" },
 ];
 
 export default function Tabs({ active, onChange }) {
