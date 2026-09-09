@@ -14,5 +14,10 @@ export const IMPUTATION_OPTIONS = ["Mean", "Median", "Mode", "Constant", "Drop r
 // human-readable blurb and is missing-safe for a method it doesn't know yet.
 export const METHOD_INFO = {
   token_hmac:
-    "Deterministic HMAC token: the same input always produces the same pseudonym under a given salt, so joins across columns/files still work. Not reversible without the salt.",
+    "Deterministic HMAC (Hash-based Message Authentication Code) token: the same input always produces the same pseudonym under a given salt, so joins across columns/files still work. Not reversible without the salt.",
+  fpe: "Format-Preserving Encryption (FPE): a keyed, per-position substitution that keeps the value's length and character class intact (e.g. a 16-digit card number stays a 16-digit number). Deterministic under a given salt; not reversible without it.",
+  bucket:
+    'Numeric generalization, also known as k-anonymity bucketing: replaces a value with the numeric range it falls in, e.g. 23 → "20-29". Salt is unused — every run buckets the same way.',
+  partial_mask:
+    "Keeps a fixed prefix and suffix of the value and replaces everything between with *, e.g. a card number showing only its last 4 digits. Salt is unused.",
 };

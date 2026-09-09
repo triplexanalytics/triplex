@@ -294,7 +294,10 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   display: inline-block;
   margin-left: 0.35rem;
   cursor: help;
-  opacity: 0.6;
+  /* color, not opacity: opacity would composite the tooltip below (a DOM
+     child of this element) at the same faded alpha, making its background
+     translucent and the page text behind it bleed through. */
+  color: var(--text-faint);
 }
 
 .method-tooltip {
