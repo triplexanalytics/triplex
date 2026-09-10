@@ -25,7 +25,11 @@ export default function Navbar({
       <button onClick={onDownloadRecipe} disabled={!canDownloadRecipe}>
         Download recipe
       </button>
-      <button onClick={onDownloadData} disabled={!canDownloadData}>
+      <button
+        className={canDownloadData ? "primary" : undefined}
+        onClick={onDownloadData}
+        disabled={!canDownloadData}
+      >
         Download data
       </button>
       {/* Unstyled placeholder only — no gating logic. */}
