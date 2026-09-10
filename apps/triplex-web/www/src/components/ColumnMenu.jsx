@@ -1,4 +1,4 @@
-import { IMPUTATION_OPTIONS, METHOD_INFO } from "./ColumnMenu.const";
+import { IMPUTATION_OPTIONS, METHOD_INFO, METHOD_META, METHOD_META_FALLBACK } from "./ColumnMenu.const";
 import InfoTrigger from "./InfoTrigger";
 
 // "Read more" is inert until the glossary page (see task) exists to link to.
@@ -27,32 +27,40 @@ export default function ColumnMenu({
 
         <div className="column-menu-section">
           <div className="column-menu-section-title">Anonymization</div>
-          <ul>
-            {methods.map((method) => (
-              <li key={method}>
-                <label>
-                  <input
-                    type="radio"
-                    name="algorithm"
-                    checked={currentMethod === method}
-                    onChange={() => onPickMethod(method)}
-                  />{" "}
-                  {method}
-                </label>
-                {METHOD_INFO[method] && (
-                  <InfoTrigger
-                    tooltip={
-                      <>
-                        {METHOD_INFO[method]}
-                        <span className="info-trigger-readmore">Read more…</span>
-                      </>
-                    }
-                  />
-                )}
-              </li>
-            ))}
-            {methods.length === 0 && <li>No methods available.</li>}
-          </ul>
+          <div className="method-grid" role="radiogroup" aria-label="Anonymization method">
+            {methods.map((method) => {
+              const { icon: Icon, category } = METHOD_META[method] ?? METHOD_META_FALLBACK;
+              const selected = currentMethod === method;
+              return (
+                <button
+                  key={method}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={`method-card method-card-${category}${selected ? " selected" : ""}`}
+                  onClick={() => onPickMethod(method)}
+                >
+                  <Icon size={18} strokeWidth={2} aria-hidden="true" />
+                  <span className="method-card-name">{method}</span>
+                  {METHOD_INFO[method] && (
+                    // stopPropagation: the info glyph sits inside the card's own
+                    // click target, and hovering/focusing it must not select the method.
+                    <span className="method-card-info" onClick={(e) => e.stopPropagation()}>
+                      <InfoTrigger
+                        tooltip={
+                          <>
+                            {METHOD_INFO[method]}
+                            <span className="info-trigger-readmore">Read more…</span>
+                          </>
+                        }
+                      />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {methods.length === 0 && <div className="method-grid-empty">No methods available.</div>}
+          </div>
           <div className="field">
             <label>Salt / passphrase (one salt for the whole run)</label>
             <input

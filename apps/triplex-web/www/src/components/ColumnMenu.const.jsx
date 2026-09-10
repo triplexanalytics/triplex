@@ -1,3 +1,5 @@
+import { Hash, KeyRound, Layers, EyeOff, Wrench } from "lucide-react";
+
 // Placeholder options only — no backend support exists yet (no imputation
 // logic anywhere in `triplex-schemacast`/`triplex-anonymizer`). Shown
 // disabled so the eventual per-column decision set is legible, the same
@@ -21,3 +23,14 @@ export const METHOD_INFO = {
   partial_mask:
     "Keeps a fixed prefix and suffix of the value and replaces everything between with *, e.g. a card number showing only its last 4 digits. Salt is unused.",
 };
+
+// Icon + category per method, for the card-grid picker — a method not
+// listed here (new backend variant the UI hasn't caught up to yet) falls
+// back to a generic tool glyph rather than breaking the grid.
+export const METHOD_META = {
+  token_hmac: { icon: Hash, category: "pseudonymize" },
+  fpe: { icon: KeyRound, category: "encrypt" },
+  bucket: { icon: Layers, category: "generalize" },
+  partial_mask: { icon: EyeOff, category: "mask" },
+};
+export const METHOD_META_FALLBACK = { icon: Wrench, category: "default" };

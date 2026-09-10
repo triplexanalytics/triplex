@@ -23,6 +23,13 @@
   --warning-text: #8a5a00;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  /* One hue per method category (ColumnMenu.const.jsx METHOD_META) — reused
+     for the icon color and, via color-mix(), the card's tint/border. */
+  --method-pseudonymize: #4f46e5;
+  --method-encrypt: #7c3aed;
+  --method-generalize: #0d9488;
+  --method-mask: #b45309;
+  --method-default: #6e7484;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -47,6 +54,11 @@
     --warning-border: #6b5420;
     --warning-text: #f0c064;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --method-pseudonymize: #818cf8;
+    --method-encrypt: #a78bfa;
+    --method-generalize: #2dd4bf;
+    --method-mask: #f0b264;
+    --method-default: #8890a0;
   }
 }
 
@@ -601,7 +613,7 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 
 .column-menu {
   z-index: 41;
-  width: 280px;
+  width: 300px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -643,15 +655,75 @@ button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   padding: 0 0.3rem;
 }
 
-.column-menu ul {
-  list-style: none;
-  margin: 0 0 0.5rem;
-  padding: 0;
+/* Card-grid method picker — a "pick a tool off the pegboard" feel: each
+   method is its own tile (icon + name, category-tinted) instead of a plain
+   radio list, with a lift-on-hover and a pinned/tinted selected state. */
+.method-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+}
+
+.method-grid-empty {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.method-card {
+  --method-color: var(--method-default);
+  position: relative;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 0.3rem;
-  font-size: 0.85rem;
+  font: inherit;
+  text-align: left;
+  padding: 0.5rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
 }
+
+.method-card svg { color: var(--method-color); }
+
+.method-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+  border-color: color-mix(in srgb, var(--method-color) 45%, var(--border));
+}
+
+.method-card:focus-visible {
+  outline: 2px solid var(--method-color);
+  outline-offset: 1px;
+}
+
+.method-card.selected {
+  border-color: var(--method-color);
+  background: color-mix(in srgb, var(--method-color) 12%, var(--surface-alt));
+}
+
+.method-card-name {
+  font-size: 0.8rem;
+  font-weight: 550;
+  word-break: break-word;
+}
+
+.method-card-info {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+}
+
+.method-card-pseudonymize { --method-color: var(--method-pseudonymize); }
+.method-card-encrypt { --method-color: var(--method-encrypt); }
+.method-card-generalize { --method-color: var(--method-generalize); }
+.method-card-mask { --method-color: var(--method-mask); }
+.method-card-default { --method-color: var(--method-default); }
 
 .column-menu select {
   width: 100%;
