@@ -1,3 +1,4 @@
+import { Trash2 } from "lucide-react";
 import { IMPUTATION_OPTIONS, METHOD_INFO, METHOD_META, METHOD_META_FALLBACK } from "./ColumnMenu.const";
 import InfoTrigger from "./InfoTrigger";
 
@@ -17,6 +18,7 @@ export default function ColumnMenu({
   onSaltChange,
   onAnonymize,
   anonymizing,
+  onRemove,
   onClose,
 }) {
   return (
@@ -97,6 +99,20 @@ export default function ColumnMenu({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="column-menu-section">
+          <button
+            className="danger full-width"
+            onClick={() => {
+              if (window.confirm(`Remove "${columnName}" from the dataset? This can't be undone here.`)) {
+                onRemove();
+              }
+            }}
+          >
+            <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+            Remove from dataset
+          </button>
         </div>
       </div>
     </>

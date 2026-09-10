@@ -95,6 +95,19 @@ button.primary {
 
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 
+button.danger {
+  background: var(--surface);
+  border-color: var(--error-border);
+  color: var(--error-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+button.danger:hover:not(:disabled) { background: var(--error-bg); }
+
+button.full-width { width: 100%; justify-content: center; }
+
 /* === App shell, navbar, tier picker === */
 
 .app-shell { display: flex; flex-direction: column; height: 100%; }

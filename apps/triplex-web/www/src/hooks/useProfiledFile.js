@@ -4,6 +4,7 @@ import {
   buildContractFromProfile,
   createEmptyRecipe,
   upsertRecipeColumn,
+  removeRecipeColumn,
 } from "../state/yamlBuilder";
 import { downloadBlob } from "../utils";
 import { timingLog } from "../state/wasmTiming";
@@ -28,6 +29,11 @@ export function useProfiledFile(wasm) {
   const [contract, setContract] = useState(null);
   const [recipe, setRecipe] = useState(createEmptyRecipe());
   const [salt, setSalt] = useState("");
+  // Columns the user removed from the working view — a frontend-only hide
+  // (drops it from the table, contract, and recipe), not a backend "drop
+  // column" action: the anonymize/export pipeline has no such action yet,
+  // so "Download data" still includes it in the masked CSV until that lands.
+  const [removedColumns, setRemovedColumns] = useState(() => new Set());
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingFileName, setLoadingFileName] = useState("");
@@ -52,6 +58,7 @@ export function useProfiledFile(wasm) {
       setContract(buildContractFromProfile(readProfile));
       setRecipe(createEmptyRecipe());
       setSalt("");
+      setRemovedColumns(new Set());
       timingLog(`[main] total loadFile: ${(performance.now() - t0).toFixed(1)}ms`);
     } catch (err) {
       setError(String(err.message || err));
@@ -62,6 +69,12 @@ export function useProfiledFile(wasm) {
 
   const pickMethod = useCallback((columnName, method) => {
     setRecipe((r) => upsertRecipeColumn(r, columnName, method, "unused_in_the_browser"));
+  }, []);
+
+  const removeColumn = useCallback((columnName) => {
+    setRemovedColumns((s) => new Set(s).add(columnName));
+    setRecipe((r) => removeRecipeColumn(r, columnName));
+    setContract((c) => c && { ...c, columns: c.columns.filter((col) => col.name !== columnName) });
   }, []);
 
   const downloadContract = useCallback(() => {
@@ -91,6 +104,8 @@ export function useProfiledFile(wasm) {
     setContract,
     recipe,
     pickMethod,
+    removedColumns,
+    removeColumn,
     salt,
     setSalt,
     error,

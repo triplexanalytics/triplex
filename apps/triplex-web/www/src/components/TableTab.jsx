@@ -19,6 +19,8 @@ export default function TableTab({
   recipe,
   salt,
   onPickMethod,
+  removedColumns,
+  onRemoveColumn,
   onSaltChange,
   onAnonymize,
   anonymizing,
@@ -52,9 +54,17 @@ export default function TableTab({
     return map;
   }, [profile]);
 
+  // A removed column is hidden from the grid, not resampled out of it: glide
+  // indexes columns by position, so `visibleHeaderIndices[col]` maps a
+  // rendered column index back to its real index in `sample`.
+  const visibleHeaderIndices = useMemo(
+    () => sample.headers.map((_, i) => i).filter((i) => !removedColumns.has(sample.headers[i])),
+    [sample.headers, removedColumns],
+  );
+
   const columns = useMemo(
-    () => sample.headers.map((name) => ({ title: name, id: name, width: 160 })),
-    [sample.headers],
+    () => visibleHeaderIndices.map((i) => ({ title: sample.headers[i], id: sample.headers[i], width: 160 })),
+    [visibleHeaderIndices, sample.headers],
   );
 
   // A column with a method picked, once anonymize has actually run, renders
@@ -115,7 +125,8 @@ export default function TableTab({
   const getCellContent = useCallback(
     ([col, row]) => {
       const originalRow = sortedRowIndices[row];
-      const value = sample.getCell(originalRow, col);
+      const originalCol = visibleHeaderIndices[col];
+      const value = sample.getCell(originalRow, originalCol);
       if (blurredColumns.has(columns[col]?.id)) {
         return {
           kind: GridCellKind.Custom,
@@ -131,7 +142,7 @@ export default function TableTab({
         allowOverlay: false,
       };
     },
-    [sample, sortedRowIndices, blurredColumns, columns],
+    [sample, sortedRowIndices, visibleHeaderIndices, blurredColumns, columns],
   );
 
   // Glide draws each header cell once via `drawHeader` and caches it on its
@@ -156,6 +167,9 @@ export default function TableTab({
   useEffect(() => {
     setGridKey((k) => k + 1);
   }, [sort]);
+  useEffect(() => {
+    setGridKey((k) => k + 1);
+  }, [visibleHeaderIndices.length]);
 
   const [menu, setMenu] = useState(null); // { name, x, y } | null
 
@@ -253,6 +267,10 @@ export default function TableTab({
           onSaltChange={onSaltChange}
           onAnonymize={onAnonymize}
           anonymizing={anonymizing}
+          onRemove={() => {
+            onRemoveColumn(menu.name);
+            setMenu(null);
+          }}
           onClose={() => setMenu(null)}
         />
       )}
