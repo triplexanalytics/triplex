@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { barsFor, binTooltip } from "../state/binTooltip";
-import { truncateToWidth, menuIconLocalRect, drawMenuIcon } from "../utils";
+import { truncateToWidth, menuIconLocalRect, drawMenuIcon, drawSortArrow } from "../utils";
 import { TYPE_ICON_NODES, drawIconNode } from "../state/typeIconNodes";
 import { readRiskColorStops, reciprocalRisk } from "../state/riskColor";
 import { kAnonymityExplanation } from "../state/riskExplanations";
@@ -74,8 +74,7 @@ export function useTableHeaderCanvas({
       truncatedRef.current[column.id] = truncated;
 
       if (sort?.column === column.id) {
-        ctx.fillStyle = theme?.accentColor ?? "#4f46e5";
-        ctx.fillText(sort.direction === "asc" ? "▲" : "▼", rect.x + icon.x - sortArrowWidth, nameY);
+        drawSortArrow(ctx, rect.x + icon.x - sortArrowWidth / 2, rect.y + NAME_ROW_HEIGHT / 2, sort.direction, theme);
       }
 
       drawMenuIcon(ctx, rect.x + icon.x, rect.y + icon.y, icon.size, theme);

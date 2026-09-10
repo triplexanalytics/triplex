@@ -46,6 +46,27 @@ export function menuIconLocalRect(cellWidth, { headerPadding, menuIconSize, name
   };
 }
 
+/** A small filled triangle centered on (cx, cy) — the sort indicator.
+ * Drawn as a path rather than the "▲"/"▼" glyphs: those render inconsistently
+ * heavy/lopsided across fonts at small sizes, where a vector shape doesn't. */
+export function drawSortArrow(ctx, cx, cy, direction, theme) {
+  const w = 8;
+  const h = 6;
+  ctx.fillStyle = theme?.accentColor ?? "#4f46e5";
+  ctx.beginPath();
+  if (direction === "asc") {
+    ctx.moveTo(cx, cy - h / 2);
+    ctx.lineTo(cx - w / 2, cy + h / 2);
+    ctx.lineTo(cx + w / 2, cy + h / 2);
+  } else {
+    ctx.moveTo(cx, cy + h / 2);
+    ctx.lineTo(cx - w / 2, cy - h / 2);
+    ctx.lineTo(cx + w / 2, cy - h / 2);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
 export function drawMenuIcon(ctx, x, y, size, theme) {
   const cx = x + size / 2;
   const gap = size / 3;
