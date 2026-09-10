@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DataEditor, GridCellKind } from "@glideapps/glide-data-grid";
+import { DataEditor, GridCellKind, drawTextCell } from "@glideapps/glide-data-grid";
 import "@glideapps/glide-data-grid/dist/index.css";
 import ColumnMenu from "./ColumnMenu";
 import { menuIconLocalRect } from "../utils";
@@ -57,6 +57,38 @@ export default function TableTab({
     [sample.headers],
   );
 
+  // A column with a method picked, once anonymize has actually run, renders
+  // its cells blurred (native canvas ctx.filter, no library) — hovering a
+  // cell fades the blur out via Glide's own per-cell hoverAmount animation.
+  // The value drawn is always the original `sample` value: no masked data
+  // is plumbed into the grid, so "hover reveals" is literally "stop hiding
+  // what was already there" rather than a second data source to keep in sync.
+  const blurredColumns = useMemo(() => {
+    if (!anonymizeResult) return new Set();
+    return new Set(recipe.columns.map((c) => c.name));
+  }, [anonymizeResult, recipe]);
+
+  const customRenderers = useMemo(
+    () => [
+      {
+        kind: GridCellKind.Custom,
+        isMatch: (c) => c.data?.kind === "blurred-value",
+        needsHover: true,
+        needsHoverPosition: false,
+        draw: (args) => {
+          const { ctx, cell, hoverAmount } = args;
+          const blurPx = 2.5 * (1 - hoverAmount);
+          ctx.save();
+          if (blurPx > 0.1) ctx.filter = `blur(${blurPx}px)`;
+          drawTextCell(args, cell.data.value, "left");
+          ctx.restore();
+        },
+        onPaste: () => undefined,
+      },
+    ],
+    [],
+  );
+
   // Glide has no built-in sort — clicking a column name (see onHeaderClicked
   // below) cycles asc -> desc -> none, and this reorders row *indices* only.
   // sample itself stays untouched: every other consumer of the raw sample
@@ -84,6 +116,14 @@ export default function TableTab({
     ([col, row]) => {
       const originalRow = sortedRowIndices[row];
       const value = sample.getCell(originalRow, col);
+      if (blurredColumns.has(columns[col]?.id)) {
+        return {
+          kind: GridCellKind.Custom,
+          data: { kind: "blurred-value", value },
+          copyData: value,
+          allowOverlay: false,
+        };
+      }
       return {
         kind: GridCellKind.Text,
         data: value,
@@ -91,7 +131,7 @@ export default function TableTab({
         allowOverlay: false,
       };
     },
-    [sample, sortedRowIndices],
+    [sample, sortedRowIndices, blurredColumns, columns],
   );
 
   // Glide draws each header cell once via `drawHeader` and caches it on its
@@ -170,6 +210,7 @@ export default function TableTab({
         columns={columns}
         rows={sample.rowCount}
         getCellContent={getCellContent}
+        customRenderers={customRenderers}
         onHeaderClicked={onHeaderClicked}
         drawHeader={drawHeader}
         onItemHovered={onItemHovered}
