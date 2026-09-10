@@ -209,3 +209,50 @@ pub fn score_column_pair_risk(
     .map_err(to_js_err)?;
     serde_json::to_string(&[l_diversity, t_closeness]).map_err(to_js_err)
 }
+
+/// Column-view tab: `score_column_risk`'s string-column counterpart — a
+/// string/categorical column has no numeric range to generalize into a
+/// `"lo-hi"` bucket, so its equivalence classes are just its exact values
+/// (the same grouping `categorical_distribution`'s "Distinct" count already
+/// does — see the design notes). `values_json` is
+/// that column's raw values in row order, as a JSON array of strings — a
+/// typed array isn't an option for strings the way `&[f64]` is for numbers.
+#[wasm_bindgen]
+pub fn score_column_risk_string(values_json: &str) -> Result<String, JsValue> {
+    let values: Vec<String> = serde_json::from_str(values_json).map_err(to_js_err)?;
+    let assessment = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::KAnonymity,
+        &values,
+        &[],
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&assessment).map_err(to_js_err)
+}
+
+/// Dataset Anonymity Analysis tab: `score_column_pair_risk`'s string-column
+/// counterpart, for when the quasi-identifier column itself is a string —
+/// see `score_column_risk_string`'s doc comment for why it's ungeneralized
+/// exact-value grouping rather than a bucket width. Returns the same
+/// two-element `[l_diversity, t_closeness]` JSON array.
+#[wasm_bindgen]
+pub fn score_column_pair_risk_string(
+    quasi_values_json: &str,
+    sensitive_values_json: &str,
+) -> Result<String, JsValue> {
+    let quasi_values: Vec<String> = serde_json::from_str(quasi_values_json).map_err(to_js_err)?;
+    let sensitive_values: Vec<String> =
+        serde_json::from_str(sensitive_values_json).map_err(to_js_err)?;
+    let l_diversity = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::LDiversity,
+        &quasi_values,
+        &sensitive_values,
+    )
+    .map_err(to_js_err)?;
+    let t_closeness = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::TCloseness,
+        &quasi_values,
+        &sensitive_values,
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&[l_diversity, t_closeness]).map_err(to_js_err)
+}
