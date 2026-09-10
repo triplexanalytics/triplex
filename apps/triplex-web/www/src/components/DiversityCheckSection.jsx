@@ -10,8 +10,10 @@ import {
 } from "../state/riskExplanations";
 
 /** Dataset Anonymity Analysis tab: two heatmaps below the per-column
- * k-anonymity cards — every bucketable (integer) column crossed with every
- * candidate sensitive column, scored for l-diversity and t-closeness. A
+ * k-anonymity cards — every quasi-identifier column (integer, generalized
+ * into a bucket, or categorical/string, scored on its exact values) crossed
+ * with every candidate sensitive column, scored for l-diversity and
+ * t-closeness. A
  * single chooser can't show this: unlike k-anonymity (needs only the one
  * column), these two need a *pair*, and a matrix is the only view that
  * shows every pair at once instead of one at a time.
@@ -20,7 +22,7 @@ import {
  * computation, started as soon as the file loads rather than when this
  * component mounts, so it's ready (or close to it) by the time the user
  * opens this tab instead of visibly lagging behind the k-anonymity bars. */
-export default function DiversityCheckSection({ raw, loading, integerColumns, allColumns }) {
+export default function DiversityCheckSection({ raw, loading, quasiColumns, allColumns }) {
   const lDiversityCellAt = useCallback(
     (i, j) => {
       const cell = raw?.lDiversity[i]?.[j];
@@ -29,12 +31,12 @@ export default function DiversityCheckSection({ raw, loading, integerColumns, al
         risk: reciprocalRisk(cell.value),
         label: String(cell.value),
         tooltip: {
-          title: `${integerColumns[i].name} → ${allColumns[j].name}`,
+          title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
           detail: `l-diversity ${cell.value}: ${lDiversityDetail(cell.value)}`,
         },
       };
     },
-    [raw, integerColumns, allColumns],
+    [raw, quasiColumns, allColumns],
   );
 
   const tClosenessCellAt = useCallback(
@@ -46,17 +48,17 @@ export default function DiversityCheckSection({ raw, loading, integerColumns, al
         risk: value,
         label: value.toFixed(2),
         tooltip: {
-          title: `${integerColumns[i].name} → ${allColumns[j].name}`,
+          title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
           detail: `t-closeness ${value.toFixed(2)}: ${tClosenessDetail(value)}`,
         },
       };
     },
-    [raw, integerColumns, allColumns],
+    [raw, quasiColumns, allColumns],
   );
 
-  if (integerColumns.length === 0) return null;
+  if (quasiColumns.length === 0) return null;
 
-  const rowNames = integerColumns.map((c) => c.name);
+  const rowNames = quasiColumns.map((c) => c.name);
   const colNames = allColumns.map((c) => c.name);
 
   return (

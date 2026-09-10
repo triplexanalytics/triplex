@@ -106,7 +106,7 @@ export default function App() {
                 <DiversityCheckSection
                   raw={diversityMatrix.raw}
                   loading={diversityMatrix.loading}
-                  integerColumns={diversityMatrix.integerColumns}
+                  quasiColumns={diversityMatrix.quasiColumns}
                   allColumns={diversityMatrix.allColumns}
                 />
               </>

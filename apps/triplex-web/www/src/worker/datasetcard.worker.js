@@ -13,8 +13,11 @@ const ready = init(wasmUrl);
 
 function columnRisk(columns, bucketWidth) {
   const result = {};
-  for (const { name, values } of columns) {
-    result[name] = JSON.parse(wasm.score_column_risk(values, bucketWidth));
+  for (const { name, kind, values } of columns) {
+    result[name] =
+      kind === "string"
+        ? JSON.parse(wasm.score_column_risk_string(JSON.stringify(values)))
+        : JSON.parse(wasm.score_column_risk(values, bucketWidth));
   }
   return result;
 }
@@ -36,9 +39,13 @@ function diversityMatrix(rows, cols, bucketWidth) {
         tRow.push(null);
         return;
       }
-      // row.values is already a typed Float64Array — no stringify needed,
-      // wasm-bindgen takes it directly.
-      const [l, t] = JSON.parse(wasm.score_column_pair_risk(row.values, colsJson[j], bucketWidth));
+      // row.values is a typed Float64Array for a numeric row (no stringify
+      // needed, wasm-bindgen takes it directly) or a plain string array for
+      // a string row, stringified the same way cols already are.
+      const [l, t] =
+        row.kind === "string"
+          ? JSON.parse(wasm.score_column_pair_risk_string(JSON.stringify(row.values), colsJson[j]))
+          : JSON.parse(wasm.score_column_pair_risk(row.values, colsJson[j], bucketWidth));
       lRow.push(l);
       tRow.push(t);
     });

@@ -45,12 +45,22 @@ export default function TableTab({
     return map;
   }, [profile]);
 
-  // Separate from typeByName: the risk bar is k-anonymity-only (integer
-  // columns), which needs the bare primitive type regardless of whatever
-  // semantic type is also displayed.
-  const isIntegerByName = useMemo(() => {
+  // Separate from typeByName: the risk bar/distinct-count row draws for
+  // whatever column useColumnRisk actually scores (integer, generalized
+  // into a bucket, or categorical/string, scored on exact values — see
+  // the design notes), which needs the bare primitive/distribution kind
+  // regardless of whatever semantic type is also displayed.
+  const isRiskableByName = useMemo(() => {
     const map = {};
-    for (const col of profile?.columns ?? []) map[col.name] = col.inferred_type === "integer";
+    for (const col of profile?.columns ?? []) {
+      map[col.name] = col.inferred_type === "integer" || col.distribution?.kind === "categorical";
+    }
+    return map;
+  }, [profile]);
+
+  const isCategoricalByName = useMemo(() => {
+    const map = {};
+    for (const col of profile?.columns ?? []) map[col.name] = col.distribution?.kind === "categorical";
     return map;
   }, [profile]);
 
@@ -211,7 +221,8 @@ export default function TableTab({
     columns,
     sort,
     typeByName,
-    isIntegerByName,
+    isRiskableByName,
+    isCategoricalByName,
     distributionByName,
     riskByName,
     riskLoading,

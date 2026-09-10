@@ -11,15 +11,16 @@
 export function kAnonymityExplanation(value) {
   const general = (
     <>
-      k-anonymity is the size of the smallest group of rows that look identical here after
-      generalizing this column. <strong>Higher is safer</strong>, since a bigger group means no
-      single row stands out from the rest of it.
+      k-anonymity is the size of the smallest group of rows that share the same value here (a
+      numeric column is first generalized into a range; a text column is grouped by its exact
+      value). <strong>Higher is safer</strong>, since a bigger group means no single row stands
+      out from the rest of it.
     </>
   );
   const specific =
     value <= 1
       ? "At least one value here is unique, and could single out a real person."
-      : `Every value shares its generalized range with at least ${value - 1} other row(s).`;
+      : `Every value shares its group with at least ${value - 1} other row(s).`;
   return (
     <>
       {general} {specific}

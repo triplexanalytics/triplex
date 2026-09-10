@@ -38,7 +38,8 @@ export function useTableHeaderCanvas({
   columns,
   sort,
   typeByName,
-  isIntegerByName,
+  isRiskableByName,
+  isCategoricalByName,
   distributionByName,
   riskByName,
   riskLoading,
@@ -104,11 +105,23 @@ export function useTableHeaderCanvas({
       // the Column view's per-card bar (ColumnCard.jsx) — a value label
       // sits to its right, same as ColumnCard's, since the header has just
       // enough width for both. Track stays visible while loading (canvas
-      // has no CSS pulse animation to reuse) rather than nothing at all.
-      if (isIntegerByName[column.id]) {
+      // has no CSS pulse animation to reuse) rather than nothing at all. A
+      // categorical column's label also carries its distinct-value count
+      // (already computed for the sparkline below, just not shown anywhere
+      // in the table before) since k-anonymity alone doesn't tell you how
+      // many distinct values that group size is spread across.
+      if (isRiskableByName[column.id]) {
         const barY = rect.y + NAME_ROW_HEIGHT + TYPE_ROW_HEIGHT + (RISK_ROW_HEIGHT - RISK_BAR_HEIGHT) / 2;
         const risk = riskByName?.[column.id];
-        const labelWidth = risk && !riskLoading ? 28 : 0;
+        const cardinality = isCategoricalByName[column.id] ? distributionByName[column.id]?.cardinality : undefined;
+        const labelText =
+          risk && !riskLoading
+            ? cardinality !== undefined
+              ? `k=${risk.value} · n=${cardinality}`
+              : `k=${risk.value}`
+            : "";
+        ctx.font = `9px ${fontFamily}`;
+        const labelWidth = labelText ? Math.ceil(ctx.measureText(labelText).width) : 0;
         const barWidth = rect.width - HEADER_PADDING * 2 - labelWidth - (labelWidth > 0 ? 4 : 0);
         ctx.fillStyle = theme?.bgHeader ?? "#e1e4e9";
         ctx.fillRect(innerX, barY, barWidth, RISK_BAR_HEIGHT);
@@ -116,10 +129,9 @@ export function useTableHeaderCanvas({
           const fillWidth = reciprocalRisk(risk.value) * barWidth;
           ctx.fillStyle = readRiskColorStops().riskColor(reciprocalRisk(risk.value));
           ctx.fillRect(innerX, barY, fillWidth, RISK_BAR_HEIGHT);
-          ctx.font = `9px ${fontFamily}`;
           ctx.fillStyle = theme?.textLight ?? "#8890a0";
           ctx.textAlign = "left";
-          ctx.fillText(`k=${risk.value}`, innerX + barWidth + 4, barY + RISK_BAR_HEIGHT / 2 + 1);
+          ctx.fillText(labelText, innerX + barWidth + 4, barY + RISK_BAR_HEIGHT / 2 + 1);
         }
       }
 
@@ -143,7 +155,7 @@ export function useTableHeaderCanvas({
 
       return true;
     },
-    [distributionByName, typeByName, isIntegerByName, riskByName, riskLoading, sort],
+    [distributionByName, typeByName, isRiskableByName, isCategoricalByName, riskByName, riskLoading, sort],
   );
 
   // Same header hover callback drives two mutually-exclusive tooltips: the
@@ -166,12 +178,16 @@ export function useTableHeaderCanvas({
       const localX = args.localEventX ?? 0;
       const localY = args.localEventY ?? 0;
       const riskRowTop = NAME_ROW_HEIGHT + TYPE_ROW_HEIGHT;
-      if (localY >= riskRowTop && localY < SPARK_TOP && isIntegerByName[column.id]) {
+      if (localY >= riskRowTop && localY < SPARK_TOP && isRiskableByName[column.id]) {
         const risk = riskByName?.[column.id];
         if (risk) {
+          const cardinality = isCategoricalByName[column.id] ? distributionByName[column.id]?.cardinality : undefined;
           setHoveredHeader(null);
           setHoveredBin({
-            title: `k-anonymity ${risk.value}`,
+            title:
+              cardinality !== undefined
+                ? `k-anonymity ${risk.value} · ${cardinality} distinct`
+                : `k-anonymity ${risk.value}`,
             detail: kAnonymityExplanation(risk.value),
             wrap: true,
             x: args.bounds.x + localX,
@@ -219,7 +235,7 @@ export function useTableHeaderCanvas({
         setHoveredHeader(null);
       }
     },
-    [columns, typeByName, distributionByName, isIntegerByName, riskByName],
+    [columns, typeByName, distributionByName, isRiskableByName, isCategoricalByName, riskByName],
   );
 
   return { drawHeader, onItemHovered, hoveredHeader, hoveredBin };
