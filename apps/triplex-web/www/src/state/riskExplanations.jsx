@@ -100,6 +100,50 @@ export const JOINT_K_INFO = (
   </>
 );
 
+// beta-likeness/delta-disclosure sharpen t-closeness's
+// one aggregate "how different is this group's mix" number into "what's
+// the single biggest jump in belief about any one value" — same
+// lead-with-the-concept, row/column-mechanics-last structure as
+// L_DIVERSITY_INFO/T_CLOSENESS_INFO, since they share the exact same row
+// (quasi-identifier column) / column (candidate sensitive column) shape.
+export const BETA_LIKENESS_INFO = (
+  <>
+    t-closeness (left) reports one aggregate number for how different a group's whole mix looks.
+    β-likeness reports something sharper: the single biggest jump in belief an attacker gets about
+    any <strong>one</strong> sensitive value from being in that group (say, a group where a rare
+    diagnosis suddenly looks far more likely than in the dataset overall). It only counts a value
+    looking <strong>more</strong> likely inside the group, not less.{" "}
+    <strong>Lower is safer</strong>, same direction as t-closeness. A row here is the column being
+    grouped; a column is the sensitive value checked inside each group, so a cell and its mirror
+    image are not expected to match.
+    <span className="info-trigger-readmore">Read more…</span>
+  </>
+);
+
+export const DELTA_DISCLOSURE_INFO = (
+  <>
+    δ-disclosure is β-likeness's sibling: the same "single biggest belief jump" idea, but counting
+    a group making a value look <strong>less</strong> likely too, not just more — ruling something
+    out with confidence is also a leak, even though it never shows up in β-likeness.{" "}
+    <strong>Lower is safer</strong>, same direction as β-likeness and t-closeness. As with those, a
+    row is the column being grouped and a column is the sensitive value being checked, so a cell
+    and its mirror image are not expected to match.
+    <span className="info-trigger-readmore">Read more…</span>
+  </>
+);
+
+export function betaLikenessDetail(value) {
+  return value <= 0
+    ? "no group ever makes a sensitive value look more likely than the dataset overall"
+    : "at least one group makes a sensitive value look meaningfully more likely than the dataset overall";
+}
+
+export function deltaDisclosureDetail(value) {
+  return value <= 0
+    ? "no group's belief in any sensitive value shifts from the dataset overall, in either direction"
+    : "at least one group shifts belief in a sensitive value — up or down — from the dataset overall";
+}
+
 export function jointKDetail(value) {
   return value <= 1
     ? "combining these two columns still leaves at least one row unique, which could single out a real person"
@@ -116,4 +160,29 @@ export function tClosenessDetail(value) {
   return value >= 0.5
     ? "at least one group's mix looks very different from the dataset overall, and that gap itself is a clue"
     : "every group's mix stays close to the dataset overall";
+}
+
+// SUDA/DIS-SUDA: the only row-level (not column or
+// column-pair) score in the app — every matrix above answers "how safe is
+// this column/pair," this answers "which specific rows are most
+// identifiable." Same voice as the matrix explanations above, adapted for
+// a ranked list instead of a grid.
+export const ROW_RISK_INFO = (
+  <>
+    Every score above is about a <strong>column</strong> or a pair of columns. This is about
+    individual <strong>rows</strong>: for each row, SUDA finds the smallest combination of the
+    quasi-identifier columns whose values make that row unique in the dataset — a row unique on
+    just two columns is riskier than one that needs six columns to stand out, and a row with
+    several different minimal combinations that single it out is riskier still.{" "}
+    <strong>Lower is safer</strong>, and 0 means the row was never part of any minimal unique
+    combination. DIS-SUDA turns each row's score into its share of the dataset's total
+    disclosure risk, so the shares below add up to 100%.
+    <span className="info-trigger-readmore">Read more…</span>
+  </>
+);
+
+export function rowRiskDetail(sudaScore) {
+  return sudaScore <= 0
+    ? "this row was never uniquely identified by any combination of the quasi-identifier columns checked"
+    : "this row is uniquely identified by at least one combination of the quasi-identifier columns checked";
 }

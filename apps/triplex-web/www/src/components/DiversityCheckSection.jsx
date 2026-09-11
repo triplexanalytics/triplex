@@ -1,28 +1,49 @@
 import { useCallback } from "react";
 import RiskMatrix from "./RiskMatrix";
 import RiskMatrixSkeleton from "./RiskMatrixSkeleton";
+import RowRiskSection from "./RowRiskSection";
 import { reciprocalRisk } from "../state/palette";
 import {
   L_DIVERSITY_INFO,
   T_CLOSENESS_INFO,
+  BETA_LIKENESS_INFO,
+  DELTA_DISCLOSURE_INFO,
   JOINT_K_INFO,
   lDiversityDetail,
   tClosenessDetail,
+  betaLikenessDetail,
+  deltaDisclosureDetail,
   jointKDetail,
 } from "../state/riskExplanations";
 
-/** Dataset Anonymity Analysis tab: three heatmaps below the per-column
- * k-anonymity cards. l-diversity and t-closeness cross every
- * quasi-identifier column (integer, generalized into a bucket, or
- * categorical/string, scored on its exact values) against every candidate
- * sensitive column. Combined k-anonymity (the design notes
+// beta-likeness/delta-disclosure are "lower is safer" like t-closeness (not
+// "higher is safer" like k-anonymity/l-diversity, which use `reciprocalRisk`
+// to invert), but unbounded above (a log-ratio, not a 0-1 distance) — scale
+// against a reasonable ceiling instead of t-closeness's implicit 0-1 range,
+// so one extreme outlier doesn't wash out the color contrast between every
+// other, more typical cell. ln(20) ~= 3 is already an enormous belief shift
+// (20x more/less likely than the dataset baseline), generous enough not to
+// clip realistic data.
+const BELIEF_SHIFT_CEILING = Math.log(20);
+
+/** Dataset Anonymity Analysis tab: up to five heatmaps below the
+ * per-column k-anonymity cards, plus a row-level risk list. l-diversity,
+ * t-closeness, β-likeness, and δ-disclosure (the design notes adding the
+ * latter two) each cross every quasi-identifier column (integer,
+ * generalized into a bucket, or categorical/string, scored on its exact
+ * values) against every candidate sensitive column — t-closeness reports
+ * one aggregate "how different is this group's mix" distance,
+ * β-likeness/δ-disclosure report the sharper "single biggest belief shift
+ * about one value" instead. Combined k-anonymity (the design notes
  * "dataset-level aggregation" gap) crosses every quasi-identifier column
  * against every *other* quasi-identifier column, scoring the pair
  * together instead of alone — the dataset-level verdict a single column's
  * score can't give, since two columns that each look safe alone can
  * single out almost everyone combined. A single chooser can't show any of
  * this: each needs a *pair*, and a matrix is the only view that shows
- * every pair at once instead of one at a time.
+ * every pair at once instead of one at a time. `RowRiskSection` below is
+ * the odd one out on purpose: a per-*row* SUDA score, not a matrix at all
+ * — see its own doc comment.
  *
  * Purely presentational — `useDiversityMatrix` in App.jsx owns the actual
  * computation, started as soon as the file loads rather than when this
@@ -56,6 +77,40 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
         tooltip: {
           title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
           detail: `t-closeness ${value.toFixed(2)}: ${tClosenessDetail(value)}`,
+        },
+      };
+    },
+    [raw, quasiColumns, allColumns],
+  );
+
+  const betaLikenessCellAt = useCallback(
+    (i, j) => {
+      const cell = raw?.betaLikeness[i]?.[j];
+      if (!cell) return null;
+      const value = Math.max(0, cell.value);
+      return {
+        risk: Math.min(1, value / BELIEF_SHIFT_CEILING),
+        label: value.toFixed(2),
+        tooltip: {
+          title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
+          detail: `β-likeness ${value.toFixed(2)}: ${betaLikenessDetail(value)}`,
+        },
+      };
+    },
+    [raw, quasiColumns, allColumns],
+  );
+
+  const deltaDisclosureCellAt = useCallback(
+    (i, j) => {
+      const cell = raw?.deltaDisclosure[i]?.[j];
+      if (!cell) return null;
+      const value = Math.max(0, cell.value);
+      return {
+        risk: Math.min(1, value / BELIEF_SHIFT_CEILING),
+        label: value.toFixed(2),
+        tooltip: {
+          title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
+          detail: `δ-disclosure ${value.toFixed(2)}: ${deltaDisclosureDetail(value)}`,
         },
       };
     },
@@ -100,6 +155,8 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
           <>
             <RiskMatrixSkeleton title="l-diversity" rowCount={rowNames.length} colCount={colNames.length} />
             <RiskMatrixSkeleton title="t-closeness" rowCount={rowNames.length} colCount={colNames.length} />
+            <RiskMatrixSkeleton title="β-likeness" rowCount={rowNames.length} colCount={colNames.length} />
+            <RiskMatrixSkeleton title="δ-disclosure" rowCount={rowNames.length} colCount={colNames.length} />
             {showJointK && (
               <RiskMatrixSkeleton title="combined k-anonymity" rowCount={rowNames.length} colCount={rowNames.length} />
             )}
@@ -124,6 +181,24 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               legendLowLabel="safer"
               legendHighLabel="riskier"
             />
+            <RiskMatrix
+              title="β-likeness"
+              rows={rowNames}
+              cols={colNames}
+              infoText={BETA_LIKENESS_INFO}
+              cellAt={betaLikenessCellAt}
+              legendLowLabel="safer"
+              legendHighLabel="riskier"
+            />
+            <RiskMatrix
+              title="δ-disclosure"
+              rows={rowNames}
+              cols={colNames}
+              infoText={DELTA_DISCLOSURE_INFO}
+              cellAt={deltaDisclosureCellAt}
+              legendLowLabel="safer"
+              legendHighLabel="riskier"
+            />
             {showJointK && (
               <RiskMatrix
                 title="combined k-anonymity"
@@ -138,6 +213,7 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
           </>
         )}
       </div>
+      <RowRiskSection raw={raw} loading={loading} quasiColumns={quasiColumns} />
     </div>
   );
 }

@@ -30,47 +30,67 @@ function diversityMatrix(rows, cols, bucketWidth) {
   const colsJson = cols.map((col) => JSON.stringify(col.values));
   const lDiversity = [];
   const tCloseness = [];
+  const betaLikeness = [];
+  const deltaDisclosure = [];
   for (const row of rows) {
     const lRow = [];
     const tRow = [];
+    const betaRow = [];
+    const deltaRow = [];
     cols.forEach((col, j) => {
       if (col.name === row.name) {
         lRow.push(null);
         tRow.push(null);
+        betaRow.push(null);
+        deltaRow.push(null);
         return;
       }
       // row.values is a typed Float64Array for a numeric row (no stringify
       // needed, wasm-bindgen takes it directly) or a plain string array for
-      // a string row, stringified the same way cols already are.
-      const [l, t] =
+      // a string row, stringified the same way cols already are. Both wasm
+      // calls now return [l, t, beta, delta].
+      const [l, t, beta, delta] =
         row.kind === "string"
           ? JSON.parse(wasm.score_column_pair_risk_string(JSON.stringify(row.values), colsJson[j], 0))
           : JSON.parse(wasm.score_column_pair_risk(row.values, colsJson[j], bucketWidth));
       lRow.push(l);
       tRow.push(t);
+      betaRow.push(beta);
+      deltaRow.push(delta);
     });
     lDiversity.push(lRow);
     tCloseness.push(tRow);
+    betaLikeness.push(betaRow);
+    deltaDisclosure.push(deltaRow);
   }
-  return { lDiversity, tCloseness, jointK: jointKMatrix(rows, bucketWidth) };
+  const bucketed = bucketQuasiIdentifiers(rows, bucketWidth);
+  return {
+    lDiversity,
+    tCloseness,
+    betaLikeness,
+    deltaDisclosure,
+    jointK: jointKMatrix(bucketed),
+    rowRisk: rowRisk(bucketed),
+  };
+}
+
+// Each quasi-identifier column generalized once (numeric -> "lo-hi"
+// buckets via `bucket_numeric_column`, string -> exact values) and reused
+// by both `jointKMatrix` and `rowRisk` below, since neither's wasm call
+// wants raw values -- bucketing width doesn't change per pair or per row.
+function bucketQuasiIdentifiers(rows, bucketWidth) {
+  return rows.map(({ kind, values }) =>
+    kind === "string" ? values : Array.from(wasm.bucket_numeric_column(values, bucketWidth)),
+  );
 }
 
 // The dataset-level verdict (the design notes "dataset-level
 // aggregation" gap): every quasi-identifier column pair's *combined*
 // k-anonymity, not just each one scored alone -- two columns that each
 // look safe independently (a ZIP code, a birth year) can single out
-// almost everyone once combined. `rows` is the same quasi-identifier list
-// `diversityMatrix` already builds, so this reuses it rather than asking
-// the caller to build a second, identical column list. Each column is
-// generalized once up front (numeric -> "lo-hi" buckets via
-// `bucket_numeric_column`, string -> exact values) and reused for every
-// pair, since `wasm.score_joint_column_risk` expects already-bucketed
-// values -- bucketing width doesn't change per pair.
-function jointKMatrix(rows, bucketWidth) {
-  const bucketed = rows.map(({ kind, values }) =>
-    kind === "string" ? values : Array.from(wasm.bucket_numeric_column(values, bucketWidth)),
-  );
-  const n = rows.length;
+// almost everyone once combined.
+function jointKMatrix(bucketed) {
+  const n = bucketed.length;
   const matrix = Array.from({ length: n }, () => new Array(n).fill(null));
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
@@ -82,6 +102,19 @@ function jointKMatrix(rows, bucketWidth) {
     }
   }
   return matrix;
+}
+
+// Per-row SUDA/DIS-SUDA: which specific rows are most
+// identifiable across every quasi-identifier column at once, a different
+// question from any matrix above (those all answer "how safe is this
+// column/pair," not "which rows should I actually worry about"). `null`
+// when there are no quasi-identifier columns to score, or when there are
+// more than `score_suda` accepts (`MAX_QUASI_IDENTIFIER_COLUMNS`, see its
+// doc comment) -- degrades to "not shown" rather than failing the whole
+// diversity matrix over a row-risk-only limit.
+function rowRisk(bucketed) {
+  if (bucketed.length === 0 || bucketed.length > 10) return null;
+  return JSON.parse(wasm.score_suda(JSON.stringify(bucketed)));
 }
 
 self.onmessage = async (event) => {

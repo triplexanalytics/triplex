@@ -24,7 +24,7 @@ export function useDiversityMatrix(sample, profile) {
     profile?.columns.filter((c) => c.inferred_type === "integer" || c.distribution?.kind === "categorical") ?? [];
   const allColumns = profile?.columns ?? [];
 
-  const [raw, setRaw] = useState(null); // { lDiversity, tCloseness, jointK } | null
+  const [raw, setRaw] = useState(null); // { lDiversity, tCloseness, betaLikeness, deltaDisclosure, jointK, rowRisk } | null
   const [loading, setLoading] = useState(false);
   const generation = useRef(0);
 
