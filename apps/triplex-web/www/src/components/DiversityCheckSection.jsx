@@ -22,7 +22,7 @@ import {
  * computation, started as soon as the file loads rather than when this
  * component mounts, so it's ready (or close to it) by the time the user
  * opens this tab instead of visibly lagging behind the k-anonymity bars. */
-export default function DiversityCheckSection({ raw, loading, quasiColumns, allColumns }) {
+export default function DiversityCheckSection({ raw, loading, quasiColumns, allColumns, selected, onToggleRow }) {
   const lDiversityCellAt = useCallback(
     (i, j) => {
       const cell = raw?.lDiversity[i]?.[j];
@@ -68,7 +68,8 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
         k-anonymity (above) only says how big each generalized group is. These say whether
         everyone in that group also shares the same sensitive value: one row per
         quasi-identifier column, one column per candidate sensitive column. Hover a cell for the
-        pair it scores.
+        pair it scores, or click a row label to add it to the combined quasi-identifier check
+        below.
       </p>
       <div className="risk-matrix-pair">
         {loading || !raw ? (
@@ -86,6 +87,8 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               cellAt={lDiversityCellAt}
               legendLowLabel="safer"
               legendHighLabel="riskier"
+              selectedRows={selected}
+              onToggleRow={onToggleRow}
             />
             <RiskMatrix
               title="t-closeness"
@@ -95,6 +98,8 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               cellAt={tClosenessCellAt}
               legendLowLabel="safer"
               legendHighLabel="riskier"
+              selectedRows={selected}
+              onToggleRow={onToggleRow}
             />
           </>
         )}

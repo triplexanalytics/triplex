@@ -21,21 +21,28 @@ function weakestColumn(riskByName) {
  *   its minimum — a free, instant read, but explicitly labeled as a
  *   diagnostic, not a certification, since it never looks at columns in
  *   combination.
- * - The picker below it is the real verdict: `useJointRisk` scores the
- *   user-picked columns together as one combined quasi-identifier. See
+ * - The real verdict: `useJointRisk` scores `selected` (clicked directly
+ *   on the matrices' row labels above, not a second column list here —
+ *   the rows already name every quasi-identifier column, so picking them
+ *   again in a separate widget would just be the same names twice)
+ *   together as one combined quasi-identifier. See
  *   `compose_quasi_identifiers` on the Rust side for why that's a
  *   different (and correct) computation, not just an average of the
  *   per-column scores. */
-export default function JointRiskSection({ sample, profile, quasiColumns, allColumns, riskByName, riskLoading }) {
-  const [selected, setSelected] = useState([]);
+export default function JointRiskSection({
+  sample,
+  profile,
+  quasiColumns,
+  allColumns,
+  riskByName,
+  riskLoading,
+  selected,
+}) {
   const [sensitiveName, setSensitiveName] = useState("");
   const { result, loading } = useJointRisk(sample, profile, selected, sensitiveName || null);
   const weakest = useMemo(() => weakestColumn(riskByName), [riskByName]);
 
   if (quasiColumns.length === 0) return null;
-
-  const toggle = (name) =>
-    setSelected((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
 
   return (
     <div className="diversity-check-section joint-risk-section">
@@ -43,43 +50,36 @@ export default function JointRiskSection({ sample, profile, quasiColumns, allCol
         Combined quasi-identifier check <InfoTrigger tooltip={JOINT_RISK_INFO} />
       </h3>
       <p className="diversity-check-intro">
-        Pick 2 or more columns to score them together as one quasi-identifier, the way an attacker
-        combining what they already know would. This is the dataset-level verdict; the bars and
-        matrices above score one column (or one pair) at a time.
+        Click 2 or more row labels in the matrices above to score those columns together as one
+        quasi-identifier, the way an attacker combining what they already know would. This is the
+        dataset-level verdict; the bars and matrices above score one column (or one pair) at a
+        time.
       </p>
 
       {!riskLoading && weakest && (
         <p className="joint-risk-weakest">
           Quick read: the weakest single column is <strong>{weakest.name}</strong> (k=
-          {weakest.value}). Not a combined guarantee &mdash; pick columns below for that.
+          {weakest.value}). Not a combined guarantee &mdash; select rows above for that.
         </p>
       )}
 
-      <div className="joint-risk-picker">
-        <div className="joint-risk-columns" role="group" aria-label="Quasi-identifier columns">
-          {quasiColumns.map((c) => (
-            <label key={c.name} className="joint-risk-checkbox">
-              <input type="checkbox" checked={selected.includes(c.name)} onChange={() => toggle(c.name)} />
-              {c.name}
-            </label>
-          ))}
-        </div>
-        <div className="field joint-risk-sensitive">
-          <label>Sensitive column (optional, for l-diversity / t-closeness)</label>
-          <select value={sensitiveName} onChange={(e) => setSensitiveName(e.target.value)}>
-            <option value="">None</option>
-            {allColumns
-              .filter((c) => !selected.includes(c.name))
-              .map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-          </select>
-        </div>
+      <div className="field joint-risk-sensitive">
+        <label>Sensitive column (optional, for l-diversity / t-closeness)</label>
+        <select value={sensitiveName} onChange={(e) => setSensitiveName(e.target.value)}>
+          <option value="">None</option>
+          {allColumns
+            .filter((c) => !selected.includes(c.name))
+            .map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+        </select>
       </div>
 
-      {selected.length < 2 && <p className="joint-risk-hint">Pick at least 2 columns to see their combined score.</p>}
+      {selected.length < 2 && (
+        <p className="joint-risk-hint">Select at least 2 rows above to see their combined score.</p>
+      )}
       {selected.length >= 2 && loading && <p className="joint-risk-hint">Scoring…</p>}
       {selected.length >= 2 && !loading && result && (
         <div className="joint-risk-result">

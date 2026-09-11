@@ -538,20 +538,7 @@ button.full-width { width: 100%; justify-content: center; }
 
 .joint-risk-weakest { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 0.6rem; }
 
-.joint-risk-picker { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start; margin-bottom: 0.6rem; }
-
-.joint-risk-columns { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; max-width: 480px; }
-
-.joint-risk-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.joint-risk-sensitive { min-width: 220px; }
+.joint-risk-sensitive { max-width: 420px; margin-bottom: 0.6rem; }
 .joint-risk-sensitive select {
   width: 100%;
   font: inherit;

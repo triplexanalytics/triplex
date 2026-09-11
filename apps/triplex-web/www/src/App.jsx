@@ -41,9 +41,17 @@ export default function App() {
   const diversityMatrix = useDiversityMatrix(file.sample, file.profile);
   const [activeTab, setActiveTab] = useState("table");
   const [selectedColumn, setSelectedColumn] = useState(null);
+  // Combined quasi-identifier check: which quasiColumns rows the user has
+  // clicked in DiversityCheckSection's matrices, shared with JointRiskSection
+  // below it — one selection, not a separate picker duplicating the same
+  // column names.
+  const [selectedQuasiColumns, setSelectedQuasiColumns] = useState([]);
+  const toggleQuasiColumn = (name) =>
+    setSelectedQuasiColumns((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
 
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
+    setSelectedQuasiColumns([]);
     anonymize.reset();
     await file.loadFile(uploaded);
   };
@@ -109,6 +117,8 @@ export default function App() {
                   loading={diversityMatrix.loading}
                   quasiColumns={diversityMatrix.quasiColumns}
                   allColumns={diversityMatrix.allColumns}
+                  selected={selectedQuasiColumns}
+                  onToggleRow={toggleQuasiColumn}
                 />
                 <JointRiskSection
                   sample={file.sample}
@@ -117,6 +127,7 @@ export default function App() {
                   allColumns={diversityMatrix.allColumns}
                   riskByName={columnRisk.riskByName}
                   riskLoading={columnRisk.riskLoading}
+                  selected={selectedQuasiColumns}
                 />
               </>
             )}
