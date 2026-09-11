@@ -56,6 +56,28 @@ pub fn bucket_numeric(width: u64, value: f64) -> String {
     bucket_number(width, value as i64)
 }
 
+/// Generalizes a string value by keeping only its first `width` characters
+/// (Unicode scalar values, not bytes, so a multi-byte character is never
+/// split mid-codepoint) — the "automatic" string generalization ARX ships
+/// (left-to-right substring), useful for structurally-hierarchical strings
+/// (postal codes, phone numbers, IDs, IBANs) where a shared prefix is a
+/// real coarser category. Unlike `bucket_value`'s numeric ranges, this is
+/// *not* a good default for free-text categorical values (city names,
+/// plan tiers): truncating "Utrecht"/"Rotterdam" to 3 characters doesn't
+/// merge them into a meaningful shared category the way a hand-authored
+/// taxonomy (city → province → country) would — that taxonomy mechanism is
+/// still deliberately unbuilt, see the design notes.
+/// `width == 0` means "no truncation," matching a bucket width of 0 having
+/// no meaningful bucket: the value passes through unchanged, the same
+/// behavior `score_column_risk_string`'s exact-value grouping already had
+/// before this function existed.
+pub fn generalize_string_prefix(width: usize, value: &str) -> String {
+    if width == 0 {
+        return value.to_string();
+    }
+    value.chars().take(width).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,5 +110,24 @@ mod tests {
     #[test]
     fn bucket_numeric_treats_nan_as_the_missing_value_case() {
         assert_eq!(bucket_numeric(10, f64::NAN), "");
+    }
+
+    #[test]
+    fn generalize_string_prefix_keeps_only_the_leading_characters() {
+        assert_eq!(generalize_string_prefix(4, "3512AD"), "3512");
+        assert_eq!(generalize_string_prefix(4, "AB"), "AB"); // shorter than width: unchanged
+    }
+
+    #[test]
+    fn generalize_string_prefix_zero_width_means_no_truncation() {
+        assert_eq!(generalize_string_prefix(0, "Utrecht"), "Utrecht");
+    }
+
+    #[test]
+    fn generalize_string_prefix_counts_unicode_characters_not_bytes() {
+        // "café" is 4 chars but 5 bytes (é is 2 bytes in UTF-8) — a byte-based
+        // truncation would either panic (mid-codepoint) or silently corrupt
+        // the last character. Keeping the first 3 characters must yield "caf".
+        assert_eq!(generalize_string_prefix(3, "café"), "caf");
     }
 }

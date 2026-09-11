@@ -16,7 +16,7 @@ function columnRisk(columns, bucketWidth) {
   for (const { name, kind, values } of columns) {
     result[name] =
       kind === "string"
-        ? JSON.parse(wasm.score_column_risk_string(JSON.stringify(values)))
+        ? JSON.parse(wasm.score_column_risk_string(JSON.stringify(values), 0))
         : JSON.parse(wasm.score_column_risk(values, bucketWidth));
   }
   return result;
@@ -44,7 +44,7 @@ function diversityMatrix(rows, cols, bucketWidth) {
       // a string row, stringified the same way cols already are.
       const [l, t] =
         row.kind === "string"
-          ? JSON.parse(wasm.score_column_pair_risk_string(JSON.stringify(row.values), colsJson[j]))
+          ? JSON.parse(wasm.score_column_pair_risk_string(JSON.stringify(row.values), colsJson[j], 0))
           : JSON.parse(wasm.score_column_pair_risk(row.values, colsJson[j], bucketWidth));
       lRow.push(l);
       tRow.push(t);

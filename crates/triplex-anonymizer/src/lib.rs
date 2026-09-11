@@ -13,7 +13,7 @@ mod partial_mask;
 mod recipe;
 mod tokenize;
 
-pub use bucket::{bucket_numeric, bucket_value};
+pub use bucket::{bucket_numeric, bucket_value, generalize_string_prefix};
 pub use fpe::fpe_mask;
 pub use mapping::{decrypt_mapping, encrypt_mapping, EncryptedMapping, MappingEntry};
 pub use partial_mask::partial_mask;

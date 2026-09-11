@@ -175,14 +175,43 @@ pub fn score_column_risk(values: &[f64], bucket_width: u32) -> Result<String, Js
     serde_json::to_string(&assessment).map_err(to_js_err)
 }
 
-/// Dataset Anonymity Analysis tab: l-diversity and t-closeness for one
-/// user-chosen pair of columns — `quasi_values` (the quasi-identifier,
-/// typed and generalized the same way as `score_column_risk`) and
-/// `sensitive_values_json` (the attribute checked for diversity/skew within
-/// each generalized group — a JSON array of strings, not typed, since a
-/// candidate sensitive column can be any type, not just numeric), both
-/// that column's raw values in row order. Returns a two-element JSON array
-/// of `RiskAssessment` (`[l_diversity, t_closeness]`).
+/// Every distributional risk model checked against a class/sensitive-value
+/// pairing, computed together since they all share the same two inputs —
+/// used by `score_column_pair_risk` and its string/joint counterparts so
+/// the four-model list lives in exactly one place. Returns
+/// `[l_diversity, t_closeness, beta_likeness, delta_disclosure]`.
+fn pair_risk_models(
+    bucketed_or_exact: &[String],
+    sensitive_values: &[String],
+) -> Result<[triplex_datasetcard::RiskAssessment; 4], JsValue> {
+    use triplex_datasetcard::{evaluate_risk_model, RiskModel};
+    Ok([
+        evaluate_risk_model(RiskModel::LDiversity, bucketed_or_exact, sensitive_values)
+            .map_err(to_js_err)?,
+        evaluate_risk_model(RiskModel::TCloseness, bucketed_or_exact, sensitive_values)
+            .map_err(to_js_err)?,
+        evaluate_risk_model(RiskModel::BetaLikeness, bucketed_or_exact, sensitive_values)
+            .map_err(to_js_err)?,
+        evaluate_risk_model(
+            RiskModel::DeltaDisclosure,
+            bucketed_or_exact,
+            sensitive_values,
+        )
+        .map_err(to_js_err)?,
+    ])
+}
+
+/// Dataset Anonymity Analysis tab: l-diversity, t-closeness, β-likeness and
+/// δ-disclosure for one user-chosen pair of columns — `quasi_values` (the
+/// quasi-identifier, typed and generalized the same way as
+/// `score_column_risk`) and `sensitive_values_json` (the attribute checked
+/// for diversity/skew within each generalized group — a JSON array of
+/// strings, not typed, since a candidate sensitive column can be any type,
+/// not just numeric), both that column's raw values in row order. Returns
+/// a four-element JSON array of `RiskAssessment`
+/// (`[l_diversity, t_closeness, beta_likeness, delta_disclosure]` —
+/// widened from two elements to four, see the design notes; a caller that
+/// only reads the first two elements is unaffected).
 #[wasm_bindgen]
 pub fn score_column_pair_risk(
     quasi_values: &[f64],
@@ -195,34 +224,34 @@ pub fn score_column_pair_risk(
         .iter()
         .map(|v| triplex_anonymizer::bucket_numeric(bucket_width as u64, *v))
         .collect();
-    let l_diversity = triplex_datasetcard::evaluate_risk_model(
-        triplex_datasetcard::RiskModel::LDiversity,
-        &bucketed,
-        &sensitive_values,
-    )
-    .map_err(to_js_err)?;
-    let t_closeness = triplex_datasetcard::evaluate_risk_model(
-        triplex_datasetcard::RiskModel::TCloseness,
-        &bucketed,
-        &sensitive_values,
-    )
-    .map_err(to_js_err)?;
-    serde_json::to_string(&[l_diversity, t_closeness]).map_err(to_js_err)
+    let results = pair_risk_models(&bucketed, &sensitive_values)?;
+    serde_json::to_string(&results).map_err(to_js_err)
 }
 
 /// Column-view tab: `score_column_risk`'s string-column counterpart — a
 /// string/categorical column has no numeric range to generalize into a
-/// `"lo-hi"` bucket, so its equivalence classes are just its exact values
-/// (the same grouping `categorical_distribution`'s "Distinct" count already
-/// does — see the design notes). `values_json` is
-/// that column's raw values in row order, as a JSON array of strings — a
-/// typed array isn't an option for strings the way `&[f64]` is for numbers.
+/// `"lo-hi"` bucket, so by default its equivalence classes are just its
+/// exact values. `prefix_width` optionally generalizes
+/// further first, keeping only each value's first `prefix_width`
+/// characters (`0` means no truncation, the original exact-value
+/// behavior) — meaningful for structurally-hierarchical strings (postal
+/// codes, phone numbers, IDs) where a shared prefix is a real coarser
+/// category; weak/arbitrary for free-text categorical values (city names,
+/// plan tiers), where a hand-authored taxonomy would do better and is
+/// still deliberately unbuilt — see `generalize_string_prefix`'s doc
+/// comment and the design notes. `values_json` is that column's raw values
+/// in row order, as a JSON array of strings — a typed array isn't an
+/// option for strings the way `&[f64]` is for numbers.
 #[wasm_bindgen]
-pub fn score_column_risk_string(values_json: &str) -> Result<String, JsValue> {
+pub fn score_column_risk_string(values_json: &str, prefix_width: u32) -> Result<String, JsValue> {
     let values: Vec<String> = serde_json::from_str(values_json).map_err(to_js_err)?;
+    let generalized: Vec<String> = values
+        .iter()
+        .map(|v| triplex_anonymizer::generalize_string_prefix(prefix_width as usize, v))
+        .collect();
     let assessment = triplex_datasetcard::evaluate_risk_model(
         triplex_datasetcard::RiskModel::KAnonymity,
-        &values,
+        &generalized,
         &[],
     )
     .map_err(to_js_err)?;
@@ -231,30 +260,24 @@ pub fn score_column_risk_string(values_json: &str) -> Result<String, JsValue> {
 
 /// Dataset Anonymity Analysis tab: `score_column_pair_risk`'s string-column
 /// counterpart, for when the quasi-identifier column itself is a string —
-/// see `score_column_risk_string`'s doc comment for why it's ungeneralized
-/// exact-value grouping rather than a bucket width. Returns the same
-/// two-element `[l_diversity, t_closeness]` JSON array.
+/// see `score_column_risk_string`'s doc comment for `prefix_width`.
+/// Returns the same four-element
+/// `[l_diversity, t_closeness, beta_likeness, delta_disclosure]` JSON array.
 #[wasm_bindgen]
 pub fn score_column_pair_risk_string(
     quasi_values_json: &str,
     sensitive_values_json: &str,
+    prefix_width: u32,
 ) -> Result<String, JsValue> {
     let quasi_values: Vec<String> = serde_json::from_str(quasi_values_json).map_err(to_js_err)?;
     let sensitive_values: Vec<String> =
         serde_json::from_str(sensitive_values_json).map_err(to_js_err)?;
-    let l_diversity = triplex_datasetcard::evaluate_risk_model(
-        triplex_datasetcard::RiskModel::LDiversity,
-        &quasi_values,
-        &sensitive_values,
-    )
-    .map_err(to_js_err)?;
-    let t_closeness = triplex_datasetcard::evaluate_risk_model(
-        triplex_datasetcard::RiskModel::TCloseness,
-        &quasi_values,
-        &sensitive_values,
-    )
-    .map_err(to_js_err)?;
-    serde_json::to_string(&[l_diversity, t_closeness]).map_err(to_js_err)
+    let generalized: Vec<String> = quasi_values
+        .iter()
+        .map(|v| triplex_anonymizer::generalize_string_prefix(prefix_width as usize, v))
+        .collect();
+    let results = pair_risk_models(&generalized, &sensitive_values)?;
+    serde_json::to_string(&results).map_err(to_js_err)
 }
 
 /// Generalizes one numeric column into `"lo-hi"` buckets — the same
@@ -295,12 +318,13 @@ pub fn score_joint_column_risk(columns_json: &str) -> Result<String, JsValue> {
     serde_json::to_string(&assessment).map_err(to_js_err)
 }
 
-/// `score_joint_column_risk`'s l-diversity/t-closeness counterpart, mirroring
-/// `score_column_pair_risk`'s shape: the same combined quasi-identifier
-/// (`columns_json`, see `score_joint_column_risk`) checked against one
-/// candidate sensitive column (`sensitive_values_json`, that column's raw
-/// values in row order). Returns the same two-element
-/// `[l_diversity, t_closeness]` JSON array.
+/// `score_joint_column_risk`'s l-diversity/t-closeness/β-likeness/
+/// δ-disclosure counterpart, mirroring `score_column_pair_risk`'s shape:
+/// the same combined quasi-identifier (`columns_json`, see
+/// `score_joint_column_risk`) checked against one candidate sensitive
+/// column (`sensitive_values_json`, that column's raw values in row
+/// order). Returns the same four-element
+/// `[l_diversity, t_closeness, beta_likeness, delta_disclosure]` JSON array.
 #[wasm_bindgen]
 pub fn score_joint_column_pair_risk(
     columns_json: &str,
@@ -310,17 +334,26 @@ pub fn score_joint_column_pair_risk(
     let sensitive_values: Vec<String> =
         serde_json::from_str(sensitive_values_json).map_err(to_js_err)?;
     let composite = triplex_datasetcard::compose_quasi_identifiers(&columns);
-    let l_diversity = triplex_datasetcard::evaluate_risk_model(
-        triplex_datasetcard::RiskModel::LDiversity,
-        &composite,
-        &sensitive_values,
-    )
-    .map_err(to_js_err)?;
-    let t_closeness = triplex_datasetcard::evaluate_risk_model(
-        triplex_datasetcard::RiskModel::TCloseness,
-        &composite,
-        &sensitive_values,
-    )
-    .map_err(to_js_err)?;
-    serde_json::to_string(&[l_diversity, t_closeness]).map_err(to_js_err)
+    let results = pair_risk_models(&composite, &sensitive_values)?;
+    serde_json::to_string(&results).map_err(to_js_err)
+}
+
+/// Dataset Anonymity Analysis tab: per-row SUDA disclosure-risk score
+/// (`crates/triplex-datasetcard/src/suda.rs`) for a set of quasi-identifier
+/// columns — a different shape from every other function here: one score
+/// per *row*, not per column or column-pair, answering "which specific
+/// rows are most identifiable" rather than "how safe is this column."
+/// `columns_json` is the same shape `score_joint_column_risk` takes (a
+/// JSON array of arrays of strings, one inner array per column, same row
+/// order and length; numeric columns pre-bucketed by the caller the same
+/// way). Returns a JSON array of `[suda_score, dis_suda_share]` pairs, one
+/// per row, `dis_suda_share` being that row's proportional slice of the
+/// dataset's total disclosure risk (`dis_suda_scores`'s doc comment).
+#[wasm_bindgen]
+pub fn score_suda(columns_json: &str) -> Result<String, JsValue> {
+    let columns: Vec<Vec<String>> = serde_json::from_str(columns_json).map_err(to_js_err)?;
+    let suda = triplex_datasetcard::suda_scores(&columns).map_err(to_js_err)?;
+    let dis_suda = triplex_datasetcard::dis_suda_scores(&suda);
+    let paired: Vec<(f64, f64)> = suda.into_iter().zip(dis_suda).collect();
+    serde_json::to_string(&paired).map_err(to_js_err)
 }

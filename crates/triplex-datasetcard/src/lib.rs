@@ -17,17 +17,22 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use triplex_core::{Error, Result};
 
+mod suda;
+pub use suda::{dis_suda_scores, suda_scores, MAX_QUASI_IDENTIFIER_COLUMNS};
+
 /// A named formal-privacy model a bucketed (generalized) column can be
 /// checked against — see the design notes's Tier 1 row.
-/// `evaluate_risk_model` computes the first three directly from values
-/// already in the dataset. δ-presence is different in kind: it bounds the
-/// probability that an individual is present in the dataset *at all*,
-/// which needs a reference population table strictly larger than this
-/// dataset — a concept nothing in this crate has yet.
-/// ponytail: δ-presence named but unimplemented; add a population-table
-/// type and a real arm here once one exists, rather than fake a result now
-/// — see the project guidelines's rule that a privacy claim is never asserted without a
-/// passing test backing it.
+/// `evaluate_risk_model` computes every variant except δ-presence and k-map
+/// directly from values already in the dataset. Those two are different in
+/// kind: both bound risk relative to a *population* the dataset is only a
+/// sample of (δ-presence: the probability an individual is present in the
+/// dataset at all; k-map: an equivalence class's true population size, not
+/// its sample size), which needs a reference population table strictly
+/// larger than this dataset — a concept nothing in this crate has yet.
+/// ponytail: δ-presence and k-map named but unimplemented; add a
+/// population-table type and real arms here once one exists, rather than
+/// fake a result now — see the project guidelines's rule that a privacy claim is never
+/// asserted without a passing test backing it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RiskModel {
@@ -35,6 +40,18 @@ pub enum RiskModel {
     LDiversity,
     TCloseness,
     DeltaPresence,
+    /// Cao & Karras 2012's "basic β-likeness": bounds how much an
+    /// equivalence class's local distribution of the sensitive attribute
+    /// can *raise* an attacker's belief in any one value relative to the
+    /// dataset-wide distribution — see `beta_likeness`'s doc comment for
+    /// the exact formula and how it differs from `TCloseness`.
+    BetaLikeness,
+    /// Brickell & Shmatikov 2008's δ-disclosure privacy: like
+    /// `BetaLikeness` but symmetric — it also bounds a class *lowering*
+    /// belief in a value (e.g. "this group definitely doesn't have
+    /// diagnosis X"), not just raising it. See `delta_disclosure`.
+    DeltaDisclosure,
+    KMap,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -43,6 +60,8 @@ pub enum RiskAssessment {
     KAnonymity(usize),
     LDiversity(usize),
     TCloseness(f64),
+    BetaLikeness(f64),
+    DeltaDisclosure(f64),
 }
 
 /// The size of the smallest equivalence class in `bucketed_values` — every
@@ -135,6 +154,87 @@ pub fn t_closeness(bucketed_values: &[String], sensitive_values: &[String]) -> f
         .fold(0.0, f64::max)
 }
 
+/// Basic β-likeness (Cao & Karras 2012): the largest "belief raise" an
+/// attacker gets from any one equivalence class about any one sensitive
+/// value — `ln(local_share / global_share)`, but only counted where a
+/// class's local share of a value is *higher* than that value's share
+/// across the whole dataset (a class that under-represents a value isn't
+/// counted here — see `delta_disclosure` for the symmetric version). 0.0
+/// (tightest) means no class ever raises belief in any value above its
+/// baseline rate; a larger number means some class makes some value look
+/// more likely than the dataset as a whole suggests. Complements
+/// `t_closeness`: t-closeness reports one aggregate distance per class
+/// (how different the *whole mix* looks), β-likeness reports the worst
+/// single value's belief shift — two classes with the same t-closeness
+/// distance can have very different β-likeness if one spreads its
+/// deviation across many values and the other concentrates it in one.
+pub fn beta_likeness(bucketed_values: &[String], sensitive_values: &[String]) -> f64 {
+    let all_sensitive: Vec<&str> = sensitive_values.iter().map(String::as_str).collect();
+    let overall = distribution(&all_sensitive);
+
+    let mut classes: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (bucket, sensitive) in bucketed_values.iter().zip(sensitive_values) {
+        classes
+            .entry(bucket.as_str())
+            .or_default()
+            .push(sensitive.as_str());
+    }
+
+    classes
+        .values()
+        .map(|class_values| {
+            let local = distribution(class_values);
+            local
+                .iter()
+                .filter_map(|(value, local_share)| {
+                    let global_share = overall.get(value).copied().unwrap_or(0.0);
+                    (*local_share >= global_share && global_share > 0.0)
+                        .then(|| (local_share / global_share).ln())
+                })
+                .fold(0.0, f64::max)
+        })
+        .fold(0.0, f64::max)
+}
+
+/// δ-disclosure privacy (Brickell & Shmatikov 2008): the largest belief
+/// *shift* an attacker gets from any one equivalence class about any one
+/// sensitive value, in either direction — `|ln(local_share / global_share)|`
+/// — unlike `beta_likeness`, a class that makes a value look *less* likely
+/// than the dataset baseline (e.g. "this group definitely isn't the rare
+/// diagnosis") counts too, since ruling something out is also a disclosure.
+/// 0.0 (tightest) means every class's local distribution matches the
+/// dataset-wide one exactly for every value it contains.
+pub fn delta_disclosure(bucketed_values: &[String], sensitive_values: &[String]) -> f64 {
+    let all_sensitive: Vec<&str> = sensitive_values.iter().map(String::as_str).collect();
+    let overall = distribution(&all_sensitive);
+
+    let mut classes: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (bucket, sensitive) in bucketed_values.iter().zip(sensitive_values) {
+        classes
+            .entry(bucket.as_str())
+            .or_default()
+            .push(sensitive.as_str());
+    }
+
+    classes
+        .values()
+        .map(|class_values| {
+            let local = distribution(class_values);
+            local
+                .iter()
+                .map(|(value, local_share)| {
+                    let global_share = overall.get(value).copied().unwrap_or(0.0);
+                    if global_share > 0.0 {
+                        (local_share / global_share).ln().abs()
+                    } else {
+                        0.0
+                    }
+                })
+                .fold(0.0, f64::max)
+        })
+        .fold(0.0, f64::max)
+}
+
 /// Zips N already-bucketed/generalized columns into one composite
 /// equivalence-class key per row, so `k_anonymity`/`l_diversity`/
 /// `t_closeness` can be run against the *combined* quasi-identifier
@@ -188,6 +288,17 @@ pub fn evaluate_risk_model(
         RiskModel::DeltaPresence => Err(Error::Validation(
             "delta-presence needs a reference population table, which isn't implemented yet"
                 .to_string(),
+        )),
+        RiskModel::BetaLikeness => Ok(RiskAssessment::BetaLikeness(beta_likeness(
+            bucketed_values,
+            sensitive_values,
+        ))),
+        RiskModel::DeltaDisclosure => Ok(RiskAssessment::DeltaDisclosure(delta_disclosure(
+            bucketed_values,
+            sensitive_values,
+        ))),
+        RiskModel::KMap => Err(Error::Validation(
+            "k-map needs a reference population table, which isn't implemented yet".to_string(),
         )),
     }
 }
@@ -375,6 +486,87 @@ mod tests {
     }
 
     #[test]
+    fn k_map_is_a_clear_error_not_a_fabricated_number() {
+        let buckets = vec!["20-29".to_string()];
+        let sensitive = vec!["flu".to_string()];
+        let err = evaluate_risk_model(RiskModel::KMap, &buckets, &sensitive).unwrap_err();
+        assert_eq!(err.code(), "VALIDATION_ERROR");
+    }
+
+    #[test]
+    fn beta_likeness_is_zero_when_every_class_matches_the_global_distribution() {
+        let buckets = vec!["20-29", "20-29", "30-39", "30-39"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let diagnoses = vec!["flu", "diabetes", "flu", "diabetes"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        assert_eq!(beta_likeness(&buckets, &diagnoses), 0.0);
+    }
+
+    #[test]
+    fn beta_likeness_is_positive_when_a_class_raises_belief_in_a_value() {
+        // Global: flu 3/4, diabetes 1/4 (3 flu + 1 diabetes across both
+        // classes). The singleton "30-39" class is 100% diabetes, raising
+        // belief in "diabetes" from 0.25 to 1.0 — ln(1.0/0.25) = ln(4), the
+        // largest ratio in this dataset (bigger than "20-29"'s flu ratio,
+        // ln(1.0/0.75) ≈ 0.29, since raising a *rare* global value all the
+        // way to 100% swings its ratio further than raising a common one).
+        let buckets = vec!["20-29", "20-29", "20-29", "30-39"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let diagnoses = vec!["flu", "flu", "flu", "diabetes"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let beta = beta_likeness(&buckets, &diagnoses);
+        assert!(beta > 0.0);
+        assert_eq!(beta, 4.0_f64.ln());
+    }
+
+    /// Hand-verified two-class, three-value dataset where the single
+    /// biggest belief *shift* in either direction is a *lowered* value —
+    /// proving `delta_disclosure` (which considers both directions) and
+    /// `beta_likeness` (which only ever considers a raised value) can
+    /// genuinely disagree, not just on a technicality. Global: G 50%
+    /// (10/20), R1 30% (6/20), R2 20% (4/20).
+    /// - Class "A" (10 rows: 1 G, 5 R1, 4 R2): G's local share drops to 10%
+    ///   (lowered: `|ln(0.1/0.5)| = ln(5)`, the biggest swing anywhere in
+    ///   this dataset); R1 rises to 50% (`ln(0.5/0.3) ≈ 0.51`); R2 rises to
+    ///   40% (`ln(0.4/0.2) = ln(2)`, the biggest *raised* swing).
+    /// - Class "B" (10 rows: 9 G, 1 R1, 0 R2): G rises to 90%
+    ///   (`ln(0.9/0.5) ≈ 0.59`); R1 drops to 10% (`|ln(0.1/0.3)| ≈ 1.10`);
+    ///   R2 absent, never visited (see `delta_disclosure`'s doc comment).
+    ///
+    /// So `beta_likeness` (raised-only) maxes out at R2's `ln(2)`, while
+    /// `delta_disclosure` (both directions) maxes out at G's lowered
+    /// `ln(5)` — a real, different answer, not just a bigger one by chance.
+    #[test]
+    fn delta_disclosure_can_diverge_from_beta_likeness_on_a_lowered_value() {
+        let buckets = ["A"; 10]
+            .into_iter()
+            .chain(["B"; 10])
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let diagnoses = ["G", "R1", "R1", "R1", "R1", "R1", "R2", "R2", "R2", "R2"]
+            .into_iter()
+            .chain(["G", "G", "G", "G", "G", "G", "G", "G", "G", "R1"])
+            .map(String::from)
+            .collect::<Vec<_>>();
+        assert_eq!(buckets.len(), 20);
+        assert_eq!(diagnoses.len(), 20);
+
+        let beta = beta_likeness(&buckets, &diagnoses);
+        let delta = delta_disclosure(&buckets, &diagnoses);
+        assert_eq!(beta, 2.0_f64.ln());
+        assert_eq!(delta, 5.0_f64.ln());
+        assert!(delta > beta, "delta ({delta}) should exceed beta ({beta})");
+    }
+
+    #[test]
     fn evaluate_risk_model_dispatches_k_anonymity() {
         let buckets = vec!["20-29".to_string(), "20-29".to_string()];
         let sensitive = vec!["flu".to_string(), "flu".to_string()];
@@ -395,6 +587,28 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&RiskAssessment::TCloseness(0.5)).unwrap(),
             r#"{"model":"t_closeness","value":0.5}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&RiskAssessment::BetaLikeness(0.4)).unwrap(),
+            r#"{"model":"beta_likeness","value":0.4}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&RiskAssessment::DeltaDisclosure(0.7)).unwrap(),
+            r#"{"model":"delta_disclosure","value":0.7}"#
+        );
+    }
+
+    #[test]
+    fn evaluate_risk_model_dispatches_beta_likeness_and_delta_disclosure() {
+        let buckets = vec!["20-29".to_string(), "20-29".to_string()];
+        let sensitive = vec!["flu".to_string(), "flu".to_string()];
+        assert_eq!(
+            evaluate_risk_model(RiskModel::BetaLikeness, &buckets, &sensitive).unwrap(),
+            RiskAssessment::BetaLikeness(0.0)
+        );
+        assert_eq!(
+            evaluate_risk_model(RiskModel::DeltaDisclosure, &buckets, &sensitive).unwrap(),
+            RiskAssessment::DeltaDisclosure(0.0)
         );
     }
 
