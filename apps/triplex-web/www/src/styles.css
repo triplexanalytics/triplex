@@ -127,6 +127,52 @@ button.full-width { width: 100%; justify-content: center; }
 
 .navbar .spacer { flex: 1; }
 
+.download-menu { position: relative; }
+
+.download-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  font: inherit;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  padding: 0.4rem 0.8rem;
+}
+
+.download-menu > summary::-webkit-details-marker { display: none; }
+.download-menu > summary::marker { content: ""; }
+
+.download-menu > summary:hover { background: var(--accent-hover); }
+
+.download-menu ul {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  min-width: 100%;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+
+.download-menu li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0.35rem 0.6rem;
+  border-radius: 4px;
+}
+
+.download-menu li button:hover { background: var(--surface-alt); }
+
 .navbar .license-placeholder {
   font-size: 0.78rem;
   color: var(--text-faint);
