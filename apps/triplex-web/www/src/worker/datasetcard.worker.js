@@ -52,31 +52,36 @@ function diversityMatrix(rows, cols, bucketWidth) {
     lDiversity.push(lRow);
     tCloseness.push(tRow);
   }
-  return { lDiversity, tCloseness };
+  return { lDiversity, tCloseness, jointK: jointKMatrix(rows, bucketWidth) };
 }
 
-// Combined quasi-identifier check: `columns` (2+ picked columns, same
-// `{ name, kind, values }` shape as `columnRisk`) get generalized the same
-// way a single column would (numeric -> "lo-hi" buckets via
-// `bucket_numeric_column`, string -> exact values), then scored together
-// as one quasi-identifier by the wasm side's `compose_quasi_identifiers`
-// — not scored independently and combined here, since the whole point is
-// that the *joint* equivalence classes can be smaller than any one
-// column's own classes. `sensitiveValues` (stringified cells for the
-// chosen sensitive column) is optional: k-anonymity alone needs no
-// sensitive column, l-diversity/t-closeness do.
-function jointRisk(columns, bucketWidth, sensitiveValues) {
-  const bucketedJson = JSON.stringify(
-    columns.map(({ kind, values }) =>
-      kind === "string" ? values : Array.from(wasm.bucket_numeric_column(values, bucketWidth)),
-    ),
+// The dataset-level verdict (the design notes "dataset-level
+// aggregation" gap): every quasi-identifier column pair's *combined*
+// k-anonymity, not just each one scored alone -- two columns that each
+// look safe independently (a ZIP code, a birth year) can single out
+// almost everyone once combined. `rows` is the same quasi-identifier list
+// `diversityMatrix` already builds, so this reuses it rather than asking
+// the caller to build a second, identical column list. Each column is
+// generalized once up front (numeric -> "lo-hi" buckets via
+// `bucket_numeric_column`, string -> exact values) and reused for every
+// pair, since `wasm.score_joint_column_risk` expects already-bucketed
+// values -- bucketing width doesn't change per pair.
+function jointKMatrix(rows, bucketWidth) {
+  const bucketed = rows.map(({ kind, values }) =>
+    kind === "string" ? values : Array.from(wasm.bucket_numeric_column(values, bucketWidth)),
   );
-  const kAnonymity = JSON.parse(wasm.score_joint_column_risk(bucketedJson));
-  if (!sensitiveValues) return { kAnonymity, lDiversity: null, tCloseness: null };
-  const [lDiversity, tCloseness] = JSON.parse(
-    wasm.score_joint_column_pair_risk(bucketedJson, JSON.stringify(sensitiveValues)),
-  );
-  return { kAnonymity, lDiversity, tCloseness };
+  const n = rows.length;
+  const matrix = Array.from({ length: n }, () => new Array(n).fill(null));
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      // Symmetric: combining column i with j scores the same as j with i,
+      // so compute each pair once and mirror it instead of two wasm calls.
+      const cell = JSON.parse(wasm.score_joint_column_risk(JSON.stringify([bucketed[i], bucketed[j]])));
+      matrix[i][j] = cell;
+      matrix[j][i] = cell;
+    }
+  }
+  return matrix;
 }
 
 self.onmessage = async (event) => {
@@ -89,8 +94,6 @@ self.onmessage = async (event) => {
       result = columnRisk(payload.columns, payload.bucketWidth);
     } else if (type === "diversityMatrix") {
       result = diversityMatrix(payload.rows, payload.cols, payload.bucketWidth);
-    } else if (type === "jointRisk") {
-      result = jointRisk(payload.columns, payload.bucketWidth, payload.sensitiveValues);
     } else {
       return;
     }

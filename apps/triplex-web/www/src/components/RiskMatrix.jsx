@@ -30,25 +30,12 @@ import InfoTrigger from "./InfoTrigger";
  * The main canvas's (expensive, whole-grid) redraw is untouched by
  * hovering — only the small overlay layer repaints per mouse move.
  *
- * `selectedRows`/`onToggleRow` (both optional) make the row labels
- * themselves the picker for the "combined quasi-identifier check" —
- * clicking a row label toggles it instead of a separate row list
- * duplicating the same names elsewhere on the page. A selected row draws
- * with an accent-tinted background and bold text. Both matrices
- * (l-diversity, t-closeness) share the same rows and the same selection
- * from their parent, so clicking a label in either one stays in sync with
- * the other. */
-export default function RiskMatrix({
-  title,
-  rows,
-  cols,
-  cellAt,
-  legendLowLabel,
-  legendHighLabel,
-  infoText,
-  selectedRows,
-  onToggleRow,
-}) {
+ * Rows and cols can be the same list (e.g. the combined-k-anonymity matrix
+ * pairs every quasi-identifier column against every other one) — `cellAt`
+ * deciding what a same-name pair means (typically `null`, nothing to show)
+ * is entirely the caller's concern, this component just draws whatever
+ * grid it's given. */
+export default function RiskMatrix({ title, rows, cols, cellAt, legendLowLabel, legendHighLabel, infoText }) {
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const [hover, setHover] = useState(null); // { x, y, row, col, label, tooltip } | null
@@ -94,28 +81,14 @@ export default function RiskMatrix({
       ctx.restore();
     });
 
-    // Row labels, right-aligned against the grid's left edge. A row in
-    // `selectedRows` (the combined quasi-identifier picker) gets an
-    // accent-tinted background band and bold text so its selected state
-    // reads at a glance, not just on click.
-    const accentColor = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#0f4c81";
+    // Row labels, right-aligned against the grid's left edge.
     rows.forEach((row, i) => {
-      const y = COL_LABEL_HEIGHT + i * CELL_SIZE;
-      const cy = y + CELL_SIZE / 2;
-      const selected = selectedRows?.includes(row);
-      if (selected) {
-        ctx.fillStyle = `${accentColor}22`; // low-alpha tint, not a solid fill
-        ctx.fillRect(0, y, ROW_LABEL_WIDTH, CELL_SIZE - CELL_GAP);
-      }
+      const cy = COL_LABEL_HEIGHT + i * CELL_SIZE + CELL_SIZE / 2;
       ctx.textAlign = "right";
-      ctx.font = selected
-        ? "600 11px system-ui, -apple-system, sans-serif"
-        : "11px system-ui, -apple-system, sans-serif";
-      ctx.fillStyle = selected ? accentColor : textColor;
+      ctx.fillStyle = textColor;
       const { text } = truncateToWidth(ctx, row, ROW_LABEL_WIDTH - 10);
       ctx.fillText(text, ROW_LABEL_WIDTH - 8, cy);
     });
-    ctx.font = "11px system-ui, -apple-system, sans-serif";
 
     // Cells.
     rows.forEach((_, i) => {
@@ -145,37 +118,12 @@ export default function RiskMatrix({
     ctx.fillText(legendLowLabel, legendX, legendY + 22);
     ctx.textAlign = "right";
     ctx.fillText(legendHighLabel, legendX + legendWidth, legendY + 22);
-  }, [rows, cols, cellAt, width, height, legendLowLabel, legendHighLabel, colorTick, selectedRows]);
-
-  // A click in the row-label column (left of the cell grid, any y within a
-  // row's band) toggles that row — no separate hit target needed since the
-  // label already spans that whole strip.
-  const rowAt = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const row = Math.floor((y - COL_LABEL_HEIGHT) / CELL_SIZE);
-    return row >= 0 && row < rows.length ? row : null;
-  };
-
-  const onClick = (e) => {
-    if (!onToggleRow) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    if (x >= ROW_LABEL_WIDTH) return; // click landed in the cell grid, not a label
-    const row = rowAt(e);
-    if (row !== null) onToggleRow(rows[row]);
-  };
+  }, [rows, cols, cellAt, width, height, legendLowLabel, legendHighLabel, colorTick]);
 
   const onMouseMove = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    if (onToggleRow && x < ROW_LABEL_WIDTH) {
-      canvasRef.current.style.cursor = rowAt(e) !== null ? "pointer" : "default";
-      setHover(null);
-      return;
-    }
-    canvasRef.current.style.cursor = "default";
     const col = Math.floor((x - ROW_LABEL_WIDTH) / CELL_SIZE);
     const row = Math.floor((y - COL_LABEL_HEIGHT) / CELL_SIZE);
     if (row < 0 || row >= rows.length || col < 0 || col >= cols.length) {
@@ -252,7 +200,6 @@ export default function RiskMatrix({
           ref={canvasRef}
           onMouseMove={onMouseMove}
           onMouseLeave={() => setHover(null)}
-          onClick={onClick}
         />
         <canvas
           ref={overlayRef}

@@ -76,22 +76,35 @@ export function distinctCountExplanation(count) {
 }
 
 // The dataset-level verdict (the design notes "dataset-level aggregation"
-// gap): a single column's k-anonymity only shows how that one column looks
-// alone, but a real attacker combines what they already know (a ZIP code
-// plus a birth year, say). Maps the three scores back to the EDPB's own
-// three criteria for anonymous data (per proposal-datasetcard-adr.md's
-// documentation requirement) so a compliance-minded reader has a name for
-// what each number is standing in for, not just a bare metric.
-export const JOINT_RISK_INFO = (
+// gap): the k-anonymity bars above score one column at a time; this matrix
+// scores every *pair* of quasi-identifier columns combined, since a real
+// attacker rarely knows only one thing about someone. Same lead-with-the-
+// concept, row/column-mechanics-last structure as L_DIVERSITY_INFO/
+// T_CLOSENESS_INFO, except row and column here are the same list (every
+// quasi-identifier against every other one), not two different roles, so
+// there's no "cell and its mirror image aren't expected to match" caveat —
+// this matrix is symmetric by construction. Maps to the EDPB's own
+// language for anonymous data (per proposal-datasetcard-adr.md's
+// plain-language documentation requirement) so a compliance-minded reader
+// has a name for what the number stands in for, not just a bare metric.
+export const JOINT_K_INFO = (
   <>
-    Picking columns here scores them <strong>together</strong>, as one combined quasi-identifier,
-    instead of one at a time — two columns that each look safe alone can still single someone out
-    once combined. This maps to the EDPB's three criteria for data to count as anonymous: combined
-    k-anonymity above 1 supports <strong>No Record Isolation</strong>, l-diversity supports{" "}
-    <strong>No Linkage</strong>, and t-closeness supports <strong>No Inference</strong>.
+    Two columns can each look safe scored alone (a ZIP code shared by thousands of people, a
+    birth year shared by millions) and still single out almost everyone once combined — this
+    matrix scores every pair of quasi-identifier columns <strong>together</strong> instead of one
+    at a time. <strong>Higher is safer</strong>, same direction as k-anonymity itself. It supports
+    the EDPB's <strong>No Record Isolation</strong> criterion for data to count as anonymous. Row
+    and column are the same list of quasi-identifier columns, so a cell reads the same from either
+    side.
     <span className="info-trigger-readmore">Read more…</span>
   </>
 );
+
+export function jointKDetail(value) {
+  return value <= 1
+    ? "combining these two columns still leaves at least one row unique, which could single out a real person"
+    : `combined, every row still shares its group with at least ${value - 1} other row(s)`;
+}
 
 export function lDiversityDetail(value) {
   return value <= 1

@@ -7,9 +7,11 @@ import { scoreDiversityMatrix } from "../state/datasetCardClient";
 const RISK_BUCKET_WIDTH = 10;
 
 /** l-diversity/t-closeness for every (quasi-identifier column, candidate
- * sensitive column) pair — a quasi-identifier is an integer column
- * (generalized into a numeric bucket) or a categorical/string column
- * (scored on its exact values). Computed in App.jsx as
+ * sensitive column) pair, plus the combined-k-anonymity matrix (every
+ * quasi-identifier pair's *joint* k-anonymity — the dataset-level verdict).
+ * A quasi-identifier is an integer column (generalized into a numeric
+ * bucket) or a categorical/string column (scored on its exact values,
+ * the design notes). Computed in App.jsx as
  * soon as sample/profile are ready — same as useColumnRisk, and for the
  * same reason: computing this only once DiversityCheckSection mounts (i.e.,
  * only once the user opens that tab) means the per-column k-anonymity bars
@@ -22,7 +24,7 @@ export function useDiversityMatrix(sample, profile) {
     profile?.columns.filter((c) => c.inferred_type === "integer" || c.distribution?.kind === "categorical") ?? [];
   const allColumns = profile?.columns ?? [];
 
-  const [raw, setRaw] = useState(null); // { lDiversity, tCloseness } | null
+  const [raw, setRaw] = useState(null); // { lDiversity, tCloseness, jointK } | null
   const [loading, setLoading] = useState(false);
   const generation = useRef(0);
 

@@ -5,24 +5,30 @@ import { reciprocalRisk } from "../state/palette";
 import {
   L_DIVERSITY_INFO,
   T_CLOSENESS_INFO,
+  JOINT_K_INFO,
   lDiversityDetail,
   tClosenessDetail,
+  jointKDetail,
 } from "../state/riskExplanations";
 
-/** Dataset Anonymity Analysis tab: two heatmaps below the per-column
- * k-anonymity cards — every quasi-identifier column (integer, generalized
- * into a bucket, or categorical/string, scored on its exact values) crossed
- * with every candidate sensitive column, scored for l-diversity and
- * t-closeness. A
- * single chooser can't show this: unlike k-anonymity (needs only the one
- * column), these two need a *pair*, and a matrix is the only view that
- * shows every pair at once instead of one at a time.
+/** Dataset Anonymity Analysis tab: three heatmaps below the per-column
+ * k-anonymity cards. l-diversity and t-closeness cross every
+ * quasi-identifier column (integer, generalized into a bucket, or
+ * categorical/string, scored on its exact values) against every candidate
+ * sensitive column. Combined k-anonymity (the design notes
+ * "dataset-level aggregation" gap) crosses every quasi-identifier column
+ * against every *other* quasi-identifier column, scoring the pair
+ * together instead of alone — the dataset-level verdict a single column's
+ * score can't give, since two columns that each look safe alone can
+ * single out almost everyone combined. A single chooser can't show any of
+ * this: each needs a *pair*, and a matrix is the only view that shows
+ * every pair at once instead of one at a time.
  *
  * Purely presentational — `useDiversityMatrix` in App.jsx owns the actual
  * computation, started as soon as the file loads rather than when this
  * component mounts, so it's ready (or close to it) by the time the user
  * opens this tab instead of visibly lagging behind the k-anonymity bars. */
-export default function DiversityCheckSection({ raw, loading, quasiColumns, allColumns, selected, onToggleRow }) {
+export default function DiversityCheckSection({ raw, loading, quasiColumns, allColumns }) {
   const lDiversityCellAt = useCallback(
     (i, j) => {
       const cell = raw?.lDiversity[i]?.[j];
@@ -56,10 +62,27 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
     [raw, quasiColumns, allColumns],
   );
 
+  const jointKCellAt = useCallback(
+    (i, j) => {
+      const cell = raw?.jointK[i]?.[j];
+      if (!cell) return null;
+      return {
+        risk: reciprocalRisk(cell.value),
+        label: String(cell.value),
+        tooltip: {
+          title: `${quasiColumns[i].name} + ${quasiColumns[j].name}`,
+          detail: `combined k-anonymity ${cell.value}: ${jointKDetail(cell.value)}`,
+        },
+      };
+    },
+    [raw, quasiColumns],
+  );
+
   if (quasiColumns.length === 0) return null;
 
   const rowNames = quasiColumns.map((c) => c.name);
   const colNames = allColumns.map((c) => c.name);
+  const showJointK = quasiColumns.length >= 2;
 
   return (
     <div className="diversity-check-section">
@@ -67,15 +90,19 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
       <p className="diversity-check-intro">
         k-anonymity (above) only says how big each generalized group is. These say whether
         everyone in that group also shares the same sensitive value: one row per
-        quasi-identifier column, one column per candidate sensitive column. Hover a cell for the
-        pair it scores, or click a row label to add it to the combined quasi-identifier check
-        below.
+        quasi-identifier column, one column per candidate sensitive column.
+        {showJointK &&
+          " Combined k-anonymity (right) scores every quasi-identifier column against every other one, together instead of alone — the dataset-level verdict."}
+        {" "}Hover a cell for the pair it scores.
       </p>
       <div className="risk-matrix-pair">
         {loading || !raw ? (
           <>
             <RiskMatrixSkeleton title="l-diversity" rowCount={rowNames.length} colCount={colNames.length} />
             <RiskMatrixSkeleton title="t-closeness" rowCount={rowNames.length} colCount={colNames.length} />
+            {showJointK && (
+              <RiskMatrixSkeleton title="combined k-anonymity" rowCount={rowNames.length} colCount={rowNames.length} />
+            )}
           </>
         ) : (
           <>
@@ -87,8 +114,6 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               cellAt={lDiversityCellAt}
               legendLowLabel="safer"
               legendHighLabel="riskier"
-              selectedRows={selected}
-              onToggleRow={onToggleRow}
             />
             <RiskMatrix
               title="t-closeness"
@@ -98,9 +123,18 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               cellAt={tClosenessCellAt}
               legendLowLabel="safer"
               legendHighLabel="riskier"
-              selectedRows={selected}
-              onToggleRow={onToggleRow}
             />
+            {showJointK && (
+              <RiskMatrix
+                title="combined k-anonymity"
+                rows={rowNames}
+                cols={rowNames}
+                infoText={JOINT_K_INFO}
+                cellAt={jointKCellAt}
+                legendLowLabel="safer"
+                legendHighLabel="riskier"
+              />
+            )}
           </>
         )}
       </div>

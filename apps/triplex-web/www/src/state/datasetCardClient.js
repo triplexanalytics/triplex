@@ -19,20 +19,15 @@ export function scoreColumnRisk(columns, bucketWidth) {
 
 /** `rows`: `[{ name, kind: "numeric" | "string", values }]`, same `values`
  * shape as `scoreColumnRisk`'s `columns`. `cols`: `[{ name, values }]` (always
- * stringified cells, any column type). Resolves to `{ lDiversity, tCloseness }`,
- * each a `rows.length x cols.length` array of `RiskAssessment | null`. */
+ * stringified cells, any column type). Resolves to
+ * `{ lDiversity, tCloseness, jointK }`: `lDiversity`/`tCloseness` are each a
+ * `rows.length x cols.length` array of `RiskAssessment | null` (one per
+ * quasi-identifier/candidate-sensitive-column pair); `jointK` is a
+ * `rows.length x rows.length` array — the dataset-level verdict, every
+ * quasi-identifier column pair's *combined* k-anonymity (`null` on the
+ * diagonal, a column paired with itself), not each one scored alone. See
+ * `compose_quasi_identifiers` on the Rust side for why that's a different
+ * computation from just averaging the per-column scores. */
 export function scoreDiversityMatrix(rows, cols, bucketWidth) {
   return client.request("diversityMatrix", { rows, cols, bucketWidth });
-}
-
-/** The dataset-level verdict: `columns` (2+ user-picked quasi-identifier
- * columns, same `{ name, kind, values }` shape as `scoreColumnRisk`)
- * scored together as one combined quasi-identifier instead of one column
- * at a time — see `compose_quasi_identifiers` on the Rust side for why
- * that can catch risk a per-column score can't. `sensitiveValues`
- * (stringified cells for one chosen sensitive column) is optional.
- * Resolves to `{ kAnonymity, lDiversity, tCloseness }`, the latter two
- * `null` when no sensitive column was chosen. */
-export function scoreJointRisk(columns, bucketWidth, sensitiveValues) {
-  return client.request("jointRisk", { columns, bucketWidth, sensitiveValues });
 }
