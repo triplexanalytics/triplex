@@ -1,8 +1,10 @@
-// Runs the two wasm calls that scale with the *whole dataset* off the main
-// thread — anonymize masks every declared column across every row, and
+// Runs the wasm calls that scale with the *whole dataset* off the main
+// thread — anonymize masks every declared column across every row,
 // check_pattern_conformance re-scans every row of the (already masked)
-// output. Same pattern as profile.worker.js/datasetcard.worker.js: this
-// worker gets its own wasm instance.
+// output, and convert_bytes re-parses/re-serializes every row into a
+// different format for the "Download data" format picker. Same pattern as
+// profile.worker.js/datasetcard.worker.js: this worker gets its own wasm
+// instance.
 //
 // contract_json_to_yaml/recipe_json_to_yaml/list_anonymize_methods stay on
 // the main thread deliberately — they operate on the contract/recipe JSON,
@@ -35,6 +37,8 @@ self.onmessage = async (event) => {
       };
     } else if (type === "checkPatternConformance") {
       result = wasm.check_pattern_conformance(payload.bytes, payload.extension, payload.contractYaml);
+    } else if (type === "convertBytes") {
+      result = wasm.convert_bytes(payload.bytes, payload.fromExtension, payload.toExtension);
     } else {
       return;
     }

@@ -1,10 +1,13 @@
 import TierPicker from "./TierPicker";
+import { DOWNLOAD_FORMATS } from "../utils";
 
 export default function Navbar({
   onFileSelected,
   onDownloadContract,
   onDownloadRecipe,
   onDownloadData,
+  downloadFormat,
+  onDownloadFormatChange,
   canDownloadContract,
   canDownloadRecipe,
   canDownloadData,
@@ -25,6 +28,19 @@ export default function Navbar({
       <button onClick={onDownloadRecipe} disabled={!canDownloadRecipe}>
         Download recipe
       </button>
+      <select
+        aria-label="Download format"
+        value={downloadFormat}
+        onChange={(e) => onDownloadFormatChange(e.target.value)}
+        disabled={!canDownloadData}
+      >
+        <option value="">Original format</option>
+        {DOWNLOAD_FORMATS.map((ext) => (
+          <option key={ext} value={ext}>
+            .{ext}
+          </option>
+        ))}
+      </select>
       <button
         className={canDownloadData ? "primary" : undefined}
         onClick={onDownloadData}

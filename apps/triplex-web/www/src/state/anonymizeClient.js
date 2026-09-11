@@ -17,3 +17,10 @@ export function runAnonymize(bytes, extension, recipeYaml, saltsJson) {
 export function checkPatternConformance(bytes, extension, contractYaml) {
   return client.request("checkPatternConformance", { bytes, extension, contractYaml });
 }
+
+/** Resolves to the re-encoded file as a `Uint8Array` — the "Download data"
+ * format picker's conversion, off the main thread since it re-parses and
+ * re-serializes every row like `runAnonymize` does. */
+export function convertBytes(bytes, fromExtension, toExtension) {
+  return client.request("convertBytes", { bytes, fromExtension, toExtension });
+}

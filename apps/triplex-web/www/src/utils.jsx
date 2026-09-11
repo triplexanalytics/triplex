@@ -13,6 +13,23 @@ export function downloadBlob(content, filename, mime) {
   URL.revokeObjectURL(url);
 }
 
+/** The row-data formats the browser build can both read and write (see
+ * `apps/triplex-web/README.md`'s Scope section — no `.parquet` here, it
+ * needs a C toolchain `wasm32-unknown-unknown` doesn't have). Shared by the
+ * download-format picker (Navbar) and `downloadData`'s mime lookup, so the
+ * two can't drift out of sync on which formats exist. */
+export const DOWNLOAD_FORMATS = ["csv", "tsv", "jsonl"];
+
+const MIME_BY_EXTENSION = {
+  csv: "text/csv",
+  tsv: "text/tab-separated-values",
+  jsonl: "application/x-ndjson",
+};
+
+export function mimeForExtension(extension) {
+  return MIME_BY_EXTENSION[extension] ?? "application/octet-stream";
+}
+
 /** Trims `text` to fit `maxWidth`, appending an ellipsis — measured with the
  * canvas context's own current font, so it matches exactly what gets drawn
  * (a CSS `text-overflow: ellipsis` guess would drift from canvas metrics). */

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { withColumnPattern } from "../state/yamlBuilder";
-import { downloadBlob } from "../utils";
-import { runAnonymize, checkPatternConformance } from "../state/anonymizeClient";
+import { downloadBlob, mimeForExtension } from "../utils";
+import { runAnonymize, checkPatternConformance, convertBytes } from "../state/anonymizeClient";
 
 /** Owns the anonymize run and the pattern-conformance checks against its
  * output — both need `wasm` plus the file's bytes/contract/recipe, which is
@@ -76,10 +76,32 @@ export function useAnonymize({ wasm, fileBytes, extension, recipe, salt, contrac
     [wasm, contract, setContract, anonymizeResult, extension],
   );
 
-  const downloadData = useCallback(() => {
-    if (!anonymizeResult) return;
-    downloadBlob(anonymizeResult.masked_csv, "masked.csv", "text/csv");
-  }, [anonymizeResult]);
+  // `format` is the extension the user picked in the download-format
+  // picker, or falsy to keep whatever the source is already in. The source
+  // is either the anonymize run's output (always CSV -- see
+  // `triplex_anonymizer::anonymize_bytes`) or, if anonymize hasn't run
+  // yet, the original uploaded bytes as-is: "no transformation applied"
+  // shouldn't block downloading the data, it just downloads the input
+  // unchanged (in whichever format the picker asks for).
+  const downloadData = useCallback(
+    async (format) => {
+      const sourceBytes = anonymizeResult ? anonymizeResult.masked_csv : fileBytes;
+      const sourceExtension = anonymizeResult ? "csv" : extension;
+      if (!sourceBytes) return;
+      const targetExtension = format || sourceExtension;
+      const baseName = anonymizeResult ? "masked" : "original";
+      try {
+        const bytes =
+          targetExtension === sourceExtension
+            ? sourceBytes
+            : await convertBytes(sourceBytes, sourceExtension, targetExtension);
+        downloadBlob(bytes, `${baseName}.${targetExtension}`, mimeForExtension(targetExtension));
+      } catch (err) {
+        setError(String(err.message || err));
+      }
+    },
+    [anonymizeResult, fileBytes, extension],
+  );
 
   // Called by App.jsx right after a new file loads: this hook has no other
   // way to know the file underneath it changed, and a stale anonymizeResult/

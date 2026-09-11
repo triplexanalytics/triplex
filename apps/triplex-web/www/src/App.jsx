@@ -51,6 +51,10 @@ export default function App() {
     (name) => setHoverNames(name ? { rowName: name, colName: name } : null),
     [],
   );
+  // "" means "keep the source's own format" — the picker's default, so
+  // "Download data" with no format chosen just downloads the source
+  // (original upload, or the anonymize run's output) unchanged.
+  const [downloadFormat, setDownloadFormat] = useState("");
 
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
@@ -66,10 +70,12 @@ export default function App() {
         onFileSelected={handleFile}
         onDownloadContract={file.downloadContract}
         onDownloadRecipe={file.downloadRecipe}
-        onDownloadData={anonymize.downloadData}
+        onDownloadData={() => anonymize.downloadData(downloadFormat)}
+        downloadFormat={downloadFormat}
+        onDownloadFormatChange={setDownloadFormat}
         canDownloadContract={!!file.contract}
         canDownloadRecipe={file.recipe.columns.length > 0}
-        canDownloadData={!!anonymize.anonymizeResult}
+        canDownloadData={!!anonymize.anonymizeResult || !!file.fileBytes}
       />
       <Tabs active={activeTab} onChange={setActiveTab} />
       <main className="main-content">
