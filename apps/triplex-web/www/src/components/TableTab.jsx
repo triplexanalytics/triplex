@@ -5,6 +5,8 @@ import ColumnMenu from "./ColumnMenu";
 import { menuIconLocalRect } from "../utils";
 import { useTableHeaderCanvas } from "../hooks/useTableHeaderCanvas";
 import { HEADER_PADDING, NAME_ROW_HEIGHT, HEADER_HEIGHT, MENU_ICON_SIZE } from "./TableTab.const";
+import { readGlideHeaderTheme } from "../state/palette";
+import { formatMissingPercent, primaryTypeOf } from "../state/columnFields";
 
 const ICON_LAYOUT = {
   headerPadding: HEADER_PADDING,
@@ -36,12 +38,15 @@ export default function TableTab({
 
   const typeByName = useMemo(() => {
     const map = {};
-    for (const col of profile?.columns ?? []) {
-      // A detected semantic type (iban, address, ...) is more useful in the
-      // header than the bare primitive type it's layered on top of — also
-      // the lookup key for both the icon (TYPE_ICON_NODES) and the label.
-      map[col.name] = col.semantic_type ?? col.inferred_type;
-    }
+    for (const col of profile?.columns ?? []) map[col.name] = primaryTypeOf(col);
+    return map;
+  }, [profile]);
+
+  // ColumnCard's "Missing" stat, same source (columnFields.js) so the
+  // header's reduced field set stays exactly in sync with the card's.
+  const missingByName = useMemo(() => {
+    const map = {};
+    for (const col of profile?.columns ?? []) map[col.name] = formatMissingPercent(col);
     return map;
   }, [profile]);
 
@@ -221,12 +226,22 @@ export default function TableTab({
     columns,
     sort,
     typeByName,
+    missingByName,
     isRiskableByName,
     isCategoricalByName,
     distributionByName,
     riskByName,
     riskLoading,
   });
+
+  // Re-read every render rather than once at module load, so a light/dark
+  // toggle picks up the new --text/--text-muted/... values — though nothing
+  // here forces a re-render on an OS theme change the way RiskMatrix.jsx's
+  // colorTick does; the next unrelated re-render (sort, data reload, ...)
+  // is what actually repaints the header. ponytail: fine for now, add a
+  // matching prefers-color-scheme listener if a bare toggle-with-no-other-
+  // interaction turns out to matter in practice.
+  const glideTheme = readGlideHeaderTheme();
 
   return (
     <div className="table-grid-wrap" style={{ position: "relative", height: "100%" }}>
@@ -239,6 +254,7 @@ export default function TableTab({
         onHeaderClicked={onHeaderClicked}
         drawHeader={drawHeader}
         onItemHovered={onItemHovered}
+        theme={glideTheme}
         headerHeight={HEADER_HEIGHT}
         smoothScrollX
         smoothScrollY

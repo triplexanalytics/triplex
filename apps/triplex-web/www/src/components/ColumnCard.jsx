@@ -1,6 +1,6 @@
 import HeaderSparkline from "./HeaderSparkline";
-import { readRiskColorStops, reciprocalRisk } from "../state/riskColor";
-import { kAnonymityExplanation } from "../state/riskExplanations";
+import { readRiskColorStops, reciprocalRisk } from "../state/palette";
+import { kAnonymityExplanation, distinctCountExplanation } from "../state/riskExplanations";
 import TypeIcon from "./typeIcons";
 import InfoTrigger from "./InfoTrigger";
 
@@ -49,7 +49,11 @@ export default function ColumnCard({ col, risk, selected, onSelect, pattern, ano
         )}
         {col.distribution?.kind === "categorical" && (
           <>
-            <dt>Distinct</dt>
+            <dt>
+              <InfoTrigger align="left" tooltip={distinctCountExplanation(col.distribution.cardinality)}>
+                Distinct
+              </InfoTrigger>
+            </dt>
             <dd>{col.distribution.cardinality}</dd>
           </>
         )}

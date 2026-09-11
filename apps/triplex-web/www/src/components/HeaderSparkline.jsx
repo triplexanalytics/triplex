@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { barsFor, binTooltip } from "../state/binTooltip";
+import { HISTOGRAM_COLOR, OCEAN_DRIFT } from "../state/palette";
 import { WIDTH, HEIGHT } from "./HeaderSparkline.const";
 
 /** Standalone canvas sparkline for a `ColumnDistribution` — used by the
@@ -7,7 +8,11 @@ import { WIDTH, HEIGHT } from "./HeaderSparkline.const";
  * directly via Glide Data Grid's `drawHeader`, since header cells there are
  * canvas-rendered by the grid itself, not DOM nodes React can mount into;
  * this one is a plain DOM `<canvas>`, so hover uses native mouse events
- * instead of Glide's `onItemHovered`.
+ * instead of Glide's `onItemHovered`. Two separate draw implementations, by
+ * necessity — but they must read fill color from palette.js (HISTOGRAM_COLOR)
+ * rather than each hardcoding their own, or they silently drift apart the
+ * way this one did (leftover pre-Ocean-Drift indigo, `#818cf8`/`#4338ca`,
+ * missed when the header's version moved to the palette module).
  *
  * ponytail: no range selection/filtering yet — clicking or dragging across
  * bars to filter the table by that range is a planned follow-up, not built
@@ -31,7 +36,7 @@ export default function HeaderSparkline({ distribution }) {
     const barWidth = WIDTH / bars.length;
     bars.forEach((count, i) => {
       const h = (count / max) * HEIGHT;
-      ctx.fillStyle = i === hovered ? "#4338ca" : "#818cf8";
+      ctx.fillStyle = i === hovered ? OCEAN_DRIFT.primary : HISTOGRAM_COLOR;
       ctx.fillRect(i * barWidth, HEIGHT - h, Math.max(barWidth - 1, 1), h);
     });
   }, [distribution, hovered]);

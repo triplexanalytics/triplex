@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import RiskMatrix from "./RiskMatrix";
 import RiskMatrixSkeleton from "./RiskMatrixSkeleton";
-import { reciprocalRisk } from "../state/riskColor";
+import { reciprocalRisk } from "../state/palette";
 import {
   L_DIVERSITY_INFO,
   T_CLOSENESS_INFO,

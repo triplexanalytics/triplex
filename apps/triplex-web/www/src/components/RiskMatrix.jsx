@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { truncateToWidth } from "../utils";
-import { readRiskColorStops } from "../state/riskColor";
+import { readRiskColorStops } from "../state/palette";
 import { CELL_SIZE, CELL_GAP, ROW_LABEL_WIDTH, COL_LABEL_HEIGHT, computeMatrixSize } from "../state/matrixLayout";
 import { NO_DATA_COLOR } from "./RiskMatrix.const";
 import InfoTrigger from "./InfoTrigger";
@@ -58,7 +58,7 @@ export default function RiskMatrix({ title, rows, cols, cellAt, legendLowLabel, 
     ctx.font = "11px system-ui, -apple-system, sans-serif";
     ctx.textBaseline = "middle";
 
-    const { riskColor, hexStops } = readRiskColorStops();
+    const { riskColor, hexStops } = readRiskColorStops("matrix");
     const textColor = getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() || "#5b6270";
     const borderColor = getComputedStyle(document.documentElement).getPropertyValue("--border").trim() || "#e1e4e9";
 

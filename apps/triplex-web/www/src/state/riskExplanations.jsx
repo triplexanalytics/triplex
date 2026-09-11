@@ -59,6 +59,22 @@ export const T_CLOSENESS_INFO = (
   </>
 );
 
+// Distinct-value count for a categorical/string column — shown bare as
+// "Distinct" in ColumnCard and folded into the header's k-anonymity label
+// ("k=N · n=M") without ever explaining what it means on its own; this is
+// that explanation, in the same lead-with-the-concept style as the others.
+export function distinctCountExplanation(count) {
+  return (
+    <>
+      The number of different values this column actually takes on, out of every row. A string
+      column has no numeric range to generalize the way an integer column does,
+      so its k-anonymity groups are its exact values: <strong>fewer distinct values means
+      bigger groups and a safer k-anonymity score</strong>, while a column that's close to one
+      distinct value per row is close to unique per row (k=1) even before anonymizing it.
+    </>
+  );
+}
+
 export function lDiversityDetail(value) {
   return value <= 1
     ? "at least one group has only one distinct value, so knowing the group reveals it outright"
