@@ -118,6 +118,7 @@ export default function App() {
                 <DiversityCheckSection
                   raw={diversityMatrix.raw}
                   loading={diversityMatrix.loading}
+                  error={diversityMatrix.error}
                   quasiColumns={diversityMatrix.quasiColumns}
                   allColumns={diversityMatrix.allColumns}
                   hoverNames={hoverNames}

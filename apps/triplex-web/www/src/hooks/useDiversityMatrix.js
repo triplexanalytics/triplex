@@ -26,16 +26,19 @@ export function useDiversityMatrix(sample, profile) {
 
   const [raw, setRaw] = useState(null); // { lDiversity, tCloseness, betaLikeness, deltaDisclosure, jointK, rowRisk } | null
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const generation = useRef(0);
 
   useEffect(() => {
     if (!sample || !profile || quasiColumns.length === 0) {
       setRaw(null);
       setLoading(false);
+      setError(null);
       return;
     }
     const myGeneration = ++generation.current;
     setLoading(true);
+    setError(null);
     const colIndex = {};
     sample.headers.forEach((name, i) => (colIndex[name] = i));
     // rows (quasi-identifier): an integer column's wasm call takes a typed
@@ -62,13 +65,20 @@ export function useDiversityMatrix(sample, profile) {
         setRaw(result);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
         if (generation.current !== myGeneration) return;
+        // Otherwise this fails silently: `raw === null` looks identical to
+        // "still loading" to every consumer below (DiversityCheckSection,
+        // RowRiskSection both key their skeleton/placeholder off
+        // `loading || !raw`), so a real failure here used to render as a
+        // permanently-spinning tab with nothing in the console to debug it.
+        console.error("useDiversityMatrix: scoreDiversityMatrix failed", err);
         setRaw(null);
         setLoading(false);
+        setError(String(err?.message || err));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sample, profile]);
 
-  return { raw, loading, quasiColumns, allColumns };
+  return { raw, loading, error, quasiColumns, allColumns };
 }

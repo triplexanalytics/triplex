@@ -56,8 +56,15 @@ const BELIEF_SHIFT_CEILING = Math.log(20);
  * (`ColumnViewTab`, App.jsx's other child in this tab) now needs to reach
  * them too, so their common parent owns the state instead of this
  * component. */
-export default function DiversityCheckSection({ raw, loading, quasiColumns, allColumns, hoverNames, onHoverNamesChange }) {
-
+export default function DiversityCheckSection({
+  raw,
+  loading,
+  error,
+  quasiColumns,
+  allColumns,
+  hoverNames,
+  onHoverNamesChange,
+}) {
   const lDiversityCellAt = useCallback(
     (i, j) => {
       const cell = raw?.lDiversity[i]?.[j];
@@ -142,6 +149,15 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
   );
 
   if (quasiColumns.length === 0) return null;
+
+  if (error) {
+    return (
+      <div className="diversity-check-section">
+        <h3>Diversity check</h3>
+        <p className="banner banner-error">Couldn't score this file's diversity/row risk: {error}</p>
+      </div>
+    );
+  }
 
   const rowNames = quasiColumns.map((c) => c.name);
   const colNames = allColumns.map((c) => c.name);
