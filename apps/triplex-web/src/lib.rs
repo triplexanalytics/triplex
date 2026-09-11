@@ -256,3 +256,71 @@ pub fn score_column_pair_risk_string(
     .map_err(to_js_err)?;
     serde_json::to_string(&[l_diversity, t_closeness]).map_err(to_js_err)
 }
+
+/// Generalizes one numeric column into `"lo-hi"` buckets — the same
+/// generalization `score_column_risk` applies internally, exposed
+/// standalone so the caller can pre-bucket several numeric columns and
+/// combine them with string columns before scoring their *combined*
+/// quasi-identifier (see `score_joint_column_risk`). A string column needs
+/// no such step: it's already scored on exact values.
+#[wasm_bindgen]
+pub fn bucket_numeric_column(values: &[f64], bucket_width: u32) -> Vec<String> {
+    values
+        .iter()
+        .map(|v| triplex_anonymizer::bucket_numeric(bucket_width as u64, *v))
+        .collect()
+}
+
+/// Dataset Anonymity Analysis tab: k-anonymity for a *combined*
+/// quasi-identifier — several columns' worth of already-bucketed/raw
+/// values (numeric columns pre-bucketed via `bucket_numeric_column`,
+/// string columns passed as their exact values), zipped row-for-row into
+/// one equivalence-class key per row. This is the real dataset-level
+/// verdict a single column's score can't give: two columns that each look
+/// safe scored alone can combine into a unique fingerprint per row (see
+/// `triplex_datasetcard::compose_quasi_identifiers`'s doc comment).
+/// `columns_json` is a JSON array of arrays of strings, one inner array
+/// per column, same row order and length. Returns a `RiskAssessment` as
+/// JSON, same shape as `score_column_risk`.
+#[wasm_bindgen]
+pub fn score_joint_column_risk(columns_json: &str) -> Result<String, JsValue> {
+    let columns: Vec<Vec<String>> = serde_json::from_str(columns_json).map_err(to_js_err)?;
+    let composite = triplex_datasetcard::compose_quasi_identifiers(&columns);
+    let assessment = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::KAnonymity,
+        &composite,
+        &[],
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&assessment).map_err(to_js_err)
+}
+
+/// `score_joint_column_risk`'s l-diversity/t-closeness counterpart, mirroring
+/// `score_column_pair_risk`'s shape: the same combined quasi-identifier
+/// (`columns_json`, see `score_joint_column_risk`) checked against one
+/// candidate sensitive column (`sensitive_values_json`, that column's raw
+/// values in row order). Returns the same two-element
+/// `[l_diversity, t_closeness]` JSON array.
+#[wasm_bindgen]
+pub fn score_joint_column_pair_risk(
+    columns_json: &str,
+    sensitive_values_json: &str,
+) -> Result<String, JsValue> {
+    let columns: Vec<Vec<String>> = serde_json::from_str(columns_json).map_err(to_js_err)?;
+    let sensitive_values: Vec<String> =
+        serde_json::from_str(sensitive_values_json).map_err(to_js_err)?;
+    let composite = triplex_datasetcard::compose_quasi_identifiers(&columns);
+    let l_diversity = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::LDiversity,
+        &composite,
+        &sensitive_values,
+    )
+    .map_err(to_js_err)?;
+    let t_closeness = triplex_datasetcard::evaluate_risk_model(
+        triplex_datasetcard::RiskModel::TCloseness,
+        &composite,
+        &sensitive_values,
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&[l_diversity, t_closeness]).map_err(to_js_err)
+}

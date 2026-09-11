@@ -3,13 +3,14 @@
 //! the design notes and
 //! the design notes for the product decision.
 //!
-//! Column-level scoring only today, extracted from
-//! `crates/triplex-anonymizer/src/bucket.rs`'s original implementation
-//! (same functions, same tests, no behavior change): the named formal
-//! privacy models a bucketed/generalized column can be checked against.
-//! Dataset-level aggregation and record-level (SUDA-style) scoring are
-//! later phases — see the the design notes entry for what's deliberately not
-//! built yet.
+//! Column-level scoring, extracted from `crates/triplex-anonymizer/src/
+//! bucket.rs`'s original implementation (same functions, same tests, no
+//! behavior change): the named formal privacy models a bucketed/
+//! generalized column can be checked against. `compose_quasi_identifiers`
+//! builds dataset-level scoring on top of the same functions, run against
+//! a combined quasi-identifier instead of one column. Record-level
+//! (SUDA-style) scoring is still a later phase — see the the design notes
+//! entry for what's deliberately not built yet.
 
 use std::collections::{HashMap, HashSet};
 
@@ -132,6 +133,38 @@ pub fn t_closeness(bucketed_values: &[String], sensitive_values: &[String]) -> f
         .values()
         .map(|class_values| total_variation_distance(&overall, &distribution(class_values)))
         .fold(0.0, f64::max)
+}
+
+/// Zips N already-bucketed/generalized columns into one composite
+/// equivalence-class key per row, so `k_anonymity`/`l_diversity`/
+/// `t_closeness` can be run against the *combined* quasi-identifier
+/// instead of one column at a time. This is what k-anonymity is actually
+/// defined over: two columns can each look safe scored alone (e.g. a ZIP
+/// code shared by thousands of people, a birth year shared by millions)
+/// while their combination re-identifies almost everyone, because the
+/// equivalence classes that matter are the joint ones — see
+/// the design notes's "dataset-level
+/// aggregation method" gap. Row `i`'s key is every column's row-`i` value
+/// joined by U+001F (Unit Separator), a control character that can't
+/// appear in a numeric `"lo-hi"` bucket label or ordinary CSV text.
+///
+/// Rows are matched positionally; if columns disagree on length the
+/// result truncates to the shortest, the same "trust row alignment,
+/// degrade gracefully rather than panic" behavior `l_diversity`/
+/// `t_closeness` already have via their own `zip`.
+pub fn compose_quasi_identifiers(columns: &[Vec<String>]) -> Vec<String> {
+    let mut composite: Vec<String> = match columns.first() {
+        Some(first) => first.clone(),
+        None => return Vec::new(),
+    };
+    for column in &columns[1..] {
+        for (key, value) in composite.iter_mut().zip(column) {
+            key.push('\u{1f}');
+            key.push_str(value);
+        }
+        composite.truncate(column.len().min(composite.len()));
+    }
+    composite
 }
 
 /// Dispatches to the risk model named by `model`. Exhaustive: a fifth
@@ -276,6 +309,61 @@ mod tests {
             "t_closeness took {elapsed:?} for {rows} rows / {bucket_width}-wide buckets \
              against an all-distinct sensitive column — expected well under 2s"
         );
+    }
+
+    #[test]
+    fn compose_quasi_identifiers_combines_columns_into_one_key_per_row() {
+        let zip = vec!["02138", "02138", "02139"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let birth_year = vec!["1990", "1990", "1990"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let composite = compose_quasi_identifiers(&[zip, birth_year]);
+        assert_eq!(composite.len(), 3);
+        assert_eq!(composite[0], composite[1]); // same zip, same birth year
+        assert_ne!(composite[0], composite[2]); // different zip
+    }
+
+    /// The whole reason this function exists: two columns that each look
+    /// safe scored independently can combine into a unique fingerprint per
+    /// row. `k_anonymity` on the composite must see that drop, not just
+    /// repeat whichever single-column score was already known.
+    #[test]
+    fn joint_k_anonymity_can_be_lower_than_either_column_alone() {
+        let group = vec!["X", "X", "Y", "Y"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let parity = vec!["odd", "even", "odd", "even"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        assert_eq!(k_anonymity(&group), 2);
+        assert_eq!(k_anonymity(&parity), 2);
+
+        let composite = compose_quasi_identifiers(&[group, parity]);
+        assert_eq!(k_anonymity(&composite), 1); // every (group, parity) pair is unique
+    }
+
+    #[test]
+    fn compose_quasi_identifiers_is_empty_for_no_columns() {
+        assert_eq!(compose_quasi_identifiers(&[]), Vec::<String>::new());
+    }
+
+    #[test]
+    fn compose_quasi_identifiers_truncates_to_the_shortest_column() {
+        let a = vec!["X", "X", "Y"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let b = vec!["1", "2"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        assert_eq!(compose_quasi_identifiers(&[a, b]).len(), 2);
     }
 
     #[test]
