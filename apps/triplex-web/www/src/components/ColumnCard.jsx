@@ -9,7 +9,16 @@ import InfoTrigger from "./InfoTrigger";
  * live conformance indicator. Split out from `ColumnViewTab` so each
  * column's rendering/props are self-contained instead of inlined in a
  * `.map()`. */
-export default function ColumnCard({ col, risk, selected, onSelect, pattern, anonymizeResult, onCheckPattern }) {
+export default function ColumnCard({
+  col,
+  risk,
+  selected,
+  onSelect,
+  pattern,
+  anonymizeResult,
+  onCheckPattern,
+  onHoverChange,
+}) {
   const { value: riskValue, loading: riskLoading } = risk;
   const { declared: declaredPattern, check, checking } = pattern;
   const patternError = check?.errors?.find(
@@ -17,7 +26,12 @@ export default function ColumnCard({ col, risk, selected, onSelect, pattern, ano
   );
 
   return (
-    <div className={`column-card${selected ? " selected" : ""}`} onClick={onSelect}>
+    <div
+      className={`column-card${selected ? " selected" : ""}`}
+      onClick={onSelect}
+      onMouseEnter={() => onHoverChange?.(col.name)}
+      onMouseLeave={() => onHoverChange?.(null)}
+    >
       <h3>{col.name}</h3>
       <HeaderSparkline distribution={col.distribution} />
       <dl>

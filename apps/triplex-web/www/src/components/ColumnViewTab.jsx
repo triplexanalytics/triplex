@@ -20,6 +20,7 @@ export default function ColumnViewTab({
   anonymizeResult,
   riskByName,
   riskLoading,
+  onHoverColumn,
 }) {
   if (!profile) return null;
 
@@ -42,6 +43,7 @@ export default function ColumnViewTab({
           }}
           anonymizeResult={anonymizeResult}
           onCheckPattern={onCheckPattern}
+          onHoverChange={onHoverColumn}
         />
       ))}
     </div>

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import RiskMatrix from "./RiskMatrix";
 import RiskMatrixSkeleton from "./RiskMatrixSkeleton";
 import RowRiskSection from "./RowRiskSection";
@@ -48,14 +48,15 @@ const BELIEF_SHIFT_CEILING = Math.log(20);
  * Purely presentational — `useDiversityMatrix` in App.jsx owns the actual
  * computation, started as soon as the file loads rather than when this
  * component mounts, so it's ready (or close to it) by the time the user
- * opens this tab instead of visibly lagging behind the k-anonymity bars. */
-export default function DiversityCheckSection({ raw, loading, quasiColumns, allColumns }) {
-  // Lifted here, not into each RiskMatrix: these five matrices are the only
-  // place in the app that share row/column names across siblings, so a
-  // hover in one needs to reach the others. One level of prop lifting from
-  // their common parent does that with no extra machinery — no context or
-  // store needed for a coordination that never leaves this subtree.
-  const [hoverNames, setHoverNames] = useState(null); // { rowName, colName } | null
+ * opens this tab instead of visibly lagging behind the k-anonymity bars.
+ *
+ * `hoverNames`/`onHoverNamesChange` are lifted one level further than
+ * before, into App.jsx: these five matrices used to be the only place
+ * sharing row/column names across siblings, but a `ColumnCard` hover
+ * (`ColumnViewTab`, App.jsx's other child in this tab) now needs to reach
+ * them too, so their common parent owns the state instead of this
+ * component. */
+export default function DiversityCheckSection({ raw, loading, quasiColumns, allColumns, hoverNames, onHoverNamesChange }) {
 
   const lDiversityCellAt = useCallback(
     (i, j) => {
@@ -180,7 +181,7 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               legendHighLabel="riskier"
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
-              onHoverChange={setHoverNames}
+              onHoverChange={onHoverNamesChange}
             />
             <RiskMatrix
               title="t-closeness"
@@ -192,7 +193,7 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               legendHighLabel="riskier"
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
-              onHoverChange={setHoverNames}
+              onHoverChange={onHoverNamesChange}
             />
             <RiskMatrix
               title="β-likeness"
@@ -204,7 +205,7 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               legendHighLabel="riskier"
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
-              onHoverChange={setHoverNames}
+              onHoverChange={onHoverNamesChange}
             />
             <RiskMatrix
               title="δ-disclosure"
@@ -216,7 +217,7 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
               legendHighLabel="riskier"
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
-              onHoverChange={setHoverNames}
+              onHoverChange={onHoverNamesChange}
             />
             {showJointK && (
               <RiskMatrix
@@ -229,7 +230,7 @@ export default function DiversityCheckSection({ raw, loading, quasiColumns, allC
                 legendHighLabel="riskier"
                 highlightRowName={hoverNames?.rowName}
                 highlightColName={hoverNames?.colName}
-                onHoverChange={setHoverNames}
+                onHoverChange={onHoverNamesChange}
               />
             )}
           </>

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { useWasm } from "./hooks/useWasm";
 import { useProfiledFile } from "./hooks/useProfiledFile";
 import { useAnonymize } from "./hooks/useAnonymize";
@@ -40,6 +40,17 @@ export default function App() {
   const diversityMatrix = useDiversityMatrix(file.sample, file.profile);
   const [activeTab, setActiveTab] = useState("table");
   const [selectedColumn, setSelectedColumn] = useState(null);
+  // { rowName, colName } | null — owned here, not in DiversityCheckSection,
+  // since a ColumnCard hover (ColumnViewTab, its sibling in this tab) needs
+  // to reach the matrices too. A card hover sets both names to the same
+  // column: RiskMatrix matches row/col names independently, so this lights
+  // up that column's band on every axis it appears on across every matrix,
+  // the same way hovering one matrix's own cell already lit up its siblings.
+  const [hoverNames, setHoverNames] = useState(null);
+  const hoverColumn = useCallback(
+    (name) => setHoverNames(name ? { rowName: name, colName: name } : null),
+    [],
+  );
 
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
@@ -102,12 +113,15 @@ export default function App() {
                   anonymizeResult={anonymize.anonymizeResult}
                   riskByName={columnRisk.riskByName}
                   riskLoading={columnRisk.riskLoading}
+                  onHoverColumn={hoverColumn}
                 />
                 <DiversityCheckSection
                   raw={diversityMatrix.raw}
                   loading={diversityMatrix.loading}
                   quasiColumns={diversityMatrix.quasiColumns}
                   allColumns={diversityMatrix.allColumns}
+                  hoverNames={hoverNames}
+                  onHoverNamesChange={setHoverNames}
                 />
               </>
             )}
