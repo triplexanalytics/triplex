@@ -42,6 +42,9 @@ const ICONS = {
   credential_secret: KeyRound,
   address: Home,
   location: MapPin,
+  // Same icon as numeric_id — both mean "identifier, not a quantity",
+  // one for a padded string, this one for a high-cardinality Integer.
+  likely_identifier: ScanBarcode,
 };
 
 /** Renders the icon for a `ColumnType` or `SemanticType` value (both are

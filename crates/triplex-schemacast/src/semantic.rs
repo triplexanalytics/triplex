@@ -64,6 +64,16 @@ pub enum SemanticType {
     CredentialSecret,
     Address,
     Location,
+    /// An `Integer` column whose non-empty values are almost all unique
+    /// (≥95% distinct relative to row count) — probably a row identifier
+    /// (a sequential ID, an order or customer number), not a quantity
+    /// anyone means to add, average, or bucket. Cardinality-only heuristic,
+    /// deliberately no header-keyword gate — see
+    /// the design notes. A dismissible hint, not an
+    /// error: the column stays typed `Integer`, and a small file can still
+    /// false-positive (few rows, all-distinct values) or a genuinely
+    /// high-cardinality quantity column can still trip it.
+    LikelyIdentifier,
 }
 
 fn header_matches(name: &str, keywords: &[&str]) -> bool {
@@ -314,6 +324,28 @@ pub(crate) fn detect_semantic_type(name: &str, non_empty: &[&str]) -> Option<Sem
     None
 }
 
+/// Fraction of unique non-empty values above which an `Integer` column
+/// reads as an identifier rather than a quantity — see `LikelyIdentifier`.
+const LIKELY_IDENTIFIER_UNIQUE_RATIO: f64 = 0.95;
+
+/// Detects `SemanticType::LikelyIdentifier` for a `ColumnType::Integer`
+/// column. `non_empty` empty (Parquet footer-only stats carry no raw
+/// values) means nothing to check, same as `detect_semantic_type`.
+pub(crate) fn detect_integer_semantic_type(non_empty: &[&str]) -> Option<SemanticType> {
+    if non_empty.len() < 2 {
+        return None;
+    }
+    let distinct = non_empty
+        .iter()
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    if distinct as f64 / non_empty.len() as f64 >= LIKELY_IDENTIFIER_UNIQUE_RATIO {
+        Some(SemanticType::LikelyIdentifier)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,5 +504,26 @@ mod tests {
             detect_semantic_type("password", &["alice@example.com"]),
             Some(SemanticType::CredentialSecret),
         );
+    }
+
+    #[test]
+    fn flags_a_near_all_unique_integer_column_as_likely_identifier() {
+        let values: Vec<String> = (1..=20).map(|n| n.to_string()).collect();
+        let refs: Vec<&str> = values.iter().map(String::as_str).collect();
+        assert_eq!(
+            detect_integer_semantic_type(&refs),
+            Some(SemanticType::LikelyIdentifier),
+        );
+    }
+
+    #[test]
+    fn does_not_flag_a_low_cardinality_integer_column() {
+        let values = ["30", "31", "30", "32", "30", "31", "30", "30", "31", "30"];
+        assert_eq!(detect_integer_semantic_type(&values), None);
+    }
+
+    #[test]
+    fn does_not_flag_a_single_value_integer_column() {
+        assert_eq!(detect_integer_semantic_type(&["1"]), None);
     }
 }

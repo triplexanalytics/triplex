@@ -155,11 +155,11 @@ pub fn infer_schema(sample: &Sample) -> SchemaContract {
                 ColumnType::Integer | ColumnType::Float => triplex_io::ValueKind::Numeric,
                 ColumnType::Boolean | ColumnType::String => triplex_io::ValueKind::Categorical,
             };
-            let semantic_type = if inferred_type == ColumnType::String {
-                let non_empty_values: Vec<&str> = non_empty.iter().map(|v| **v).collect();
-                semantic::detect_semantic_type(name, &non_empty_values)
-            } else {
-                None
+            let non_empty_values: Vec<&str> = non_empty.iter().map(|v| **v).collect();
+            let semantic_type = match inferred_type {
+                ColumnType::String => semantic::detect_semantic_type(name, &non_empty_values),
+                ColumnType::Integer => semantic::detect_integer_semantic_type(&non_empty_values),
+                ColumnType::Float | ColumnType::Boolean => None,
             };
             ColumnSchema {
                 name: name.clone(),

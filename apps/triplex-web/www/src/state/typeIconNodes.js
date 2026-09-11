@@ -29,7 +29,7 @@ import { __iconNode as mapPin } from "lucide-react/dist/esm/icons/map-pin.mjs";
 // exact lucide-react version specifically because this reaches past its
 // public API.
 //
-// Keep in sync with typeIcons.jsx's ICONS map — same 17 keys, same choices.
+// Keep in sync with typeIcons.jsx's ICONS map — same 18 keys, same choices.
 export const TYPE_ICON_NODES = {
   integer: hash,
   float: sigma,
@@ -48,6 +48,7 @@ export const TYPE_ICON_NODES = {
   credential_secret: keyRound,
   address: home,
   location: mapPin,
+  likely_identifier: scanBarcode,
 };
 
 /** Draws a lucide icon node array (`[[tag, attrs], ...]`, a 24x24-viewBox
