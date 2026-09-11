@@ -75,6 +75,24 @@ export function distinctCountExplanation(count) {
   );
 }
 
+// The dataset-level verdict (the design notes "dataset-level aggregation"
+// gap): a single column's k-anonymity only shows how that one column looks
+// alone, but a real attacker combines what they already know (a ZIP code
+// plus a birth year, say). Maps the three scores back to the EDPB's own
+// three criteria for anonymous data (per proposal-datasetcard-adr.md's
+// documentation requirement) so a compliance-minded reader has a name for
+// what each number is standing in for, not just a bare metric.
+export const JOINT_RISK_INFO = (
+  <>
+    Picking columns here scores them <strong>together</strong>, as one combined quasi-identifier,
+    instead of one at a time — two columns that each look safe alone can still single someone out
+    once combined. This maps to the EDPB's three criteria for data to count as anonymous: combined
+    k-anonymity above 1 supports <strong>No Record Isolation</strong>, l-diversity supports{" "}
+    <strong>No Linkage</strong>, and t-closeness supports <strong>No Inference</strong>.
+    <span className="info-trigger-readmore">Read more…</span>
+  </>
+);
+
 export function lDiversityDetail(value) {
   return value <= 1
     ? "at least one group has only one distinct value, so knowing the group reveals it outright"

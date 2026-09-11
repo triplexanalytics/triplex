@@ -55,6 +55,30 @@ function diversityMatrix(rows, cols, bucketWidth) {
   return { lDiversity, tCloseness };
 }
 
+// Combined quasi-identifier check: `columns` (2+ picked columns, same
+// `{ name, kind, values }` shape as `columnRisk`) get generalized the same
+// way a single column would (numeric -> "lo-hi" buckets via
+// `bucket_numeric_column`, string -> exact values), then scored together
+// as one quasi-identifier by the wasm side's `compose_quasi_identifiers`
+// — not scored independently and combined here, since the whole point is
+// that the *joint* equivalence classes can be smaller than any one
+// column's own classes. `sensitiveValues` (stringified cells for the
+// chosen sensitive column) is optional: k-anonymity alone needs no
+// sensitive column, l-diversity/t-closeness do.
+function jointRisk(columns, bucketWidth, sensitiveValues) {
+  const bucketedJson = JSON.stringify(
+    columns.map(({ kind, values }) =>
+      kind === "string" ? values : Array.from(wasm.bucket_numeric_column(values, bucketWidth)),
+    ),
+  );
+  const kAnonymity = JSON.parse(wasm.score_joint_column_risk(bucketedJson));
+  if (!sensitiveValues) return { kAnonymity, lDiversity: null, tCloseness: null };
+  const [lDiversity, tCloseness] = JSON.parse(
+    wasm.score_joint_column_pair_risk(bucketedJson, JSON.stringify(sensitiveValues)),
+  );
+  return { kAnonymity, lDiversity, tCloseness };
+}
+
 self.onmessage = async (event) => {
   const { type, requestId, ...payload } = event.data;
   try {
@@ -65,6 +89,8 @@ self.onmessage = async (event) => {
       result = columnRisk(payload.columns, payload.bucketWidth);
     } else if (type === "diversityMatrix") {
       result = diversityMatrix(payload.rows, payload.cols, payload.bucketWidth);
+    } else if (type === "jointRisk") {
+      result = jointRisk(payload.columns, payload.bucketWidth, payload.sensitiveValues);
     } else {
       return;
     }

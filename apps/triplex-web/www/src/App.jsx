@@ -19,6 +19,7 @@ import LoadingOverlay from "./components/LoadingOverlay";
 const TableTab = lazy(() => import("./components/TableTab"));
 const ColumnViewTab = lazy(() => import("./components/ColumnViewTab"));
 const DiversityCheckSection = lazy(() => import("./components/DiversityCheckSection"));
+const JointRiskSection = lazy(() => import("./components/JointRiskSection"));
 
 /** Composition root only: wires the three hooks together and renders. Every
  * actual behavior (wasm lifecycle, file/contract/recipe state, the
@@ -108,6 +109,14 @@ export default function App() {
                   loading={diversityMatrix.loading}
                   quasiColumns={diversityMatrix.quasiColumns}
                   allColumns={diversityMatrix.allColumns}
+                />
+                <JointRiskSection
+                  sample={file.sample}
+                  profile={file.profile}
+                  quasiColumns={diversityMatrix.quasiColumns}
+                  allColumns={diversityMatrix.allColumns}
+                  riskByName={columnRisk.riskByName}
+                  riskLoading={columnRisk.riskLoading}
                 />
               </>
             )}
