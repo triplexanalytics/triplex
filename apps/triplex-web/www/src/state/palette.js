@@ -111,14 +111,11 @@ function rgbToCss([r, g, b]) {
 //   - MATRIX_SAFE_MIX: a heatmap cell is a large, bordered square (its own
 //     stroke already marks its shape) sitting on the page's white surface,
 //     not a thin mark that disappears without fill contrast — so it can
-//     and should go much lighter, the way any sequential heatmap's "low"
-//     end does, without failing any real legibility need. Reusing
-//     PILL_SAFE_MIX here was the actual bug: 0.3 still reads as "medium
-//     blue", not "light", so the whole l-diversity/t-closeness matrix
-//     visually compressed toward the dark end instead of spanning light to
-//     dark — exactly the "impacted negatively" complaint.
+//     and should go all the way to white, the way any sequential heatmap's
+//     "low" end does, relying on the cell's own border (not fill contrast)
+//     to stay legible against the page.
 const PILL_SAFE_MIX = 0.3;
-const MATRIX_SAFE_MIX = 0.65;
+const MATRIX_SAFE_MIX = 1;
 
 /** Returns a `riskColor(t)` function for `t` in [0, 1] (0 = safest, 1 =
  * riskiest) plus the two raw hex stops for drawing the legend gradient — a

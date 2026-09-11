@@ -34,8 +34,27 @@ import InfoTrigger from "./InfoTrigger";
  * pairs every quasi-identifier column against every other one) — `cellAt`
  * deciding what a same-name pair means (typically `null`, nothing to show)
  * is entirely the caller's concern, this component just draws whatever
- * grid it's given. */
-export default function RiskMatrix({ title, rows, cols, cellAt, legendLowLabel, legendHighLabel, infoText }) {
+ * grid it's given.
+ *
+ * `highlightRowName`/`highlightColName` (row/col label strings, not
+ * indices — different matrices don't share one index space, but several
+ * share row and column names) let a hover in a sibling matrix light up the
+ * matching row/column here too; `onHoverChange` reports this matrix's own
+ * hover up so a parent rendering several matrices side by side can wire
+ * them together (see DiversityCheckSection). All optional — a lone matrix
+ * just doesn't cross-highlight anything. */
+export default function RiskMatrix({
+  title,
+  rows,
+  cols,
+  cellAt,
+  legendLowLabel,
+  legendHighLabel,
+  infoText,
+  highlightRowName,
+  highlightColName,
+  onHoverChange,
+}) {
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const [hover, setHover] = useState(null); // { x, y, row, col, label, tooltip } | null
@@ -90,18 +109,22 @@ export default function RiskMatrix({ title, rows, cols, cellAt, legendLowLabel, 
       ctx.fillText(text, ROW_LABEL_WIDTH - 8, cy);
     });
 
-    // Cells.
+    // Cells. Slightly rounded with a light border — the ramp's safe end is
+    // now pure white, so every cell needs its own edge or it disappears
+    // into the card's (also white) surface.
+    const CELL_RADIUS = 3;
     rows.forEach((_, i) => {
       cols.forEach((_, j) => {
         const cell = cellAt(i, j);
         const x = ROW_LABEL_WIDTH + j * CELL_SIZE;
         const y = COL_LABEL_HEIGHT + i * CELL_SIZE;
+        ctx.beginPath();
+        ctx.roundRect(x, y, CELL_SIZE - CELL_GAP, CELL_SIZE - CELL_GAP, CELL_RADIUS);
         ctx.fillStyle = cell ? riskColor(cell.risk) : NO_DATA_COLOR;
-        ctx.fillRect(x, y, CELL_SIZE - CELL_GAP, CELL_SIZE - CELL_GAP);
-        // The ramp's safe end is the card's own surface color, so a safe
-        // cell needs a visible edge or it disappears into the background.
+        ctx.fill();
         ctx.strokeStyle = borderColor;
-        ctx.strokeRect(x + 0.5, y + 0.5, CELL_SIZE - CELL_GAP - 1, CELL_SIZE - CELL_GAP - 1);
+        ctx.lineWidth = 1;
+        ctx.stroke();
       });
     });
 
@@ -126,16 +149,39 @@ export default function RiskMatrix({ title, rows, cols, cellAt, legendLowLabel, 
     const y = e.clientY - rect.top;
     const col = Math.floor((x - ROW_LABEL_WIDTH) / CELL_SIZE);
     const row = Math.floor((y - COL_LABEL_HEIGHT) / CELL_SIZE);
-    if (row < 0 || row >= rows.length || col < 0 || col >= cols.length) {
+    const overCell = row >= 0 && row < rows.length && col >= 0 && col < cols.length;
+    // Hovering a label alone (not a cell) highlights just that row/col —
+    // x < ROW_LABEL_WIDTH puts col negative, y < COL_LABEL_HEIGHT puts row
+    // negative, so these never overlap with `overCell` or each other.
+    const overRowLabel = !overCell && x >= 0 && x < ROW_LABEL_WIDTH && row >= 0 && row < rows.length;
+    const overColLabel = !overCell && y >= 0 && y < COL_LABEL_HEIGHT && col >= 0 && col < cols.length;
+
+    if (overCell) {
+      // Reported even for a cell with nothing to show (`cellAt` -> null):
+      // the row/col a sibling matrix should highlight doesn't depend on
+      // whether this particular pair has data.
+      onHoverChange?.({ rowName: rows[row], colName: cols[col] });
+      const cell = cellAt(row, col);
+      if (!cell) {
+        setHover(null);
+        return;
+      }
+      setHover({ x: e.clientX, y: e.clientY, row, col, label: cell.label, tooltip: cell.tooltip });
+    } else if (overRowLabel) {
+      onHoverChange?.({ rowName: rows[row], colName: null });
       setHover(null);
-      return;
-    }
-    const cell = cellAt(row, col);
-    if (!cell) {
+    } else if (overColLabel) {
+      onHoverChange?.({ rowName: null, colName: cols[col] });
       setHover(null);
-      return;
+    } else {
+      setHover(null);
+      onHoverChange?.(null);
     }
-    setHover({ x: e.clientX, y: e.clientY, row, col, label: cell.label, tooltip: cell.tooltip });
+  };
+
+  const onMouseLeave = () => {
+    setHover(null);
+    onHoverChange?.(null);
   };
 
   // Redraws only the small overlay layer, not the whole (expensive) grid —
@@ -153,6 +199,26 @@ export default function RiskMatrix({ title, rows, cols, cellAt, legendLowLabel, 
     const ctx = overlay.getContext("2d");
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
+
+    // Cross-matrix highlight band, by row/col *name* (not index — a
+    // sibling matrix's rows/cols aren't necessarily this matrix's own),
+    // drawn on this cheap overlay layer rather than the main grid so a
+    // hover over a sibling matrix doesn't trigger every matrix's
+    // expensive full redraw.
+    const highlightRow = highlightRowName != null ? rows.indexOf(highlightRowName) : -1;
+    const highlightCol = highlightColName != null ? cols.indexOf(highlightColName) : -1;
+    if (highlightRow >= 0 || highlightCol >= 0) {
+      const gridWidth = ROW_LABEL_WIDTH + cols.length * CELL_SIZE;
+      const gridBottom = COL_LABEL_HEIGHT + rows.length * CELL_SIZE;
+      ctx.fillStyle = "rgba(15, 76, 129, 0.09)"; // OCEAN_DRIFT.primary, low alpha
+      if (highlightRow >= 0) {
+        ctx.fillRect(0, COL_LABEL_HEIGHT + highlightRow * CELL_SIZE, gridWidth, CELL_SIZE);
+      }
+      if (highlightCol >= 0) {
+        ctx.fillRect(ROW_LABEL_WIDTH + highlightCol * CELL_SIZE, 0, CELL_SIZE, gridBottom);
+      }
+    }
+
     if (!hover || hover.label === undefined) return;
     const cx = ROW_LABEL_WIDTH + hover.col * CELL_SIZE + (CELL_SIZE - CELL_GAP) / 2;
     const cy = COL_LABEL_HEIGHT + hover.row * CELL_SIZE + (CELL_SIZE - CELL_GAP) / 2;
@@ -171,7 +237,7 @@ export default function RiskMatrix({ title, rows, cols, cellAt, legendLowLabel, 
     ctx.strokeText(hover.label, cx, cy);
     ctx.fillStyle = textColor;
     ctx.fillText(hover.label, cx, cy);
-  }, [hover, width, height]);
+  }, [hover, width, height, rows, cols, highlightRowName, highlightColName]);
 
   // A centered tooltip (translate(-50%, ...)) overflows the viewport for a
   // cell near the left or right edge — clamp the anchor inward by a rough
@@ -199,11 +265,13 @@ export default function RiskMatrix({ title, rows, cols, cellAt, legendLowLabel, 
         <canvas
           ref={canvasRef}
           onMouseMove={onMouseMove}
-          onMouseLeave={() => setHover(null)}
+          onMouseLeave={onMouseLeave}
         />
         <canvas
           ref={overlayRef}
-          className={`risk-matrix-hover-value${hover ? " visible" : ""}`}
+          className={`risk-matrix-hover-value${
+            hover || highlightRowName != null || highlightColName != null ? " visible" : ""
+          }`}
         />
       </div>
       {hover && (
