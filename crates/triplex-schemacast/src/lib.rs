@@ -11,7 +11,9 @@ pub use contract::{
     verify_contract_well_formed, DeclaredColumn, DeclaredContract, ValidationError,
     ValidationReport,
 };
-pub use convert::{convert_file, convert_file_with_delimiters, read_full_bytes, ConvertReport};
+pub use convert::{
+    convert_bytes, convert_file, convert_file_with_delimiters, read_full_bytes, ConvertReport,
+};
 pub use semantic::SemanticType;
 
 use serde::{Deserialize, Serialize};

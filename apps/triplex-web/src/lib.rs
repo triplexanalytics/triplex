@@ -86,6 +86,19 @@ pub fn generate_contract(bytes: &[u8], extension: &str) -> Result<String, JsValu
     triplex_schemacast::generate_contract_yaml_from_bytes(bytes, extension).map_err(to_js_err)
 }
 
+/// Navbar's "Download data" format picker: re-encodes `bytes` (already in
+/// `from_extension`) as `to_extension`. `.csv`/`.tsv`/`.jsonl` only on
+/// either side — `.parquet` isn't supported in the browser, same limitation
+/// as everywhere else file bytes cross this boundary.
+#[wasm_bindgen]
+pub fn convert_bytes(
+    bytes: &[u8],
+    from_extension: &str,
+    to_extension: &str,
+) -> Result<Vec<u8>, JsValue> {
+    triplex_schemacast::convert_bytes(bytes, from_extension, to_extension).map_err(to_js_err)
+}
+
 /// Lists the column names declared in an anonymize recipe's YAML text, as a
 /// JSON array — lets the page render one salt input per column without
 /// needing a YAML parser in JavaScript.

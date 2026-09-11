@@ -114,6 +114,27 @@ pub fn convert_file_with_delimiters(
     })
 }
 
+/// Byte-slice counterpart to `convert_file`, for a caller with no filesystem
+/// (`apps/triplex-web`'s "Download data" format picker). `.csv`/`.tsv`/
+/// `.jsonl` only on both sides — no `.parquet` input (see `read_full_bytes`)
+/// and no `.parquet` output either, since `triplex-io` has no bytes-based
+/// Parquet writer (Parquet's own binary layout isn't a text format streamed
+/// row-by-row the way csv/tsv/jsonl are, so writing it needs a real file
+/// handle for now, same reason Parquet input needs a C toolchain
+/// wasm32-unknown-unknown doesn't have).
+pub fn convert_bytes(bytes: &[u8], from_extension: &str, to_extension: &str) -> Result<Vec<u8>> {
+    let sample = read_full_bytes(bytes, from_extension)?;
+    match to_extension {
+        "csv" => triplex_io::write_csv_bytes(&sample.headers, &sample.rows),
+        "tsv" => triplex_io::write_tsv_bytes(&sample.headers, &sample.rows),
+        "jsonl" => triplex_io::write_jsonl_bytes(&sample.headers, &sample.rows),
+        _ => Err(Error::UnsupportedExtension(format!(
+            "unsupported output extension \"{to_extension}\" (expected .csv, .tsv, or .jsonl — \
+             .parquet output isn't supported in the browser)"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,5 +373,24 @@ mod tests {
     fn an_unsupported_input_extension_is_a_clear_error() {
         let result = convert_file(Path::new("in.xlsx"), &temp_path("out.csv"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn convert_bytes_round_trips_csv_through_every_bytes_supported_format() {
+        let csv_bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        for to in ["csv", "tsv", "jsonl"] {
+            let converted =
+                convert_bytes(&csv_bytes, "csv", to).unwrap_or_else(|e| panic!("csv -> {to}: {e}"));
+            let read_back =
+                read_full_bytes(&converted, to).unwrap_or_else(|e| panic!("reading {to} back: {e}"));
+            assert_eq!(read_back.headers, vec!["id", "price", "in_stock", "name"]);
+            assert_eq!(read_back.rows[0], vec!["1", "9.99", "true", "widget"]);
+        }
+    }
+
+    #[test]
+    fn convert_bytes_rejects_an_unsupported_output_extension() {
+        let csv_bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        assert!(convert_bytes(&csv_bytes, "csv", "parquet").is_err());
     }
 }
