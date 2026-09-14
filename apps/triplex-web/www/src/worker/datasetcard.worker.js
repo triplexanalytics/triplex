@@ -96,7 +96,13 @@ function jointKMatrix(bucketed) {
     for (let j = i + 1; j < n; j++) {
       // Symmetric: combining column i with j scores the same as j with i,
       // so compute each pair once and mirror it instead of two wasm calls.
-      const cell = JSON.parse(wasm.score_joint_column_risk(JSON.stringify([bucketed[i], bucketed[j]])));
+      const pairJson = JSON.stringify([bucketed[i], bucketed[j]]);
+      const cell = JSON.parse(wasm.score_joint_column_risk(pairJson));
+      // The smallest equivalence class's own composite key (column i's
+      // bucket joined to column j's by U+001F, `compose_quasi_identifiers`'s
+      // convention) -- lets a click on this cell filter the table down to
+      // exactly the rows in that class instead of just showing its size.
+      cell.worstGroup = wasm.worst_group_joint_column_risk(pairJson) ?? null;
       matrix[i][j] = cell;
       matrix[j][i] = cell;
     }

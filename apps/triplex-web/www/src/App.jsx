@@ -4,6 +4,7 @@ import { useProfiledFile } from "./hooks/useProfiledFile";
 import { useAnonymize } from "./hooks/useAnonymize";
 import { useColumnRisk } from "./hooks/useColumnRisk";
 import { useDiversityMatrix } from "./hooks/useDiversityMatrix";
+import { useRowFilter } from "./hooks/useRowFilter";
 import { withColumnType } from "./state/yamlBuilder";
 import Navbar from "./components/Navbar";
 import Dropzone from "./components/Dropzone";
@@ -37,32 +38,43 @@ export default function App() {
   });
   const columnRisk = useColumnRisk(file.sample, file.profile);
   const diversityMatrix = useDiversityMatrix(file.sample, file.profile);
+  const rowFilter = useRowFilter(wasm, file.sample, file.profile);
   const [selectedColumn, setSelectedColumn] = useState(null);
-  // { rowName, colName } | null — owned here rather than inside
-  // DiversityCheckSection, since RiskMatrix cells cross-highlight each
-  // other across every matrix in the Analysis inner tab (AnalysisOverlay),
-  // not just within one. Also driven by a table header hover (see
-  // handleColumnHover below), not just a matrix cell's own hover.
+  // { rowName, colName } | null — the one shared hover state behind every
+  // cross-highlight in the app: RiskMatrix cells cross-highlight each other
+  // across every matrix in the Analysis inner tab (their own onHoverChange
+  // writes straight here), a table header hover sets both names to that
+  // column (handleColumnHover below) to highlight the matching ColumnCard
+  // in the Columns inner tab, and a ColumnCard hover sets it right back to
+  // highlight the matching table header. One piece of state instead of a
+  // separate "which column" tracker, since a table/card hover is really
+  // just the rowName===colName case of what a matrix cell hover already
+  // produces — highlightColumnNames below reads either shape the same way.
   const [hoverNames, setHoverNames] = useState(null);
-  // Column name | null — owned here (not TableTab or AnalysisOverlay):
-  // hovering a table header highlights the matching ColumnCard in
-  // AnalysisOverlay's Columns tab. One-directional only (a ColumnCard hover
-  // doesn't highlight the table back) — see useTableHeaderCanvas.js's doc
-  // comment for why the reverse direction isn't built.
-  const [hoveredColumnName, setHoveredColumnName] = useState(null);
-  // A table header hover drives both cross-highlights at once: the matching
-  // ColumnCard (hoveredColumnName) and the matching row/column band across
-  // every RiskMatrix in the Analysis tab (hoverNames) — the same {rowName,
-  // colName} shape a matrix cell's own hover already sets, matched
-  // independently per axis so this lights up every matrix this column
-  // appears in, on whichever side it appears.
+  // Table header <-> ColumnCard and table header <-> RiskMatrix are both
+  // "highlight whichever table headers correspond to hoverNames," so
+  // TableTab and ColumnCard both just check membership in this list rather
+  // than each re-deriving it from hoverNames themselves. A matrix cell's
+  // rowName/colName can be two different columns (e.g. hovering the
+  // id/price cell in a pairwise matrix) or the same one (a table/card
+  // hover, or a matrix's own row/column label) — deduped either way. The
+  // table header direction uses a DOM overlay computed from
+  // DataEditorRef.getBounds() (see TableTab.jsx), not a Glide header
+  // canvas repaint, which it won't do for a plain prop change with no
+  // accompanying grid interaction (see decision notes in
+  // useTableHeaderCanvas.js's git history for the repaint approaches that
+  // didn't work: an imperative damage-API repaint that corrupted the
+  // header, and a gridKey remount that reset scroll position).
+  const highlightColumnNames = hoverNames
+    ? [...new Set([hoverNames.rowName, hoverNames.colName].filter(Boolean))]
+    : [];
   const handleColumnHover = useCallback((name) => {
-    setHoveredColumnName(name);
     setHoverNames(name ? { rowName: name, colName: name } : null);
   }, []);
   const declareAsString = (name) => file.setContract((c) => c && withColumnType(c, name, "string"));
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
+    rowFilter.setRowFilter(null);
     anonymize.reset();
     await file.loadFile(uploaded);
   };
@@ -106,8 +118,11 @@ export default function App() {
               riskByName={columnRisk.riskByName}
               riskLoading={columnRisk.riskLoading}
               onColumnHover={handleColumnHover}
+              highlightColumnNames={highlightColumnNames}
               contract={file.contract}
               onDeclareAsString={declareAsString}
+              filteredRowIndices={rowFilter.filteredRowIndices}
+              onClearRowFilter={() => rowFilter.setRowFilter(null)}
             />
             <AnalysisOverlay
               columnProfile={file.profile}
@@ -121,7 +136,8 @@ export default function App() {
               riskByName={columnRisk.riskByName}
               riskLoading={columnRisk.riskLoading}
               onDeclareAsString={declareAsString}
-              highlightColumnName={hoveredColumnName}
+              highlightColumnNames={highlightColumnNames}
+              onColumnHover={handleColumnHover}
               diversityRaw={diversityMatrix.raw}
               diversityLoading={diversityMatrix.loading}
               diversityError={diversityMatrix.error}
@@ -132,6 +148,7 @@ export default function App() {
               sample={file.sample}
               rowRiskModel={diversityMatrix.rowRiskModel}
               onRowRiskModelChange={diversityMatrix.setRowRiskModel}
+              onJointKCellClick={rowFilter.setRowFilter}
             />
           </Suspense>
         )}

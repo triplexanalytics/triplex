@@ -7,7 +7,7 @@ const DiversityCheckSection = lazy(() => import("./DiversityCheckSection"));
 
 const OVERLAY_TABS = [
   { id: "columns", label: "Columns" },
-  { id: "analysis", label: "Analysis" },
+  { id: "analysis", label: "Privacy Analysis" },
 ];
 
 /** Slide panel docked to the right edge of the Table view, drawn on top of
@@ -35,7 +35,8 @@ export default function AnalysisOverlay({
   riskByName,
   riskLoading,
   onDeclareAsString,
-  highlightColumnName,
+  highlightColumnNames,
+  onColumnHover,
   diversityRaw,
   diversityLoading,
   diversityError,
@@ -46,6 +47,7 @@ export default function AnalysisOverlay({
   sample,
   rowRiskModel,
   onRowRiskModelChange,
+  onJointKCellClick,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState("columns");
@@ -112,7 +114,8 @@ export default function AnalysisOverlay({
               riskByName={riskByName}
               riskLoading={riskLoading}
               onDeclareAsString={onDeclareAsString}
-              highlightColumnName={highlightColumnName}
+              highlightColumnNames={highlightColumnNames}
+              onColumnHover={onColumnHover}
             />
           )}
           {innerTab === "analysis" && (
@@ -127,6 +130,7 @@ export default function AnalysisOverlay({
               sample={sample}
               rowRiskModel={rowRiskModel}
               onRowRiskModelChange={onRowRiskModelChange}
+              onJointKCellClick={onJointKCellClick}
             />
           )}
         </Suspense>

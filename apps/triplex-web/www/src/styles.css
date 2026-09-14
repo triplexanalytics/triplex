@@ -297,7 +297,17 @@ button.full-width { width: 100%; justify-content: center; }
 /* Breathing room between the grid's own content/scrollbars and the rest of
    the page — Glide renders its scrollbars flush against its container's
    edge otherwise. */
-.table-grid-wrap { padding: 0 8px 8px 0; }
+.table-grid-wrap { padding: 0 8px 8px 0; overflow: hidden; }
+
+/* A card-originated header highlight — see TableTab.jsx's getBounds() note.
+   Sits on top of the grid's own canvas, so it needs its own tint (not a
+   plain outline) to read clearly, and pointer-events: none so it never
+   intercepts a click/drag meant for the header underneath it. */
+.table-header-highlight {
+  position: absolute;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+}
 
 /* === Upload / dropzone === */
 
@@ -353,6 +363,23 @@ button.full-width { width: 100%; justify-content: center; }
 .banner-error { background: var(--error-bg); border: 1px solid var(--error-border); color: var(--error-text); }
 .banner-warning { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); }
 .banner-success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); margin: 0; }
+
+.table-row-filter-banner {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.table-row-filter-banner button {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.78rem;
+  border-color: var(--warning-border);
+  color: var(--warning-text);
+  background: none;
+}
 
 .field label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.2rem; }
 .field input[type="text"],
@@ -687,6 +714,7 @@ button.full-width { width: 100%; justify-content: center; }
 }
 
 .risk-matrix-canvas-stack { position: relative; }
+.risk-matrix-clickable { cursor: pointer; }
 
 /* Layered on top of the main heatmap canvas — see RiskMatrix.jsx's doc
    comment for why the hovered cell's value fades in via this layer's own

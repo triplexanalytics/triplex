@@ -30,8 +30,11 @@ export default function TableTab({
   riskByName,
   riskLoading,
   onColumnHover,
+  highlightColumnNames,
   contract,
   onDeclareAsString,
+  filteredRowIndices,
+  onClearRowFilter,
 }) {
   const distributionByName = useMemo(() => {
     const map = {};
@@ -194,8 +197,17 @@ export default function TableTab({
   // displayed.
   const [sort, setSort] = useState(null); // { column, direction: "asc" | "desc" } | null
 
+  // A matrix cell click (see App.jsx's useRowFilter) narrows this to a
+  // specific equivalence class's rows -- filtered *before* sorting, since
+  // sort only ever reorders whatever's currently visible, never changes
+  // which rows are.
+  const visibleRowIndices = useMemo(() => {
+    const all = Array.from({ length: sample.rowCount }, (_, i) => i);
+    return filteredRowIndices ? all.filter((i) => filteredRowIndices.has(i)) : all;
+  }, [sample.rowCount, filteredRowIndices]);
+
   const sortedRowIndices = useMemo(() => {
-    const indices = Array.from({ length: sample.rowCount }, (_, i) => i);
+    const indices = [...visibleRowIndices];
     if (!sort) return indices;
     const colIndex = sample.headers.indexOf(sort.column);
     if (colIndex === -1) return indices;
@@ -207,7 +219,7 @@ export default function TableTab({
     const sign = sort.direction === "asc" ? 1 : -1;
     indices.sort((a, b) => sign * collator.compare(sample.getCell(a, colIndex), sample.getCell(b, colIndex)));
     return indices;
-  }, [sample, sort]);
+  }, [sample, sort, visibleRowIndices]);
 
   const getCellContent = useCallback(
     ([col, row]) => {
@@ -316,15 +328,69 @@ export default function TableTab({
   // interaction turns out to matter in practice.
   const glideTheme = readGlideHeaderTheme();
 
+  // A ColumnCard- or RiskMatrix-originated highlight (AnalysisOverlay's
+  // Columns/Analysis tabs) can't repaint Glide's header canvas the way a
+  // table-originated one can (see useTableHeaderCanvas.js's onItemHovered
+  // — that direction just rides Glide's own hover-driven repaint). Instead
+  // of fighting the canvas, this draws a plain DOM rectangle per
+  // highlighted column on top of its header cell, positioned from
+  // DataEditorRef.getBounds(col, -1) -- "-1" is Glide's own row sentinel
+  // for a column header, confirmed in its source (data-grid.js: "row: -1
+  // === columnHeader"). getBounds returns viewport coordinates (it bakes
+  // in the canvas's own getBoundingClientRect()), converted here to be
+  // relative to `wrapRef` (`.table-grid-wrap`, which clips it via
+  // `overflow: hidden` so a column scrolled out of view doesn't leave the
+  // highlight floating over unrelated UI). `pointer-events: none` so the
+  // overlay never steals a click/drag/hover meant for the grid underneath
+  // it. `highlightColumnNames` can name more than one column at once — a
+  // RiskMatrix cell hover pairs a row column with a (possibly different)
+  // candidate-sensitive column.
+  //
+  // ponytail: recomputed only when the highlighted columns or the columns
+  // array changes, not on scroll (no onVisibleRegionChanged wiring) --
+  // while a ColumnCard/RiskMatrix is hovered the pointer is over the
+  // overlay panel, not the grid, so there's no direct way to scroll the
+  // table at the same time in practice. Add a scroll recompute if that
+  // stops holding.
+  const dataEditorRef = useRef(null);
+  const wrapRef = useRef(null);
+  const [highlightRects, setHighlightRects] = useState([]);
+  useEffect(() => {
+    const grid = dataEditorRef.current;
+    const wrap = wrapRef.current;
+    if (!grid || !wrap || !highlightColumnNames?.length) {
+      setHighlightRects([]);
+      return;
+    }
+    const wrapBounds = wrap.getBoundingClientRect();
+    const rects = highlightColumnNames
+      .map((name) => {
+        const colIndex = columns.findIndex((c) => c.id === name);
+        const bounds = colIndex === -1 ? undefined : grid.getBounds(colIndex, -1);
+        if (!bounds) return null;
+        return {
+          key: name,
+          left: bounds.x - wrapBounds.left,
+          top: bounds.y - wrapBounds.top,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      })
+      .filter(Boolean);
+    setHighlightRects(rects);
+  }, [highlightColumnNames, columns]);
+
   return (
     <div
+      ref={wrapRef}
       className="table-grid-wrap"
       style={{ position: "relative", height: "100%", maxWidth: gridContentWidth, margin: "0 auto" }}
     >
       <DataEditor
+        ref={dataEditorRef}
         key={gridKey}
         columns={columns}
-        rows={sample.rowCount}
+        rows={sortedRowIndices.length}
         getCellContent={getCellContent}
         customRenderers={customRenderers}
         onHeaderClicked={onHeaderClicked}
@@ -339,6 +405,18 @@ export default function TableTab({
         smoothScrollX
         smoothScrollY
       />
+      {highlightRects.map((rect) => (
+        <div
+          key={rect.key}
+          className="table-header-highlight"
+          style={{
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+          }}
+        />
+      ))}
       {hoveredHeader && (
         <div
           className="header-tooltip"
@@ -387,6 +465,14 @@ export default function TableTab({
       {anonymizeResult && (
         <div className="banner banner-success" style={{ position: "absolute", left: 8, bottom: 8 }}>
           Anonymized {JSON.parse(anonymizeResult.report_json).rows_processed} rows.
+        </div>
+      )}
+      {filteredRowIndices && (
+        <div className="banner banner-warning table-row-filter-banner">
+          Filtered to {sortedRowIndices.length} of {sample.rowCount} rows.
+          <button type="button" onClick={onClearRowFilter}>
+            Clear
+          </button>
         </div>
       )}
     </div>

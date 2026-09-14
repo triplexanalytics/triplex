@@ -9,9 +9,9 @@ import ColumnCard from "./ColumnCard";
  * one — its data (`useDiversityMatrix`) is still owned alongside
  * `useColumnRisk` in App.jsx, so both start computing as soon as the file
  * loads instead of lagging a beat behind whenever the overlay is opened.
- * `highlightColumnName` is the table -> card cross-highlight (hovering a
- * table header highlights the matching card), lifted to App.jsx since the
- * table header lives outside this whole overlay. */
+ * `highlightColumnNames`/`onColumnHover` are the table/matrix<->card
+ * cross-highlight, lifted to App.jsx since the table header and matrices
+ * on the other end of it live outside this whole overlay. */
 export default function ColumnViewTab({
   profile,
   selectedColumn,
@@ -24,7 +24,8 @@ export default function ColumnViewTab({
   riskByName,
   riskLoading,
   onDeclareAsString,
-  highlightColumnName,
+  highlightColumnNames,
+  onColumnHover,
 }) {
   if (!profile) return null;
 
@@ -49,7 +50,8 @@ export default function ColumnViewTab({
           onCheckPattern={onCheckPattern}
           declaredType={contract?.columns.find((c) => c.name === col.name)?.type}
           onDeclareAsString={onDeclareAsString}
-          highlighted={col.name === highlightColumnName}
+          highlighted={highlightColumnNames?.includes(col.name)}
+          onHoverChange={onColumnHover}
         />
       ))}
     </div>

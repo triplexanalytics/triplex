@@ -67,6 +67,7 @@ export default function DiversityCheckSection({
   sample,
   rowRiskModel,
   onRowRiskModelChange,
+  onJointKCellClick,
 }) {
   const lDiversityCellAt = useCallback(
     (i, j) => {
@@ -144,11 +145,33 @@ export default function DiversityCheckSection({
         label: String(cell.value),
         tooltip: {
           title: `${quasiColumns[i].name} + ${quasiColumns[j].name}`,
-          detail: `combined k-anonymity ${cell.value}: ${jointKDetail(cell.value)}`,
+          detail: `combined k-anonymity ${cell.value}: ${jointKDetail(cell.value)}${
+            cell.worstGroup ? " — click to filter the table to that group." : ""
+          }`,
         },
+        worstGroup: cell.worstGroup,
       };
     },
     [raw, quasiColumns],
+  );
+
+  // jointKMatrix (the worker) only computes each pair once (i < j) and
+  // mirrors it to (j, i) — so a clicked cell's own worstGroup was composed
+  // as [bucketed[i], bucketed[j]] with i the *smaller* index, not
+  // necessarily this cell's row. Reorder the split back to [row's own
+  // bucket, col's own bucket] accordingly before handing it up.
+  const handleJointKCellClick = useCallback(
+    ({ row, col, rowName, colName }) => {
+      const cell = jointKCellAt(row, col);
+      if (!cell?.worstGroup) return;
+      const [first, second] = cell.worstGroup.split("");
+      const [rowBucket, colBucket] = row < col ? [first, second] : [second, first];
+      onJointKCellClick?.([
+        { columnName: rowName, bucketValue: rowBucket },
+        { columnName: colName, bucketValue: colBucket },
+      ]);
+    },
+    [jointKCellAt, onJointKCellClick],
   );
 
   if (quasiColumns.length === 0) return null;
@@ -250,6 +273,7 @@ export default function DiversityCheckSection({
                 highlightRowName={hoverNames?.rowName}
                 highlightColName={hoverNames?.colName}
                 onHoverChange={onHoverNamesChange}
+                onCellClick={onJointKCellClick ? handleJointKCellClick : undefined}
               />
             )}
           </>

@@ -42,7 +42,13 @@ import InfoTrigger from "./InfoTrigger";
  * matching row/column here too; `onHoverChange` reports this matrix's own
  * hover up so a parent rendering several matrices side by side can wire
  * them together (see DiversityCheckSection). All optional — a lone matrix
- * just doesn't cross-highlight anything. */
+ * just doesn't cross-highlight anything.
+ *
+ * `onCellClick`, if given, fires `{ row, col, rowName, colName }` (indices
+ * *and* names — the caller already has its own `cellAt` closure to look up
+ * whatever cell detail it needs by index, so this doesn't also thread the
+ * cell's data back out). Also switches the cursor to a pointer over cells
+ * (not labels) as a click affordance. */
 export default function RiskMatrix({
   title,
   rows,
@@ -54,6 +60,7 @@ export default function RiskMatrix({
   highlightRowName,
   highlightColName,
   onHoverChange,
+  onCellClick,
 }) {
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
@@ -143,6 +150,17 @@ export default function RiskMatrix({
     ctx.fillText(legendHighLabel, legendX + legendWidth, legendY + 22);
   }, [rows, cols, cellAt, width, height, legendLowLabel, legendHighLabel, colorTick]);
 
+  // Cross-component hover reports (a sibling matrix, or now the table
+  // header) get dropped if called synchronously from this canvas's native-
+  // event-routed mousemove/mouseleave handler -- confirmed by direct
+  // testing: the exact same setter, called with the exact same value, from
+  // a DOM div's onMouseEnter (ColumnCard) or called directly, commits
+  // normally; called from here, it doesn't (no re-render, no effect, no
+  // thrown error) unless deferred past the current synchronous event
+  // stack. Root cause not pinned down further than that; the local `hover`
+  // tooltip state (setHover, below) isn't affected, only this callback.
+  const reportHover = (value) => setTimeout(() => onHoverChange?.(value), 0);
+
   const onMouseMove = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -160,7 +178,7 @@ export default function RiskMatrix({
       // Reported even for a cell with nothing to show (`cellAt` -> null):
       // the row/col a sibling matrix should highlight doesn't depend on
       // whether this particular pair has data.
-      onHoverChange?.({ rowName: rows[row], colName: cols[col] });
+      reportHover({ rowName: rows[row], colName: cols[col] });
       const cell = cellAt(row, col);
       if (!cell) {
         setHover(null);
@@ -168,20 +186,33 @@ export default function RiskMatrix({
       }
       setHover({ x: e.clientX, y: e.clientY, row, col, label: cell.label, tooltip: cell.tooltip });
     } else if (overRowLabel) {
-      onHoverChange?.({ rowName: rows[row], colName: null });
+      reportHover({ rowName: rows[row], colName: null });
       setHover(null);
     } else if (overColLabel) {
-      onHoverChange?.({ rowName: null, colName: cols[col] });
+      reportHover({ rowName: null, colName: cols[col] });
       setHover(null);
     } else {
       setHover(null);
-      onHoverChange?.(null);
+      reportHover(null);
     }
   };
 
   const onMouseLeave = () => {
     setHover(null);
-    onHoverChange?.(null);
+    reportHover(null);
+  };
+
+  const onClick = (e) => {
+    if (!onCellClick) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const col = Math.floor((x - ROW_LABEL_WIDTH) / CELL_SIZE);
+    const row = Math.floor((y - COL_LABEL_HEIGHT) / CELL_SIZE);
+    const overCell = row >= 0 && row < rows.length && col >= 0 && col < cols.length;
+    if (overCell) {
+      onCellClick({ row, col, rowName: rows[row], colName: cols[col] });
+    }
   };
 
   // Redraws only the small overlay layer, not the whole (expensive) grid —
@@ -200,6 +231,9 @@ export default function RiskMatrix({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
+    const rootStyle = getComputedStyle(document.documentElement);
+    const textColor = rootStyle.getPropertyValue("--text").trim() || "#1a1d24";
+
     // Cross-matrix highlight band, by row/col *name* (not index — a
     // sibling matrix's rows/cols aren't necessarily this matrix's own),
     // drawn on this cheap overlay layer rather than the main grid so a
@@ -217,13 +251,38 @@ export default function RiskMatrix({
       if (highlightCol >= 0) {
         ctx.fillRect(ROW_LABEL_WIDTH + highlightCol * CELL_SIZE, 0, CELL_SIZE, gridBottom);
       }
+
+      // Bold the highlighted row/col's own label, redrawn here on the
+      // cheap overlay layer (on top of the regular-weight one already
+      // baked into the main canvas below, at the exact same position) —
+      // rebolding it on the main canvas would mean redrawing the whole
+      // (expensive) grid on every hover, the exact cost this overlay
+      // layer exists to avoid.
+      ctx.font = "700 11px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = textColor;
+      if (highlightRow >= 0) {
+        const cy = COL_LABEL_HEIGHT + highlightRow * CELL_SIZE + CELL_SIZE / 2;
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        const { text } = truncateToWidth(ctx, rows[highlightRow], ROW_LABEL_WIDTH - 10);
+        ctx.fillText(text, ROW_LABEL_WIDTH - 8, cy);
+      }
+      if (highlightCol >= 0) {
+        const cx = ROW_LABEL_WIDTH + highlightCol * CELL_SIZE + CELL_SIZE / 2;
+        ctx.save();
+        ctx.translate(cx, COL_LABEL_HEIGHT - 6);
+        ctx.rotate(-Math.PI / 4);
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        const { text } = truncateToWidth(ctx, cols[highlightCol], COL_LABEL_HEIGHT - 10);
+        ctx.fillText(text, 0, 0);
+        ctx.restore();
+      }
     }
 
     if (!hover || hover.label === undefined) return;
     const cx = ROW_LABEL_WIDTH + hover.col * CELL_SIZE + (CELL_SIZE - CELL_GAP) / 2;
     const cy = COL_LABEL_HEIGHT + hover.row * CELL_SIZE + (CELL_SIZE - CELL_GAP) / 2;
-    const rootStyle = getComputedStyle(document.documentElement);
-    const textColor = rootStyle.getPropertyValue("--text").trim() || "#1a1d24";
     const outlineColor = rootStyle.getPropertyValue("--surface").trim() || "#ffffff";
     ctx.font = "600 11px system-ui, -apple-system, sans-serif";
     ctx.textAlign = "center";
@@ -264,8 +323,10 @@ export default function RiskMatrix({
       <div className="risk-matrix-canvas-stack">
         <canvas
           ref={canvasRef}
+          className={onCellClick ? "risk-matrix-clickable" : undefined}
           onMouseMove={onMouseMove}
           onMouseLeave={onMouseLeave}
+          onClick={onClick}
         />
         <canvas
           ref={overlayRef}
