@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { barsFor, binTooltip } from "../state/binTooltip";
-import { truncateToWidth, menuIconLocalRect, drawMenuIcon, drawSortArrow } from "../utils";
+import { truncateToWidth, menuIconLocalRect, drawMenuIcon, drawSortArrows } from "../utils";
 import { TYPE_ICON_NODES, drawIconNode } from "../state/typeIconNodes";
 import { readRiskColorStops, HISTOGRAM_COLOR, reciprocalRisk } from "../state/palette";
 import { kAnonymityExplanation, distinctCountExplanation } from "../state/riskExplanations";
@@ -114,9 +114,13 @@ export function useTableHeaderCanvas({
       ctx.fillText(nameText, innerX, nameRowCenterY + 2);
       truncatedRef.current[column.id] = truncated;
 
-      if (sort?.column === column.id) {
-        drawSortArrow(ctx, rect.x + icon.x - sortArrowWidth / 2, nameRowCenterY, sort.direction, theme);
-      }
+      drawSortArrows(
+        ctx,
+        rect.x + icon.x - sortArrowWidth / 2,
+        nameRowCenterY,
+        sort?.column === column.id ? sort.direction : null,
+        theme,
+      );
       drawMenuIcon(ctx, rect.x + icon.x, rect.y + icon.y, icon.size, theme);
 
       // --- histogram row ---

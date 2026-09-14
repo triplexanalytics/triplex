@@ -63,15 +63,12 @@ export function menuIconLocalRect(cellWidth, { headerPadding, menuIconSize, name
   };
 }
 
-/** A small filled triangle centered on (cx, cy) — the sort indicator.
- * Drawn as a path rather than the "▲"/"▼" glyphs: those render inconsistently
- * heavy/lopsided across fonts at small sizes, where a vector shape doesn't. */
-export function drawSortArrow(ctx, cx, cy, direction, theme) {
-  const w = 8;
-  const h = 6;
-  ctx.fillStyle = theme?.accentColor ?? "#4f46e5";
+/** A small filled triangle centered on (cx, cy), pointing "up" or "down". */
+function fillTriangle(ctx, cx, cy, direction) {
+  const w = 7;
+  const h = 5;
   ctx.beginPath();
-  if (direction === "asc") {
+  if (direction === "up") {
     ctx.moveTo(cx, cy - h / 2);
     ctx.lineTo(cx - w / 2, cy + h / 2);
     ctx.lineTo(cx + w / 2, cy + h / 2);
@@ -82,6 +79,26 @@ export function drawSortArrow(ctx, cx, cy, direction, theme) {
   }
   ctx.closePath();
   ctx.fill();
+}
+
+/** The sort indicator: an up/down arrow pair centered on (cx, cy), stacked
+ * vertically — every sortable column shows this, not just the currently
+ * sorted one, so "click to sort" reads as a standing affordance rather than
+ * something that only appears after the fact. `direction` ("asc" | "desc" |
+ * null for unsorted) colors whichever arrow matches the accent color and
+ * leaves the other (both, if unsorted) a neutral gray. Drawn as paths
+ * rather than the "▲"/"▼" glyphs: those render inconsistently
+ * heavy/lopsided across fonts at small sizes, where a vector shape doesn't. */
+export function drawSortArrows(ctx, cx, cy, direction, theme) {
+  const gap = 2;
+  const grayColor = theme?.textLight ?? "#8890a0";
+  const activeColor = theme?.accentColor ?? "#4f46e5";
+
+  ctx.fillStyle = direction === "asc" ? activeColor : grayColor;
+  fillTriangle(ctx, cx, cy - gap / 2 - 2.5, "up");
+
+  ctx.fillStyle = direction === "desc" ? activeColor : grayColor;
+  fillTriangle(ctx, cx, cy + gap / 2 + 2.5, "down");
 }
 
 export function drawMenuIcon(ctx, x, y, size, theme) {
