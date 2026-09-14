@@ -30,6 +30,19 @@ export function withColumnPattern(contract, columnName, pattern) {
   };
 }
 
+/** Overrides one declared column's `type` — the "Declare as string" action
+ * on a `LikelyIdentifier`-flagged column: the column
+ * stays typed `Integer` in the immutable profile (that's just what the
+ * data looks like), but the *declared* contract, and therefore the
+ * exported `.triplex.yaml`, now says it's an identifier, not a quantity.
+ * Same shape as `withColumnPattern`. */
+export function withColumnType(contract, columnName, type) {
+  return {
+    ...contract,
+    columns: contract.columns.map((c) => (c.name === columnName ? { ...c, type } : c)),
+  };
+}
+
 export function createEmptyRecipe() {
   return { version: 1, columns: [] };
 }

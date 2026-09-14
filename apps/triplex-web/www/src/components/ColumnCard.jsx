@@ -18,6 +18,8 @@ export default function ColumnCard({
   anonymizeResult,
   onCheckPattern,
   onHoverChange,
+  declaredType,
+  onDeclareAsString,
 }) {
   const { value: riskValue, loading: riskLoading } = risk;
   const { declared: declaredPattern, check, checking } = pattern;
@@ -46,6 +48,21 @@ export default function ColumnCard({
             <dd className="type-with-icon">
               <TypeIcon type={col.semantic_type} />
               {col.semantic_type}
+              {col.semantic_type === "likely_identifier" &&
+                (declaredType === "string" ? (
+                  <span className="declare-string-done">Declared as string</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="declare-string-action"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeclareAsString(col.name);
+                    }}
+                  >
+                    Declare as string
+                  </button>
+                ))}
             </dd>
           </>
         )}

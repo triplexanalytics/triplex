@@ -14,10 +14,12 @@ const TOP_N = 10;
  * unique combination) are left out entirely rather than padding the list
  * down to `TOP_N` with rows that carry no signal.
  *
- * Shows each row by its 1-based position in the Table tab (not its actual
- * cell values) — enough to go find and look at that row, without needing
- * `sample`'s raw cell data threaded all the way down here for a label. */
-export default function RowRiskSection({ raw, loading, quasiColumns }) {
+ * Shows each row by its 1-based position (still useful to cross-reference
+ * the Table tab) plus its actual value on every quasi-identifier column —
+ * not the candidate sensitive column's value, since SUDA scores are
+ * computed from the quasi-identifier columns alone, so those are what
+ * explain *why* the row stood out. */
+export default function RowRiskSection({ raw, loading, quasiColumns, sample }) {
   const ranked = useMemo(() => {
     if (!raw?.rowRisk) return null;
     return raw.rowRisk
@@ -26,6 +28,13 @@ export default function RowRiskSection({ raw, loading, quasiColumns }) {
       .sort((a, b) => b.suda - a.suda)
       .slice(0, TOP_N);
   }, [raw]);
+
+  const colIndex = useMemo(() => {
+    if (!sample) return {};
+    const map = {};
+    sample.headers.forEach((name, i) => (map[name] = i));
+    return map;
+  }, [sample]);
 
   if (quasiColumns.length === 0) return null;
 
@@ -51,6 +60,9 @@ export default function RowRiskSection({ raw, loading, quasiColumns }) {
           <thead>
             <tr>
               <th>Row</th>
+              {quasiColumns.map((c) => (
+                <th key={c.name}>{c.name}</th>
+              ))}
               <th>SUDA score</th>
               <th>Share of dataset risk</th>
             </tr>
@@ -59,6 +71,9 @@ export default function RowRiskSection({ raw, loading, quasiColumns }) {
             {ranked.map(({ index, suda, disSuda }) => (
               <tr key={index} title={rowRiskDetail(suda)}>
                 <td>#{index + 1}</td>
+                {quasiColumns.map((c) => (
+                  <td key={c.name}>{sample?.getCell(index, colIndex[c.name])}</td>
+                ))}
                 <td>
                   <span
                     className="row-risk-swatch"

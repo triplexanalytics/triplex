@@ -77,10 +77,30 @@ export default function TableTab({
     [sample.headers, removedColumns],
   );
 
+  const COLUMN_WIDTH = 160;
   const columns = useMemo(
-    () => visibleHeaderIndices.map((i) => ({ title: sample.headers[i], id: sample.headers[i], width: 160 })),
+    () => visibleHeaderIndices.map((i) => ({ title: sample.headers[i], id: sample.headers[i], width: COLUMN_WIDTH })),
     [visibleHeaderIndices, sample.headers],
   );
+  // Glide Data Grid fills its container's width (no `width` prop passed to
+  // DataEditor below) rather than sizing to its own content, so a narrow
+  // file's columns would otherwise sit pinned to the left edge with the
+  // rest of a wide viewport left blank. Capping the wrapper at the grid's
+  // actual content width and centering it fixes that; a file with enough
+  // columns to exceed the viewport still fills it edge-to-edge and scrolls
+  // normally, since `maxWidth` only ever constrains, never forces overflow.
+  //
+  // GRID_CHROME_ALLOWANCE: when there are enough rows to need a vertical
+  // scrollbar, Glide draws its own (not the OS's) in a fixed-width gutter
+  // that eats into the horizontal canvas — without this slack, capping the
+  // wrapper at exactly the columns' total width leaves the scroller's
+  // virtual content a few px wider than its now-cramped drawable area,
+  // which shows an unwanted horizontal scrollbar too (confirmed via a
+  // DOM width dump: `.dvn-scroller` came out 8px wider than its own
+  // `clientWidth` with no allowance). Empirical, not measured from Glide's
+  // own layout constants — generous enough to cover it.
+  const GRID_CHROME_ALLOWANCE = 16;
+  const gridContentWidth = columns.length * COLUMN_WIDTH + GRID_CHROME_ALLOWANCE;
 
   // A column with a method picked, once anonymize has actually run, renders
   // its cells blurred (native canvas ctx.filter, no library) — hovering a
@@ -244,7 +264,10 @@ export default function TableTab({
   const glideTheme = readGlideHeaderTheme();
 
   return (
-    <div className="table-grid-wrap" style={{ position: "relative", height: "100%" }}>
+    <div
+      className="table-grid-wrap"
+      style={{ position: "relative", height: "100%", maxWidth: gridContentWidth, margin: "0 auto" }}
+    >
       <DataEditor
         key={gridKey}
         columns={columns}

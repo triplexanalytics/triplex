@@ -21,6 +21,7 @@ export default function ColumnViewTab({
   riskByName,
   riskLoading,
   onHoverColumn,
+  onDeclareAsString,
 }) {
   if (!profile) return null;
 
@@ -44,6 +45,8 @@ export default function ColumnViewTab({
           anonymizeResult={anonymizeResult}
           onCheckPattern={onCheckPattern}
           onHoverChange={onHoverColumn}
+          declaredType={contract?.columns.find((c) => c.name === col.name)?.type}
+          onDeclareAsString={onDeclareAsString}
         />
       ))}
     </div>

@@ -4,6 +4,7 @@ import { useProfiledFile } from "./hooks/useProfiledFile";
 import { useAnonymize } from "./hooks/useAnonymize";
 import { useColumnRisk } from "./hooks/useColumnRisk";
 import { useDiversityMatrix } from "./hooks/useDiversityMatrix";
+import { withColumnType } from "./state/yamlBuilder";
 import Navbar from "./components/Navbar";
 import Tabs from "./components/Tabs";
 import Dropzone from "./components/Dropzone";
@@ -50,6 +51,10 @@ export default function App() {
   const hoverColumn = useCallback(
     (name) => setHoverNames(name ? { rowName: name, colName: name } : null),
     [],
+  );
+  const declareAsString = useCallback(
+    (name) => file.setContract((c) => c && withColumnType(c, name, "string")),
+    [file],
   );
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
@@ -113,6 +118,7 @@ export default function App() {
                   riskByName={columnRisk.riskByName}
                   riskLoading={columnRisk.riskLoading}
                   onHoverColumn={hoverColumn}
+                  onDeclareAsString={declareAsString}
                 />
                 <DiversityCheckSection
                   raw={diversityMatrix.raw}
@@ -122,6 +128,7 @@ export default function App() {
                   allColumns={diversityMatrix.allColumns}
                   hoverNames={hoverNames}
                   onHoverNamesChange={setHoverNames}
+                  sample={file.sample}
                 />
               </>
             )}

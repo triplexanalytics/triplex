@@ -528,6 +528,19 @@ button.full-width { width: 100%; justify-content: center; }
 .conformance-ok { color: var(--success-text); }
 .conformance-bad { color: var(--error-text); }
 
+.declare-string-action {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.72rem;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: none;
+  color: var(--accent);
+}
+.declare-string-action:hover { background: var(--accent); color: var(--accent-text); }
+
+.declare-string-done { margin-left: 0.4rem; font-size: 0.72rem; color: var(--success-text); }
+
 .risk-bar-track {
   width: 100%;
   height: 6px;

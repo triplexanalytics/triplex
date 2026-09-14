@@ -64,6 +64,7 @@ export default function DiversityCheckSection({
   allColumns,
   hoverNames,
   onHoverNamesChange,
+  sample,
 }) {
   const lDiversityCellAt = useCallback(
     (i, j) => {
@@ -252,7 +253,7 @@ export default function DiversityCheckSection({
           </>
         )}
       </div>
-      <RowRiskSection raw={raw} loading={loading} quasiColumns={quasiColumns} />
+      <RowRiskSection raw={raw} loading={loading} quasiColumns={quasiColumns} sample={sample} />
     </div>
   );
 }
