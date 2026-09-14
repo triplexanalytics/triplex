@@ -17,8 +17,34 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use triplex_core::{Error, Result};
 
+mod ebm;
 mod suda;
+pub use ebm::ebm_scores;
 pub use suda::{dis_suda_scores, suda_scores, MAX_QUASI_IDENTIFIER_COLUMNS};
+
+/// Which technique computes a row's disclosure-risk score — see
+/// `suda.rs`/`ebm.rs`'s module docs for how each one works.
+/// `row_risk_scores` dispatches on this the same way `evaluate_risk_model`
+/// dispatches on `RiskModel`, so switching between them (a product decision
+/// per the design notes: "implement both, switchable
+/// on request" rather than pick one) is a one-line call-site change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RowRiskModel {
+    Suda,
+    Ebm,
+}
+
+/// Every row's disclosure-risk score under `model`. `columns[j][i]` is
+/// quasi-identifier column `j`'s value for row `i`. `Suda` additionally
+/// enforces `MAX_QUASI_IDENTIFIER_COLUMNS` (see `suda_scores`); `Ebm` has no
+/// such cap.
+pub fn row_risk_scores(model: RowRiskModel, columns: &[Vec<String>]) -> Result<Vec<f64>> {
+    match model {
+        RowRiskModel::Suda => suda_scores(columns),
+        RowRiskModel::Ebm => ebm_scores(columns),
+    }
+}
 
 /// A named formal-privacy model a bucketed (generalized) column can be
 /// checked against — see the design notes's Tier 1 row.
@@ -564,6 +590,20 @@ mod tests {
         assert_eq!(beta, 2.0_f64.ln());
         assert_eq!(delta, 5.0_f64.ln());
         assert!(delta > beta, "delta ({delta}) should exceed beta ({beta})");
+    }
+
+    #[test]
+    fn row_risk_scores_dispatches_suda_and_ebm() {
+        let a = vec!["x".to_string(), "x".to_string(), "y".to_string()];
+        let b = vec!["p".to_string(), "p".to_string(), "q".to_string()];
+        let columns = [a, b];
+        let suda = row_risk_scores(RowRiskModel::Suda, &columns).unwrap();
+        let ebm = row_risk_scores(RowRiskModel::Ebm, &columns).unwrap();
+        assert_eq!(suda, suda_scores(&columns).unwrap());
+        // Row 2 is the only (A=y, B=q) row — both techniques should agree
+        // it's the riskiest of the three, even though their scales differ.
+        assert!(suda[2] > suda[0]);
+        assert!(ebm[2] > ebm[0]);
     }
 
     #[test]

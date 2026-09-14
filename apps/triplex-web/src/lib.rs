@@ -370,3 +370,32 @@ pub fn score_suda(columns_json: &str) -> Result<String, JsValue> {
     let paired: Vec<(f64, f64)> = suda.into_iter().zip(dis_suda).collect();
     serde_json::to_string(&paired).map_err(to_js_err)
 }
+
+/// Same per-row disclosure-risk shape as `score_suda` (kept as its own
+/// export, unchanged, since the shipped UI still calls it directly), but
+/// dispatches on `model` ("suda" or "ebm") — see
+/// `triplex_datasetcard::RowRiskModel`'s doc comment for how each technique
+/// works and why both exist (a product decision to implement both,
+/// switchable on request, rather than pick one — the design notes).
+/// `columns_json` is the same shape `score_suda` takes. Returns a JSON
+/// array of `[score, dis_share]` pairs, one per row -- `dis_share` reuses
+/// `dis_suda_scores`'s proportional-distribution formula, which has
+/// nothing SUDA-specific in it: it just normalizes any nonnegative per-row
+/// score array to sum to 1.0, so it applies equally to an EBM score.
+#[wasm_bindgen]
+pub fn score_row_risk(columns_json: &str, model: &str) -> Result<String, JsValue> {
+    let columns: Vec<Vec<String>> = serde_json::from_str(columns_json).map_err(to_js_err)?;
+    let model = match model {
+        "suda" => triplex_datasetcard::RowRiskModel::Suda,
+        "ebm" => triplex_datasetcard::RowRiskModel::Ebm,
+        other => {
+            return Err(to_js_err(format!(
+                "score_row_risk: unknown model {other:?}, expected \"suda\" or \"ebm\""
+            )))
+        }
+    };
+    let scores = triplex_datasetcard::row_risk_scores(model, &columns).map_err(to_js_err)?;
+    let share = triplex_datasetcard::dis_suda_scores(&scores);
+    let paired: Vec<(f64, f64)> = scores.into_iter().zip(share).collect();
+    serde_json::to_string(&paired).map_err(to_js_err)
+}
