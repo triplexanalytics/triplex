@@ -162,27 +162,49 @@ export function tClosenessDetail(value) {
     : "every group's mix stays close to the dataset overall";
 }
 
-// SUDA/DIS-SUDA: the only row-level (not column or
-// column-pair) score in the app — every matrix above answers "how safe is
-// this column/pair," this answers "which specific rows are most
-// identifiable." Same voice as the matrix explanations above, adapted for
-// a ranked list instead of a grid.
-export const ROW_RISK_INFO = (
-  <>
-    Every score above is about a <strong>column</strong> or a pair of columns. This is about
-    individual <strong>rows</strong>: for each row, SUDA finds the smallest combination of the
-    quasi-identifier columns whose values make that row unique in the dataset — a row unique on
-    just two columns is riskier than one that needs six columns to stand out, and a row with
-    several different minimal combinations that single it out is riskier still.{" "}
-    <strong>Lower is safer</strong>, and 0 means the row was never part of any minimal unique
-    combination. DIS-SUDA turns each row's score into its share of the dataset's total
-    disclosure risk, so the shares below add up to 100%.
-    <span className="info-trigger-readmore">Read more…</span>
-  </>
-);
+// SUDA/DIS-SUDA and EBM: the only row-level (not
+// column or column-pair) score in the app — every matrix above answers "how
+// safe is this column/pair," this answers "which specific rows are most
+// identifiable." Same voice as the matrix explanations above, adapted for a
+// ranked list instead of a grid. Two techniques, switchable — see
+// `RowRiskSection`'s model picker — so this returns different copy for each
+// rather than one static blurb that only describes SUDA.
+export function rowRiskInfo(model) {
+  if (model === "ebm") {
+    return (
+      <>
+        Every score above is about a <strong>column</strong> or a pair of columns. This is about
+        individual <strong>rows</strong>: an Explainable Boosting Machine (EBM) trained on the
+        quasi-identifier columns to predict how rare each row's combination of values is —{" "}
+        <strong>higher is riskier</strong>, and rows with a common, widely-shared combination
+        score close to 0. Unlike SUDA's exact combinatorial search, this is a learned estimate, so
+        it's not on the same numeric scale as SUDA's score.
+        <span className="info-trigger-readmore">Read more…</span>
+      </>
+    );
+  }
+  return (
+    <>
+      Every score above is about a <strong>column</strong> or a pair of columns. This is about
+      individual <strong>rows</strong>: for each row, SUDA finds the smallest combination of the
+      quasi-identifier columns whose values make that row unique in the dataset — a row unique on
+      just two columns is riskier than one that needs six columns to stand out, and a row with
+      several different minimal combinations that single it out is riskier still.{" "}
+      <strong>Lower is safer</strong>, and 0 means the row was never part of any minimal unique
+      combination. DIS-SUDA turns each row's score into its share of the dataset's total
+      disclosure risk, so the shares below add up to 100%.
+      <span className="info-trigger-readmore">Read more…</span>
+    </>
+  );
+}
 
-export function rowRiskDetail(sudaScore) {
-  return sudaScore <= 0
+export function rowRiskDetail(score, model) {
+  if (model === "ebm") {
+    return score <= 0
+      ? "this row's combination of quasi-identifier values was predicted unremarkable"
+      : "this row's combination of quasi-identifier values was predicted rare";
+  }
+  return score <= 0
     ? "this row was never uniquely identified by any combination of the quasi-identifier columns checked"
     : "this row is uniquely identified by at least one combination of the quasi-identifier columns checked";
 }

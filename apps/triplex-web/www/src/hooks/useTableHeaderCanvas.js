@@ -57,6 +57,7 @@ export function useTableHeaderCanvas({
   distributionByName,
   riskByName,
   riskLoading,
+  onColumnHover,
 }) {
   // Whether the last draw pass had to truncate each column's name — read by
   // the hover tooltip below to decide whether there's anything worth
@@ -236,22 +237,34 @@ export function useTableHeaderCanvas({
     [distributionByName, typeByName, missingByName, isRiskableByName, isCategoricalByName, riskByName, riskLoading, sort],
   );
 
-  // Same header hover callback drives two mutually-exclusive tooltips: the
-  // truncated-name one and the histogram-bin/risk one — whichever region
-  // the cursor is actually over.
+  // Same header hover callback drives two mutually-exclusive tooltips (the
+  // truncated-name one and the histogram-bin/risk one, whichever region the
+  // cursor is actually over) plus `onColumnHover`, reported for the whole
+  // header regardless of which sub-region — AnalysisOverlay's Columns tab
+  // (when open) highlights the matching ColumnCard off this. One-directional
+  // only: the reverse (a card hover highlighting the table header) needs
+  // Glide to repaint a header canvas cell with no accompanying grid
+  // interaction to trigger it, which its imperative damage API doesn't do
+  // reliably (tried: corrupted the risk-bar row on repaint) and a gridKey
+  // remount does but resets scroll position on every hover — not worth
+  // either cost for a highlight. Revisit if Glide ships a real per-cell
+  // repaint API for this.
   const onItemHovered = useCallback(
     (args) => {
       if (args.kind !== "header") {
         setHoveredHeader(null);
         setHoveredBin(null);
+        onColumnHover?.(null);
         return;
       }
       const column = columns[args.location[0]];
       if (!column) {
         setHoveredHeader(null);
         setHoveredBin(null);
+        onColumnHover?.(null);
         return;
       }
+      onColumnHover?.(column.id);
 
       const localX = args.localEventX ?? 0;
       const localY = args.localEventY ?? 0;
@@ -322,7 +335,7 @@ export function useTableHeaderCanvas({
         setHoveredHeader(null);
       }
     },
-    [columns, typeByName, distributionByName, isRiskableByName, isCategoricalByName, riskByName],
+    [columns, typeByName, distributionByName, isRiskableByName, isCategoricalByName, riskByName, onColumnHover],
   );
 
   return { drawHeader, onItemHovered, hoveredHeader, hoveredBin };

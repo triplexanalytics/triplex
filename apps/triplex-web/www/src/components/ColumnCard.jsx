@@ -17,9 +17,9 @@ export default function ColumnCard({
   pattern,
   anonymizeResult,
   onCheckPattern,
-  onHoverChange,
   declaredType,
   onDeclareAsString,
+  highlighted,
 }) {
   const { value: riskValue, loading: riskLoading } = risk;
   const { declared: declaredPattern, check, checking } = pattern;
@@ -29,10 +29,8 @@ export default function ColumnCard({
 
   return (
     <div
-      className={`column-card${selected ? " selected" : ""}`}
+      className={`column-card${selected ? " selected" : ""}${highlighted ? " highlighted" : ""}`}
       onClick={onSelect}
-      onMouseEnter={() => onHoverChange?.(col.name)}
-      onMouseLeave={() => onHoverChange?.(null)}
     >
       <h3>{col.name}</h3>
       <HeaderSparkline distribution={col.distribution} />

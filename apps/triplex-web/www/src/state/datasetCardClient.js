@@ -29,9 +29,10 @@ export function scoreColumnRisk(columns, bucketWidth) {
  * (`null` on the diagonal, a column paired with itself), not each one scored
  * alone. See `compose_quasi_identifiers` on the Rust side for why that's a
  * different computation from just averaging the per-column scores.
- * `rowRisk` is `[suda_score, dis_suda_share][]`, one pair per row in
- * original row order (SUDA/DIS-SUDA) — `null` when there
- * are no quasi-identifier columns or more than `score_suda` accepts. */
-export function scoreDiversityMatrix(rows, cols, bucketWidth) {
-  return client.request("diversityMatrix", { rows, cols, bucketWidth });
+ * `rowRisk` is `[score, share][]`, one pair per row in original row order,
+ * from whichever technique `rowRiskModel` names ("suda" or "ebm"
+ *  — default "suda" if omitted) — `null` when there are no
+ * quasi-identifier columns or more than `score_row_risk` accepts. */
+export function scoreDiversityMatrix(rows, cols, bucketWidth, rowRiskModel) {
+  return client.request("diversityMatrix", { rows, cols, bucketWidth, rowRiskModel });
 }

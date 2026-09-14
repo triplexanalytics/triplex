@@ -217,22 +217,82 @@ button.full-width { width: 100%; justify-content: center; }
 
 .lock-icon { flex: none; }
 
-/* === Tabs, main content layout === */
+/* === Main content layout === */
 
-.tabs { display: flex; gap: 0.25rem; padding: 0.5rem 1rem 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+.main-content { position: relative; flex: 1; overflow: auto; padding: 1rem; }
 
-.tab-button {
+/* === Analysis overlay: slide panel docked on top of the Table view === */
+
+.analysis-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.analysis-overlay.collapsed {
+  top: 1rem;
+  width: 2.25rem;
+  align-items: stretch;
+}
+
+.analysis-overlay-rail-btn {
+  flex: 1;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text-muted);
+  writing-mode: vertical-rl;
+  padding: 0.75rem 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.analysis-overlay-rail-btn:last-child { border-bottom: none; }
+.analysis-overlay-rail-btn:hover { color: var(--text); background: var(--border); }
+
+.analysis-overlay.expanded {
+  width: min(640px, calc(100% - 1rem));
+}
+
+.analysis-overlay-header {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.analysis-overlay-tabs { display: flex; flex: 1; }
+
+.analysis-overlay-tab-btn {
   border: none;
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: none;
-  padding: 0.5rem 0.9rem;
+  padding: 0.6rem 0.9rem;
   color: var(--text-muted);
 }
+.analysis-overlay-tab-btn.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 
-.tab-button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.analysis-overlay-collapse-btn {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+}
+.analysis-overlay-collapse-btn:hover { color: var(--text); }
 
-.main-content { position: relative; flex: 1; overflow: auto; padding: 1rem; }
+.analysis-overlay-body { flex: 1; overflow: auto; padding: 1rem; }
 
 /* Breathing room between the grid's own content/scrollbars and the rest of
    the page — Glide renders its scrollbars flush against its container's
@@ -516,6 +576,12 @@ button.full-width { width: 100%; justify-content: center; }
 
 .column-card.selected { border-color: var(--accent); }
 
+/* Table<->card cross-highlight (hovering a table header, or this card,
+   highlights the other) — a background wash, not a border, so it reads
+   distinctly from .selected's click-driven border and the two combine
+   cleanly if a card is both at once. */
+.column-card.highlighted { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+
 .column-card h3 { margin: 0 0 0.35rem; font-size: 0.92rem; }
 
 .column-card dl { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--text-muted); }
@@ -577,9 +643,22 @@ button.full-width { width: 100%; justify-content: center; }
 
 .risk-matrix canvas { cursor: default; }
 
-/* === Row risk (SUDA) === */
+/* === Row risk (SUDA / EBM) === */
 
 .row-risk-section { margin-top: 1.1rem; }
+
+.row-risk-header { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.row-risk-header h3 { margin: 0; }
+
+.row-risk-model-select {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
 
 .row-risk-empty { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
 

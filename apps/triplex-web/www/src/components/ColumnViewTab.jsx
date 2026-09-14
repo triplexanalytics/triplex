@@ -4,11 +4,14 @@ import ColumnCard from "./ColumnCard";
  * fed the same profile that drives the Table tab's header sparklines.
  * `riskByName`/`riskLoading` come from `useColumnRisk` in App.jsx, shared
  * with the Table tab's header bar rather than computed twice.
- * `DiversityCheckSection` renders as App.jsx's sibling now, not nested
- * here — same DOM order either way, but its data (`useDiversityMatrix`)
- * needed to be owned alongside `useColumnRisk` so both start computing as
- * soon as the file loads instead of the matrix lagging a beat behind the
- * k-anonymity bars every time this tab is (re-)opened. */
+ * `DiversityCheckSection` is this component's sibling under
+ * `AnalysisOverlay` now, its own inner tab rather than stacked below this
+ * one — its data (`useDiversityMatrix`) is still owned alongside
+ * `useColumnRisk` in App.jsx, so both start computing as soon as the file
+ * loads instead of lagging a beat behind whenever the overlay is opened.
+ * `highlightColumnName` is the table -> card cross-highlight (hovering a
+ * table header highlights the matching card), lifted to App.jsx since the
+ * table header lives outside this whole overlay. */
 export default function ColumnViewTab({
   profile,
   selectedColumn,
@@ -20,8 +23,8 @@ export default function ColumnViewTab({
   anonymizeResult,
   riskByName,
   riskLoading,
-  onHoverColumn,
   onDeclareAsString,
+  highlightColumnName,
 }) {
   if (!profile) return null;
 
@@ -44,9 +47,9 @@ export default function ColumnViewTab({
           }}
           anonymizeResult={anonymizeResult}
           onCheckPattern={onCheckPattern}
-          onHoverChange={onHoverColumn}
           declaredType={contract?.columns.find((c) => c.name === col.name)?.type}
           onDeclareAsString={onDeclareAsString}
+          highlighted={col.name === highlightColumnName}
         />
       ))}
     </div>

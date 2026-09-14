@@ -27,6 +27,12 @@ export function useDiversityMatrix(sample, profile) {
   const [raw, setRaw] = useState(null); // { lDiversity, tCloseness, betaLikeness, deltaDisclosure, jointK, rowRisk } | null
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // Which technique computes RowRiskSection's per-row score ("suda" | "ebm",
+  // the design notes) — a dependency of the effect below like sample/profile
+  // are, so picking a different technique re-requests the whole matrix the
+  // same way a new upload would, rather than needing a second, bespoke
+  // recompute path just for this one piece of it.
+  const [rowRiskModel, setRowRiskModel] = useState("suda");
   const generation = useRef(0);
 
   useEffect(() => {
@@ -59,7 +65,7 @@ export function useDiversityMatrix(sample, profile) {
       name: c.name,
       values: Array.from({ length: sample.rowCount }, (_, row) => sample.getCell(row, colIndex[c.name])),
     }));
-    scoreDiversityMatrix(rows, cols, RISK_BUCKET_WIDTH)
+    scoreDiversityMatrix(rows, cols, RISK_BUCKET_WIDTH, rowRiskModel)
       .then((result) => {
         if (generation.current !== myGeneration) return; // superseded by a newer upload
         setRaw(result);
@@ -78,7 +84,7 @@ export function useDiversityMatrix(sample, profile) {
         setError(String(err?.message || err));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sample, profile]);
+  }, [sample, profile, rowRiskModel]);
 
-  return { raw, loading, error, quasiColumns, allColumns };
+  return { raw, loading, error, quasiColumns, allColumns, rowRiskModel, setRowRiskModel };
 }

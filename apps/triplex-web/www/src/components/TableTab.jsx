@@ -29,6 +29,7 @@ export default function TableTab({
   anonymizeResult,
   riskByName,
   riskLoading,
+  onColumnHover,
   contract,
   onDeclareAsString,
 }) {
@@ -77,19 +78,62 @@ export default function TableTab({
     return map;
   }, [profile]);
 
+  // Display order (left to right) and per-column width are user-adjustable
+  // (drag a header to reorder, drag its right edge to resize) and reset
+  // whenever a new file loads — local to this component since nothing else
+  // (export, risk scoring, the diversity matrix) cares how the grid happens
+  // to be arranged, only about the underlying `sample` data, which this
+  // never touches.
+  const [columnOrder, setColumnOrder] = useState(() => sample.headers);
+  const [columnWidths, setColumnWidths] = useState({}); // name -> width, only entries the user has resized
+  useEffect(() => {
+    setColumnOrder(sample.headers);
+    setColumnWidths({});
+  }, [sample]);
+
   // A removed column is hidden from the grid, not resampled out of it: glide
   // indexes columns by position, so `visibleHeaderIndices[col]` maps a
   // rendered column index back to its real index in `sample`.
-  const visibleHeaderIndices = useMemo(
-    () => sample.headers.map((_, i) => i).filter((i) => !removedColumns.has(sample.headers[i])),
-    [sample.headers, removedColumns],
+  const visibleHeaderIndices = useMemo(() => {
+    const indexByName = {};
+    sample.headers.forEach((name, i) => (indexByName[name] = i));
+    return columnOrder.filter((name) => !removedColumns.has(name)).map((name) => indexByName[name]);
+  }, [columnOrder, sample.headers, removedColumns]);
+
+  const DEFAULT_COLUMN_WIDTH = 160;
+  const MIN_COLUMN_WIDTH = 60;
+  const MAX_COLUMN_WIDTH = 800;
+  const columns = useMemo(
+    () =>
+      visibleHeaderIndices.map((i) => {
+        const name = sample.headers[i];
+        return { title: name, id: name, width: columnWidths[name] ?? DEFAULT_COLUMN_WIDTH };
+      }),
+    [visibleHeaderIndices, sample.headers, columnWidths],
   );
 
-  const COLUMN_WIDTH = 160;
-  const columns = useMemo(
-    () => visibleHeaderIndices.map((i) => ({ title: sample.headers[i], id: sample.headers[i], width: COLUMN_WIDTH })),
-    [visibleHeaderIndices, sample.headers],
+  const onColumnResize = useCallback((column, newSize) => {
+    setColumnWidths((prev) => ({ ...prev, [column.id]: newSize }));
+  }, []);
+
+  // `startIndex`/`endIndex` are positions within `columns` (the *visible*
+  // array, already excluding removed columns), not within `columnOrder`
+  // (which still lists every column so a removed one keeps its slot, on the
+  // off chance a restore feature is ever added). Reorder just the visible
+  // subsequence, keeping every removed name pinned at its own slot.
+  const onColumnMoved = useCallback(
+    (startIndex, endIndex) => {
+      setColumnOrder((prev) => {
+        const visible = prev.filter((name) => !removedColumns.has(name));
+        const [moved] = visible.splice(startIndex, 1);
+        visible.splice(endIndex, 0, moved);
+        let vi = 0;
+        return prev.map((name) => (removedColumns.has(name) ? name : visible[vi++]));
+      });
+    },
+    [removedColumns],
   );
+
   // Glide Data Grid fills its container's width (no `width` prop passed to
   // DataEditor below) rather than sizing to its own content, so a narrow
   // file's columns would otherwise sit pinned to the left edge with the
@@ -108,7 +152,7 @@ export default function TableTab({
   // `clientWidth` with no allowance). Empirical, not measured from Glide's
   // own layout constants — generous enough to cover it.
   const GRID_CHROME_ALLOWANCE = 16;
-  const gridContentWidth = columns.length * COLUMN_WIDTH + GRID_CHROME_ALLOWANCE;
+  const gridContentWidth = columns.reduce((sum, c) => sum + c.width, 0) + GRID_CHROME_ALLOWANCE;
 
   // A column with a method picked, once anonymize has actually run, renders
   // its cells blurred (native canvas ctx.filter, no library) — hovering a
@@ -260,6 +304,7 @@ export default function TableTab({
     distributionByName,
     riskByName,
     riskLoading,
+    onColumnHover,
   });
 
   // Re-read every render rather than once at module load, so a light/dark
@@ -287,6 +332,10 @@ export default function TableTab({
         onItemHovered={onItemHovered}
         theme={glideTheme}
         headerHeight={HEADER_HEIGHT}
+        onColumnResize={onColumnResize}
+        onColumnMoved={onColumnMoved}
+        minColumnWidth={MIN_COLUMN_WIDTH}
+        maxColumnWidth={MAX_COLUMN_WIDTH}
         smoothScrollX
         smoothScrollY
       />

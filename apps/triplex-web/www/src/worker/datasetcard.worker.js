@@ -22,7 +22,7 @@ function columnRisk(columns, bucketWidth) {
   return result;
 }
 
-function diversityMatrix(rows, cols, bucketWidth) {
+function diversityMatrix(rows, cols, bucketWidth, rowRiskModel) {
   // Each col's sensitive values get stringified once here, not once per
   // (row, col) pair inside the loop below — cols.length JSON.stringify
   // calls total instead of rows.length x cols.length redundant ones of
@@ -70,7 +70,7 @@ function diversityMatrix(rows, cols, bucketWidth) {
     betaLikeness,
     deltaDisclosure,
     jointK: jointKMatrix(bucketed),
-    rowRisk: rowRisk(bucketed),
+    rowRisk: rowRisk(bucketed, rowRiskModel),
   };
 }
 
@@ -104,17 +104,21 @@ function jointKMatrix(bucketed) {
   return matrix;
 }
 
-// Per-row SUDA/DIS-SUDA: which specific rows are most
-// identifiable across every quasi-identifier column at once, a different
-// question from any matrix above (those all answer "how safe is this
-// column/pair," not "which rows should I actually worry about"). `null`
+// Per-row disclosure risk: which specific rows are
+// most identifiable across every quasi-identifier column at once, a
+// different question from any matrix above (those all answer "how safe is
+// this column/pair," not "which rows should I actually worry about").
+// `rowRiskModel` picks the technique ("suda" or "ebm", see
+// `score_row_risk`'s doc comment on the Rust side) -- both return the same
+// `[score, share]`-per-row shape, just on different numeric scales. `null`
 // when there are no quasi-identifier columns to score, or when there are
-// more than `score_suda` accepts (`MAX_QUASI_IDENTIFIER_COLUMNS`, see its
-// doc comment) -- degrades to "not shown" rather than failing the whole
-// diversity matrix over a row-risk-only limit.
-function rowRisk(bucketed) {
+// more than SUDA accepts (`MAX_QUASI_IDENTIFIER_COLUMNS`, see its doc
+// comment -- EBM has no such cap, but the two techniques are switched
+// together, not independently limited) -- degrades to "not shown" rather
+// than failing the whole diversity matrix over a row-risk-only limit.
+function rowRisk(bucketed, rowRiskModel) {
   if (bucketed.length === 0 || bucketed.length > 10) return null;
-  return JSON.parse(wasm.score_suda(JSON.stringify(bucketed)));
+  return JSON.parse(wasm.score_row_risk(JSON.stringify(bucketed), rowRiskModel ?? "suda"));
 }
 
 self.onmessage = async (event) => {
@@ -126,7 +130,7 @@ self.onmessage = async (event) => {
     if (type === "columnRisk") {
       result = columnRisk(payload.columns, payload.bucketWidth);
     } else if (type === "diversityMatrix") {
-      result = diversityMatrix(payload.rows, payload.cols, payload.bucketWidth);
+      result = diversityMatrix(payload.rows, payload.cols, payload.bucketWidth, payload.rowRiskModel);
     } else {
       return;
     }

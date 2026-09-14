@@ -6,20 +6,18 @@ import { useColumnRisk } from "./hooks/useColumnRisk";
 import { useDiversityMatrix } from "./hooks/useDiversityMatrix";
 import { withColumnType } from "./state/yamlBuilder";
 import Navbar from "./components/Navbar";
-import Tabs from "./components/Tabs";
 import Dropzone from "./components/Dropzone";
 import LoadingOverlay from "./components/LoadingOverlay";
 
-// Code-split per tab body, not eagerly bundled with the app shell:
-// TableTab alone pulls in @glideapps/glide-data-grid, and ColumnViewTab's
-// sibling DiversityCheckSection pulls in the canvas risk-matrix machinery
-// — neither is needed until a file is actually loaded and that tab is
-// actually opened, and the Table tab (the default) still benefits from
-// loading in its own chunk in parallel with the rest of the shell instead
-// of being parsed/evaluated as part of one large bundle up front.
+// Code-split, not eagerly bundled with the app shell: TableTab alone pulls
+// in @glideapps/glide-data-grid, and AnalysisOverlay's own two inner tabs
+// (ColumnViewTab, DiversityCheckSection, lazy-loaded inside it) pull in the
+// canvas risk-matrix machinery — none of it is needed until a file is
+// actually loaded, and the table still benefits from loading in its own
+// chunk in parallel with the rest of the shell instead of being parsed as
+// part of one large bundle up front.
 const TableTab = lazy(() => import("./components/TableTab"));
-const ColumnViewTab = lazy(() => import("./components/ColumnViewTab"));
-const DiversityCheckSection = lazy(() => import("./components/DiversityCheckSection"));
+const AnalysisOverlay = lazy(() => import("./components/AnalysisOverlay"));
 
 /** Composition root only: wires the three hooks together and renders. Every
  * actual behavior (wasm lifecycle, file/contract/recipe state, the
@@ -39,23 +37,30 @@ export default function App() {
   });
   const columnRisk = useColumnRisk(file.sample, file.profile);
   const diversityMatrix = useDiversityMatrix(file.sample, file.profile);
-  const [activeTab, setActiveTab] = useState("table");
   const [selectedColumn, setSelectedColumn] = useState(null);
-  // { rowName, colName } | null — owned here, not in DiversityCheckSection,
-  // since a ColumnCard hover (ColumnViewTab, its sibling in this tab) needs
-  // to reach the matrices too. A card hover sets both names to the same
-  // column: RiskMatrix matches row/col names independently, so this lights
-  // up that column's band on every axis it appears on across every matrix,
-  // the same way hovering one matrix's own cell already lit up its siblings.
+  // { rowName, colName } | null — owned here rather than inside
+  // DiversityCheckSection, since RiskMatrix cells cross-highlight each
+  // other across every matrix in the Analysis inner tab (AnalysisOverlay),
+  // not just within one. Also driven by a table header hover (see
+  // handleColumnHover below), not just a matrix cell's own hover.
   const [hoverNames, setHoverNames] = useState(null);
-  const hoverColumn = useCallback(
-    (name) => setHoverNames(name ? { rowName: name, colName: name } : null),
-    [],
-  );
-  const declareAsString = useCallback(
-    (name) => file.setContract((c) => c && withColumnType(c, name, "string")),
-    [file],
-  );
+  // Column name | null — owned here (not TableTab or AnalysisOverlay):
+  // hovering a table header highlights the matching ColumnCard in
+  // AnalysisOverlay's Columns tab. One-directional only (a ColumnCard hover
+  // doesn't highlight the table back) — see useTableHeaderCanvas.js's doc
+  // comment for why the reverse direction isn't built.
+  const [hoveredColumnName, setHoveredColumnName] = useState(null);
+  // A table header hover drives both cross-highlights at once: the matching
+  // ColumnCard (hoveredColumnName) and the matching row/column band across
+  // every RiskMatrix in the Analysis tab (hoverNames) — the same {rowName,
+  // colName} shape a matrix cell's own hover already sets, matched
+  // independently per axis so this lights up every matrix this column
+  // appears in, on whichever side it appears.
+  const handleColumnHover = useCallback((name) => {
+    setHoveredColumnName(name);
+    setHoverNames(name ? { rowName: name, colName: name } : null);
+  }, []);
+  const declareAsString = (name) => file.setContract((c) => c && withColumnType(c, name, "string"));
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
     anonymize.reset();
@@ -75,7 +80,6 @@ export default function App() {
         canDownloadRecipe={file.recipe.columns.length > 0}
         canDownloadData={!!anonymize.anonymizeResult || !!file.fileBytes}
       />
-      <Tabs active={activeTab} onChange={setActiveTab} />
       <main className="main-content">
         {error && <div className="banner banner-error">{error}</div>}
         {file.isLoading && <LoadingOverlay label={`Reading ${file.loadingFileName}…`} />}
@@ -86,54 +90,49 @@ export default function App() {
         )}
         {file.sample && (
           <Suspense fallback={<LoadingOverlay label="Loading…" />}>
-            {activeTab === "table" && (
-              <TableTab
-                sample={file.sample}
-                profile={file.profile}
-                methods={methods}
-                recipe={file.recipe}
-                salt={file.salt}
-                onPickMethod={file.pickMethod}
-                removedColumns={file.removedColumns}
-                onRemoveColumn={file.removeColumn}
-                onSaltChange={file.setSalt}
-                onAnonymize={anonymize.run}
-                anonymizing={anonymize.anonymizing}
-                anonymizeResult={anonymize.anonymizeResult}
-                riskByName={columnRisk.riskByName}
-                riskLoading={columnRisk.riskLoading}
-                contract={file.contract}
-                onDeclareAsString={declareAsString}
-              />
-            )}
-            {activeTab === "column" && (
-              <>
-                <ColumnViewTab
-                  profile={file.profile}
-                  selectedColumn={selectedColumn}
-                  onSelectColumn={setSelectedColumn}
-                  contract={file.contract}
-                  onCheckPattern={anonymize.checkPattern}
-                  patternChecks={anonymize.patternChecks}
-                  checkingColumns={anonymize.checkingColumns}
-                  anonymizeResult={anonymize.anonymizeResult}
-                  riskByName={columnRisk.riskByName}
-                  riskLoading={columnRisk.riskLoading}
-                  onHoverColumn={hoverColumn}
-                  onDeclareAsString={declareAsString}
-                />
-                <DiversityCheckSection
-                  raw={diversityMatrix.raw}
-                  loading={diversityMatrix.loading}
-                  error={diversityMatrix.error}
-                  quasiColumns={diversityMatrix.quasiColumns}
-                  allColumns={diversityMatrix.allColumns}
-                  hoverNames={hoverNames}
-                  onHoverNamesChange={setHoverNames}
-                  sample={file.sample}
-                />
-              </>
-            )}
+            <TableTab
+              sample={file.sample}
+              profile={file.profile}
+              methods={methods}
+              recipe={file.recipe}
+              salt={file.salt}
+              onPickMethod={file.pickMethod}
+              removedColumns={file.removedColumns}
+              onRemoveColumn={file.removeColumn}
+              onSaltChange={file.setSalt}
+              onAnonymize={anonymize.run}
+              anonymizing={anonymize.anonymizing}
+              anonymizeResult={anonymize.anonymizeResult}
+              riskByName={columnRisk.riskByName}
+              riskLoading={columnRisk.riskLoading}
+              onColumnHover={handleColumnHover}
+              contract={file.contract}
+              onDeclareAsString={declareAsString}
+            />
+            <AnalysisOverlay
+              columnProfile={file.profile}
+              selectedColumn={selectedColumn}
+              onSelectColumn={setSelectedColumn}
+              contract={file.contract}
+              onCheckPattern={anonymize.checkPattern}
+              patternChecks={anonymize.patternChecks}
+              checkingColumns={anonymize.checkingColumns}
+              anonymizeResult={anonymize.anonymizeResult}
+              riskByName={columnRisk.riskByName}
+              riskLoading={columnRisk.riskLoading}
+              onDeclareAsString={declareAsString}
+              highlightColumnName={hoveredColumnName}
+              diversityRaw={diversityMatrix.raw}
+              diversityLoading={diversityMatrix.loading}
+              diversityError={diversityMatrix.error}
+              quasiColumns={diversityMatrix.quasiColumns}
+              allColumns={diversityMatrix.allColumns}
+              hoverNames={hoverNames}
+              onHoverNamesChange={setHoverNames}
+              sample={file.sample}
+              rowRiskModel={diversityMatrix.rowRiskModel}
+              onRowRiskModelChange={diversityMatrix.setRowRiskModel}
+            />
           </Suspense>
         )}
       </main>
