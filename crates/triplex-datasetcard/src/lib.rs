@@ -101,6 +101,26 @@ pub fn k_anonymity(bucketed_values: &[String]) -> usize {
     counts.values().copied().min().unwrap_or(0)
 }
 
+/// The bucket value achieving `k_anonymity`'s minimum — the smallest
+/// equivalence class's own key, not just its size, so a caller can filter
+/// rows down to exactly the group the score is about. Works identically for
+/// a single column's own buckets or a `compose_quasi_identifiers` composite
+/// (the caller decides which by what it passes in, same as `k_anonymity`
+/// itself). `None` only for an empty `bucketed_values`. Ties broken by
+/// `HashMap` iteration order — deterministic within one run, not a
+/// documented tie-break rule, since which of several equally-smallest
+/// classes gets shown first isn't a meaningful distinction here.
+pub fn k_anonymity_worst_group(bucketed_values: &[String]) -> Option<String> {
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for v in bucketed_values {
+        *counts.entry(v.as_str()).or_insert(0) += 1;
+    }
+    counts
+        .into_iter()
+        .min_by_key(|(_, count)| *count)
+        .map(|(key, _)| key.to_string())
+}
+
 /// The smallest number of distinct sensitive-attribute values found in any
 /// one equivalence class. `sensitive_values` must be aligned row-for-row
 /// with `bucketed_values` (same rows, same order, unmasked).
@@ -340,6 +360,32 @@ mod tests {
             .map(String::from)
             .collect::<Vec<_>>();
         assert_eq!(k_anonymity(&buckets), 2); // "30-39" has only 2 rows
+    }
+
+    #[test]
+    fn k_anonymity_worst_group_names_the_smallest_class() {
+        let buckets = vec!["20-29", "20-29", "20-29", "30-39", "30-39"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        assert_eq!(k_anonymity_worst_group(&buckets), Some("30-39".to_string()));
+    }
+
+    #[test]
+    fn k_anonymity_worst_group_is_none_for_no_rows() {
+        assert_eq!(k_anonymity_worst_group(&[]), None);
+    }
+
+    #[test]
+    fn k_anonymity_worst_group_matches_k_anonymitys_own_size() {
+        let buckets = vec!["a", "a", "a", "b", "b", "c"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let worst = k_anonymity_worst_group(&buckets).unwrap();
+        let worst_size = buckets.iter().filter(|v| **v == worst).count();
+        assert_eq!(worst_size, k_anonymity(&buckets));
+        assert_eq!(worst, "c"); // the only singleton class
     }
 
     #[test]

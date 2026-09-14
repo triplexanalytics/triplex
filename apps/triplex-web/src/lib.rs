@@ -331,6 +331,21 @@ pub fn score_joint_column_risk(columns_json: &str) -> Result<String, JsValue> {
     serde_json::to_string(&assessment).map_err(to_js_err)
 }
 
+/// The specific composite bucket driving `score_joint_column_risk`'s
+/// k-anonymity value -- same shape `compose_quasi_identifiers` produces
+/// (each column's bucketed value joined by U+001F), so the caller can split
+/// it back into per-column bucket values (matching the column order
+/// `columns_json` was given in) and filter rows down to exactly that
+/// smallest equivalence class. `columns_json` is the same shape
+/// `score_joint_column_risk` takes. Returns `null` only when there are no
+/// rows at all.
+#[wasm_bindgen]
+pub fn worst_group_joint_column_risk(columns_json: &str) -> Result<Option<String>, JsValue> {
+    let columns: Vec<Vec<String>> = serde_json::from_str(columns_json).map_err(to_js_err)?;
+    let composite = triplex_datasetcard::compose_quasi_identifiers(&columns);
+    Ok(triplex_datasetcard::k_anonymity_worst_group(&composite))
+}
+
 /// `score_joint_column_risk`'s l-diversity/t-closeness/β-likeness/
 /// δ-disclosure counterpart, mirroring `score_column_pair_risk`'s shape:
 /// the same combined quasi-identifier (`columns_json`, see
