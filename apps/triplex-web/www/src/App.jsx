@@ -102,6 +102,8 @@ export default function App() {
                 anonymizeResult={anonymize.anonymizeResult}
                 riskByName={columnRisk.riskByName}
                 riskLoading={columnRisk.riskLoading}
+                contract={file.contract}
+                onDeclareAsString={declareAsString}
               />
             )}
             {activeTab === "column" && (

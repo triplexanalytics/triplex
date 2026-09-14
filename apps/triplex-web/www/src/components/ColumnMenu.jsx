@@ -20,12 +20,29 @@ export default function ColumnMenu({
   anonymizing,
   onRemove,
   onClose,
+  isLikelyIdentifier,
+  declaredAsString,
+  onDeclareAsString,
 }) {
   return (
     <>
       <div className="menu-backdrop" onClick={onClose} />
       <div className="column-menu" style={{ position: "fixed", left: x, top: y }}>
-        <div className="column-menu-header">{columnName}</div>
+        <div className="column-menu-header">
+          {columnName}
+          {isLikelyIdentifier &&
+            (declaredAsString ? (
+              <span className="declare-string-done">Declared as string</span>
+            ) : (
+              <button
+                type="button"
+                className="declare-string-action"
+                onClick={() => onDeclareAsString(columnName)}
+              >
+                Declare as string
+              </button>
+            ))}
+        </div>
 
         <div className="column-menu-section">
           <div className="column-menu-section-title">Anonymization</div>

@@ -520,9 +520,9 @@ button.full-width { width: 100%; justify-content: center; }
 
 .column-card dl { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--text-muted); }
 .column-card dl dt { font-weight: 500; }
-.column-card dl dd { margin: 0; }
+.column-card dl dd { margin: 0; min-width: 0; }
 
-.type-with-icon { display: inline-flex; align-items: center; gap: 0.3rem; }
+.type-with-icon { display: inline-flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
 .type-with-icon svg { color: var(--text-faint); flex-shrink: 0; }
 
 .conformance-ok { color: var(--success-text); }

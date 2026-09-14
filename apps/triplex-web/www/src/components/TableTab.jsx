@@ -29,6 +29,8 @@ export default function TableTab({
   anonymizeResult,
   riskByName,
   riskLoading,
+  contract,
+  onDeclareAsString,
 }) {
   const distributionByName = useMemo(() => {
     const map = {};
@@ -66,6 +68,12 @@ export default function TableTab({
   const isCategoricalByName = useMemo(() => {
     const map = {};
     for (const col of profile?.columns ?? []) map[col.name] = col.distribution?.kind === "categorical";
+    return map;
+  }, [profile]);
+
+  const isLikelyIdentifierByName = useMemo(() => {
+    const map = {};
+    for (const col of profile?.columns ?? []) map[col.name] = col.semantic_type === "likely_identifier";
     return map;
   }, [profile]);
 
@@ -322,6 +330,9 @@ export default function TableTab({
             setMenu(null);
           }}
           onClose={() => setMenu(null)}
+          isLikelyIdentifier={isLikelyIdentifierByName[menu.name]}
+          declaredAsString={contract?.columns.find((c) => c.name === menu.name)?.type === "string"}
+          onDeclareAsString={onDeclareAsString}
         />
       )}
       {anonymizeResult && (
