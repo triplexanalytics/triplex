@@ -683,6 +683,38 @@ button.full-width { width: 100%; justify-content: center; }
 }
 .column-card-menu-btn:hover { color: var(--text); }
 
+/* Shows once a real anonymization method (not "drop", which mutes the
+   whole card instead -- see .column-card.muted) is applied, so that's
+   visible on the card without reopening ColumnMenu to check. Reuses
+   .method-card-<category>'s --method-color (ColumnMenu's method grid) via
+   the same class name, not a second copy of the category->color mapping. */
+.column-card-method-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0.35rem 0 0;
+  padding: 0.15rem 0.3rem 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--method-color) 18%, var(--surface-alt));
+  border: 1px solid color-mix(in srgb, var(--method-color) 35%, var(--border));
+  color: var(--text);
+}
+.column-card-method-pill svg:first-child { color: var(--method-color); flex: none; }
+
+.column-card-method-pill button {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0.15rem;
+  margin-left: 0.1rem;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.column-card-method-pill button:hover { color: var(--text); }
+
 .column-card dl { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--text-muted); }
 .column-card dl dt { font-weight: 500; }
 .column-card dl dd { margin: 0; min-width: 0; }

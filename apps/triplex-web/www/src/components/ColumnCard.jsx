@@ -1,7 +1,8 @@
-import { MoreVertical, Undo2 } from "lucide-react";
+import { MoreVertical, Undo2, X } from "lucide-react";
 import HeaderSparkline from "./HeaderSparkline";
 import { readRiskColorStops, reciprocalRisk } from "../state/palette";
 import { kAnonymityExplanation, distinctCountExplanation } from "../state/riskExplanations";
+import { METHOD_META, METHOD_META_FALLBACK } from "./ColumnMenu.const";
 import TypeIcon from "./typeIcons";
 import InfoTrigger from "./InfoTrigger";
 
@@ -15,13 +16,19 @@ import InfoTrigger from "./InfoTrigger";
  * tab's header has next to a column's name — opening the same `ColumnMenu`
  * (anonymization method, salt), not a card-only duplicate of those actions.
  *
- * `isDroppedFromOutput` (declared method "Delete from output") is the one
- * state where this card keeps showing even though the column has
+ * `appliedMethod` is this column's current recipe entry (if any) — the
+ * same value `ColumnMenu`'s method grid would show as selected. "drop"
+ * ("Delete from output") gets its own card-level treatment: this is the
+ * one state where the card keeps showing even though the column has
  * disappeared from the Table tab's grid (see `useProfiledFile.js`'s
- * `pickMethod`) — muted (grayscale, not just faded, since the histogram's
+ * `pickMethod`), muted (grayscale, not just faded, since the histogram's
  * own color would otherwise just look like a lighter version of itself
- * rather than "off"), with the menu trigger swapped for a one-click
- * `onUndoDrop` instead of reopening the whole menu to reverse it. */
+ * rather than "off"), with the menu trigger swapped for a one-click undo.
+ * Any other method gets a small removable pill instead, in the same
+ * category color `ColumnMenu`'s method-card uses, so a real anonymization
+ * choice is visible on the card without reopening the whole menu to check
+ * or reverse it -- `onClearMethod(col.name)` (shared with the drop-undo
+ * button) un-declares it either way. */
 export default function ColumnCard({
   col,
   risk,
@@ -35,14 +42,17 @@ export default function ColumnCard({
   highlighted,
   onHoverChange,
   onOpenMenu,
-  isDroppedFromOutput,
-  onUndoDrop,
+  appliedMethod,
+  onClearMethod,
 }) {
   const { value: riskValue, loading: riskLoading } = risk;
   const { declared: declaredPattern, check, checking } = pattern;
   const patternError = check?.errors?.find(
     (e) => e.kind === "pattern_mismatch" && e.name === col.name,
   );
+  const isDroppedFromOutput = appliedMethod === "drop";
+  const pillMethod = appliedMethod && !isDroppedFromOutput ? appliedMethod : null;
+  const pillMeta = pillMethod ? (METHOD_META[pillMethod] ?? METHOD_META_FALLBACK) : null;
 
   return (
     <div
@@ -61,7 +71,7 @@ export default function ColumnCard({
             title="Deleted from output — undo"
             onClick={(e) => {
               e.stopPropagation();
-              onUndoDrop?.();
+              onClearMethod?.(col.name);
             }}
           >
             <Undo2 size={16} strokeWidth={2} aria-hidden="true" />
@@ -83,6 +93,23 @@ export default function ColumnCard({
           )
         )}
       </div>
+      {pillMethod && (
+        <span className={`column-card-method-pill method-card-${pillMeta.category}`}>
+          <pillMeta.icon size={12} strokeWidth={2} aria-hidden="true" />
+          {pillMeta.label ?? pillMethod}
+          <button
+            type="button"
+            aria-label={`Remove ${pillMeta.label ?? pillMethod} from ${col.name}`}
+            title="Undo this anonymization"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClearMethod?.(col.name);
+            }}
+          >
+            <X size={10} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        </span>
+      )}
       <HeaderSparkline distribution={col.distribution} />
       <dl>
         <dt>Type</dt>
