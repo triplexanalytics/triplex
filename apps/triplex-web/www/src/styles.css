@@ -36,12 +36,17 @@
   --warning-text: #8a5a00;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
-  /* One hue per method category (ColumnMenu.const.jsx METHOD_META) — reused
-     for the icon color and, via color-mix(), the card's tint/border. */
-  --method-pseudonymize: #4f46e5;
-  --method-encrypt: #7c3aed;
-  --method-generalize: #0d9488;
-  --method-mask: #b45309;
+  /* One shared hue for every real anonymization technique (ColumnMenu.const.jsx
+     METHOD_META) -- token_hmac/fpe/bucket/partial_mask all transform a
+     value in place, the same *kind* of action underneath four different
+     algorithms, so they read as one family (orange) rather than four
+     unrelated colors. --method-drop is the one card that isn't a
+     transform at all -- it excludes the column instead -- so it stays its
+     own, more prominent color (see below) rather than joining that family. */
+  --method-pseudonymize: #ea580c;
+  --method-encrypt: var(--method-pseudonymize);
+  --method-generalize: var(--method-pseudonymize);
+  --method-mask: var(--method-pseudonymize);
   --method-default: #6e7484;
   /* A live reference, not its own hex: this is a destructive action, the
      same role --error-text already plays everywhere else in the app, so it
@@ -100,10 +105,10 @@
     --warning-border: #6b5420;
     --warning-text: #f0c064;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
-    --method-pseudonymize: #818cf8;
-    --method-encrypt: #a78bfa;
-    --method-generalize: #2dd4bf;
-    --method-mask: #f0b264;
+    --method-pseudonymize: #fb923c;
+    --method-encrypt: var(--method-pseudonymize);
+    --method-generalize: var(--method-pseudonymize);
+    --method-mask: var(--method-pseudonymize);
     --method-default: #8890a0;
     /* Dark counterparts of the light-only Ocean Drift table tokens above:
        --surface-alt (#21242c) tinted toward OCEAN_DRIFT.primary rather
@@ -1012,8 +1017,12 @@ button.full-width { width: 100%; justify-content: center; }
   text-align: left;
   padding: 0.5rem 0.55rem;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface-alt);
+  /* A light tint of the card's own category color at rest, not a flat
+     --surface-alt every card shares regardless of what it does -- .selected
+     below is the same color-mix at a stronger percentage, so picking a
+     card reads as "more" of the same color language, not a different one. */
+  border: 1px solid color-mix(in srgb, var(--method-color) 20%, var(--border));
+  background: color-mix(in srgb, var(--method-color) 7%, var(--surface-alt));
   color: var(--text);
   cursor: pointer;
   transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
@@ -1054,6 +1063,20 @@ button.full-width { width: 100%; justify-content: center; }
 .method-card-generalize { --method-color: var(--method-generalize); }
 .method-card-mask { --method-color: var(--method-mask); }
 .method-card-drop { --method-color: var(--method-drop); }
+/* Stronger than the generic 7%/12% every other card gets: this one isn't
+   just a different-colored technique, it's the only destructive action in
+   the grid, and it reads more like the app's own error banners (full
+   --error-bg/--error-border, not a diluted mix of it) than a member of the
+   orange anonymization family. `:not(.selected)` so picking it still shows
+   *more* red via the generic .selected rule, same relationship every other
+   card has to its own idle state. */
+.method-card-drop:not(.selected) {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+}
+.method-card-drop.selected {
+  background: color-mix(in srgb, var(--method-drop) 22%, var(--surface-alt));
+}
 .method-card-default { --method-color: var(--method-default); }
 
 .column-menu select {
