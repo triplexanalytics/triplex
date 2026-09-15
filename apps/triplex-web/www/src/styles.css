@@ -703,9 +703,15 @@ button.full-width { width: 100%; justify-content: center; }
 /* "Delete from output" (see ColumnMenu's method grid): the column stays in
    the working view -- unlike .selected/.highlighted this isn't a hover or
    click state, it's a standing fact about the column, so every stat inside
-   fades along with it (opacity, not a background wash) rather than
-   layering another tint on top of whatever else the card is doing. */
-.column-card.muted { opacity: 0.55; }
+   fades along with it rather than layering another tint on top of whatever
+   else the card is doing. grayscale(), not just opacity: the histogram
+   (HeaderSparkline's canvas bars) is drawn in HISTOGRAM_COLOR, a blue --
+   opacity alone would just fade that blue, not read as "grayed out" the
+   way the plain text already does. A CSS filter on the card composites
+   over the canvas's own rendered pixels same as any other descendant, so
+   this grays the bars out too without HeaderSparkline needing to know
+   anything about this state. */
+.column-card.muted { filter: grayscale(1); opacity: 0.6; }
 
 .column-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4rem; }
 .column-card h3 { margin: 0 0 0.35rem; font-size: 0.92rem; }
