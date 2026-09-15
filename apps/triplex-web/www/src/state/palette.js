@@ -7,10 +7,9 @@
 
 // "Ocean Drift" — the design system this app is moving to (deep oceanic
 // blues/teals, a clean white surface), fixed hex values, not theme tokens:
-// the spec is a single light palette with no dark-mode variant defined, so
-// these stay constant rather than guessing a dark counterpart. Every role
-// the source doc defines, so later steps have a name to reach for instead
-// of a new inline hex.
+// the app is light-only by design, so these stay constant rather than
+// varying with anything. Every role the source doc defines, so later steps
+// have a name to reach for instead of a new inline hex.
 export const OCEAN_DRIFT = {
   primary: "#0f4c81",
   secondary: "#1a73b8",
@@ -47,22 +46,18 @@ export const HISTOGRAM_COLOR = OCEAN_DRIFT.secondary;
 // finally agree.
 //
 // A function, not a static object: every role below reads live off the
-// document, the same document ColumnCard's CSS is painted against, so a
-// light/dark toggle moves the whole grid (header background included, not
-// just its text) without this module hardcoding a duplicate of each mode's
-// hex and drifting from styles.css over time. Ocean Drift itself has no
-// documented dark variant (see OCEAN_DRIFT above), so bgHeader*/bgCell/
-// accentColor/borderColor read the dark-tinted --table-header-bg*/--accent/
-// --table-border tokens styles.css defines for that gap (a second copy of
-// the same hex by necessity -- CSS custom properties can't import a JS
-// constant -- so keep them in sync by hand if either changes) rather than
-// this module inventing its own dark extrapolation.
+// document, the same document ColumnCard's CSS is painted against, so this
+// module never hardcodes a duplicate of styles.css's hex values and drifts
+// from them over time. bgHeader*/bgCell/accentColor/borderColor read the
+// --table-header-bg*/--accent/--table-border tokens styles.css defines (a
+// second copy of the same hex by necessity -- CSS custom properties can't
+// import a JS constant -- so keep them in sync by hand if either changes).
 export function readGlideHeaderTheme() {
   const style = getComputedStyle(document.documentElement);
   const cssVar = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
   // The exact three grayscale tokens ColumnCard's CSS already uses, read
   // live rather than duplicated as hex, so the canvas header's text
-  // hierarchy matches the DOM card's pixel-for-pixel in both themes:
+  // hierarchy matches the DOM card's pixel-for-pixel:
   // --text for a headline (the card's h3, the header's name row),
   // --text-muted for the card's entire <dl> (every stat's label AND value
   // share this one tone — not a label/value two-tone, that was this
@@ -79,14 +74,14 @@ export function readGlideHeaderTheme() {
     bgHeader: cssVar("--table-header-bg", OCEAN_DRIFT.background),
     bgHeaderHasFocus: cssVar("--table-header-bg-focus", "#dcefff"),
     bgHeaderHovered: cssVar("--table-header-bg-hover", "#e5f2ff"),
-    bgCell: surface, // every other card/panel's own surface, not a fixed white -- so the grid body follows the theme toggle too, not just its header
+    bgCell: surface, // every other card/panel's own surface token, not a fixed white hex of its own
     bgCellMedium: surfaceAlt, // the risk bar's track — same gray ColumnCard's .risk-bar-track uses, not the header background (or an empty bar reads as "no bar")
     textDark: text,
     textHeader: text,
     textMedium: textMuted,
     textLight: textFaint,
     accentColor: accent, // the app's one unified accent token (styles.css), not a fixed light-only hex
-    borderColor: cssVar("--table-border", oceanDriftAlpha(0.16)), // OCEAN_DRIFT.primary at low alpha (dark mode: a lighter tint at higher alpha), not glide's neutral gray
+    borderColor: cssVar("--table-border", oceanDriftAlpha(0.16)), // OCEAN_DRIFT.primary at low alpha, not glide's neutral gray
     fontFamily: '-apple-system, "Segoe UI", system-ui, Roboto, sans-serif', // match the app's own body font, not glide's Inter default
   };
 }
@@ -137,8 +132,7 @@ const MATRIX_SAFE_MIX = 1;
  * single-hue sequential ramp in OCEAN_DRIFT.primary. `variant` picks which
  * safe-end mix applies (see PILL_SAFE_MIX/MATRIX_SAFE_MIX above); defaults
  * to the header pill's, the original caller. Fixed hex values, like the
- * rest of the Ocean Drift palette (no dark-mode variant is defined for it
- * yet). */
+ * rest of the Ocean Drift palette. */
 export function readRiskColorStops(variant = "pill") {
   const safeMix = variant === "matrix" ? MATRIX_SAFE_MIX : PILL_SAFE_MIX;
   const primary = hexToRgb(OCEAN_DRIFT.primary);

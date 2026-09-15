@@ -292,13 +292,6 @@ export default function TableTab({
     onColumnHover,
   });
 
-  // Re-read every render rather than once at module load, so a light/dark
-  // toggle picks up the new --text/--text-muted/... values — though nothing
-  // here forces a re-render on an OS theme change the way RiskMatrix.jsx's
-  // colorTick does; the next unrelated re-render (sort, data reload, ...)
-  // is what actually repaints the header. ponytail: fine for now, add a
-  // matching prefers-color-scheme listener if a bare toggle-with-no-other-
-  // interaction turns out to matter in practice.
   const glideTheme = readGlideHeaderTheme();
 
   // A ColumnCard- or RiskMatrix-originated highlight (AnalysisOverlay's

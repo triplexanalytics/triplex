@@ -18,9 +18,7 @@ import InfoTrigger from "./InfoTrigger";
  *
  * Plain 2D canvas, not a charting library: a static grid of a few hundred
  * flat-colored rects with a hover tooltip has no need for a WebGL scene
- * graph. Re-reads its color stops (and redraws) on a light/dark theme
- * change since canvas paint doesn't follow CSS custom properties on its
- * own the way DOM elements do.
+ * graph.
  *
  * The hovered cell's value is drawn on a second, transparent canvas
  * layered on top rather than baked into the main draw pass: fading it in
@@ -65,14 +63,6 @@ export default function RiskMatrix({
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const [hover, setHover] = useState(null); // { x, y, row, col, label, tooltip } | null
-  const [colorTick, setColorTick] = useState(0);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setColorTick((t) => t + 1);
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
-  }, []);
 
   const { width, height, legendWidth } = computeMatrixSize(rows.length, cols.length);
 
@@ -148,7 +138,7 @@ export default function RiskMatrix({
     ctx.fillText(legendLowLabel, legendX, legendY + 22);
     ctx.textAlign = "right";
     ctx.fillText(legendHighLabel, legendX + legendWidth, legendY + 22);
-  }, [rows, cols, cellAt, width, height, legendLowLabel, legendHighLabel, colorTick]);
+  }, [rows, cols, cellAt, width, height, legendLowLabel, legendHighLabel]);
 
   // Cross-component hover reports (a sibling matrix, or now the table
   // header) get dropped if called synchronously from this canvas's native-

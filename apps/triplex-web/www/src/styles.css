@@ -1,7 +1,7 @@
-/* === Theme tokens (light + dark) === */
+/* === Theme tokens === */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #f7f8fa;
   --surface: #ffffff;
   --surface-alt: #f1f3f6;
@@ -18,10 +18,9 @@
      table<->card/matrix cross-highlight, one flavor in canvas (RiskMatrix's
      own band) and a different one in DOM (.table-header-highlight,
      .column-card.highlighted), for what's meant to be the exact same
-     highlight. --accent-hover is a darker tint (buttons get *darker* on
-     hover in light mode, same relationship the old indigo had).
-     CSS can't import a JS constant, so this hex is a second copy of
-     palette.js's -- keep them in sync by hand if either changes. */
+     highlight. --accent-hover is a darker tint (buttons get darker on
+     hover). CSS can't import a JS constant, so this hex is a second copy
+     of palette.js's -- keep them in sync by hand if either changes. */
   --accent: #0f4c81;
   --accent-hover: #0c3d67;
   --accent-text: #ffffff;
@@ -55,73 +54,16 @@
   --method-drop: var(--error-text);
   /* Read by palette.js's readGlideHeaderTheme() -- glide-data-grid takes a
      plain JS theme object, not CSS, so these are what let the table's own
-     header chrome (background behind the sparkline/risk-bar row) follow
-     the light/dark toggle instead of staying the fixed OCEAN_DRIFT.background
-     hex it used to (a genuine gap, not a style choice: the whole grid body
-     stayed hardcoded white/light-blue even in dark mode until this was
-     added). Light values are OCEAN_DRIFT.background and its two states, as
-     before; --table-border is oceanDriftAlpha(0.16) (see palette.js) —
-     the same "OCEAN_DRIFT.primary, low alpha" border used elsewhere, given
-     a name here since color-mix()/oceanDriftAlpha() aren't reachable from
-     this static token. */
+     header chrome (background behind the sparkline/risk-bar row) match
+     OCEAN_DRIFT.background/its two states instead of a fixed hex baked
+     into that JS module; --table-border is oceanDriftAlpha(0.16) (see
+     palette.js) -- the same "OCEAN_DRIFT.primary, low alpha" border used
+     elsewhere, given a name here since color-mix()/oceanDriftAlpha()
+     aren't reachable from this static token. */
   --table-header-bg: #f0f9ff;
   --table-header-bg-hover: #e5f2ff;
   --table-header-bg-focus: #dcefff;
   --table-border: rgba(15, 76, 129, 0.16);
-  /* The active tier-picker gradient's top stop (see .tier-option.active) --
-     equal to --accent in light mode, but its own, more saturated blue in
-     dark mode: --accent's dark tint is deliberately desaturated for text/
-     border contrast (see above), which reads as too close in value to the
-     gradient's teal bottom stop to look like a real top-to-bottom sweep. */
-  --tier-gradient-top: var(--accent);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14161b;
-    --surface: #1b1e25;
-    --surface-alt: #21242c;
-    --border: #2c303a;
-    --text: #e7e9ee;
-    --text-muted: #a3a9b7;
-    --text-faint: #6e7484;
-    /* A lighter tint of the same OCEAN_DRIFT.primary blue (light mode's
-       --accent above), not a fixed dark-mode hue of its own -- Ocean Drift
-       has no documented dark variant (see palette.js), so this tint is
-       this app's own extrapolation: lightened enough to clear ~6:1 contrast
-       against --bg/--surface, matching the old indigo's dark-mode contrast
-       level. --accent-hover is a *lighter* tint here (opposite direction
-       from light mode), same relationship the old indigo had. */
-    --accent: #7b9dba;
-    --accent-hover: #93aec6;
-    --accent-text: #14161b;
-    --success-bg: #0e2419;
-    --success-border: #1e5c3c;
-    --success-text: #5fd897;
-    --error-bg: #2a1414;
-    --error-border: #6b2a2a;
-    --error-text: #f28b8b;
-    --warning-bg: #2a2210;
-    --warning-border: #6b5420;
-    --warning-text: #f0c064;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
-    --method-pseudonymize: #fb923c;
-    --method-encrypt: var(--method-pseudonymize);
-    --method-generalize: var(--method-pseudonymize);
-    --method-mask: var(--method-pseudonymize);
-    --method-default: #8890a0;
-    /* Dark counterparts of the light-only Ocean Drift table tokens above:
-       --surface-alt (#21242c) tinted toward OCEAN_DRIFT.primary rather
-       than a fresh guess, so the header reads as "this surface, blue-
-       tinted" the same relationship the light values have to white.
-       --table-border is the dark --accent tint (#7b9dba) at low alpha,
-       mirroring how the light border is the light --accent at low alpha. */
-    --table-header-bg: #1d2c3d;
-    --table-header-bg-hover: #35485c;
-    --table-header-bg-focus: #3e5469;
-    --table-border: rgba(123, 157, 186, 0.3);
-    --tier-gradient-top: #488fc6;
-  }
 }
 
 * { box-sizing: border-box; }
@@ -283,7 +225,7 @@ button.full-width { width: 100%; justify-content: center; }
   border: 1.5px solid transparent;
   background:
     linear-gradient(var(--surface), var(--surface)) padding-box,
-    linear-gradient(180deg, var(--tier-gradient-top), #38b2ac) border-box;
+    linear-gradient(180deg, var(--accent), #38b2ac) border-box;
   /* 180% (not the button's own 100%) stretches the blue->teal transition
      across nearly two button-heights' worth of space, so the visible slice
      is a longer, more gradual stretch of it than the full change
