@@ -20,6 +20,14 @@ export const OCEAN_DRIFT = {
   text: "#1a202c",
 };
 
+// `OCEAN_DRIFT.primary` at a given alpha, as a CSS color -- one spelling of
+// "15, 76, 129" instead of two copies (this module's own `borderColor`
+// below, and RiskMatrix.jsx's cross-highlight band) silently drifting if
+// either is ever edited alone.
+export function oceanDriftAlpha(alpha) {
+  return `rgba(15, 76, 129, ${alpha})`;
+}
+
 // The header sparkline's uniform bar color. Not OCEAN_DRIFT.accent: computed
 // contrast against the spec's own background/surface is only 2.4-2.6:1,
 // under the dataviz skill's >=3:1 mark floor. OCEAN_DRIFT.secondary clears
@@ -38,12 +46,17 @@ export const HISTOGRAM_COLOR = OCEAN_DRIFT.secondary;
 // this app doesn't draw its own) and this module's hand-drawn colors
 // finally agree.
 //
-// A function, not a static object: the grayscale roles (see below) read
-// live off the document, the same document ColumnCard's CSS is painted
-// against, so a light/dark toggle moves both without this module hardcoding
-// a duplicate of each mode's hex and drifting from styles.css over time.
-// The Ocean Drift roles (background/accent) stay fixed hex, per OCEAN_DRIFT
-// above — that spec has no dark variant to read.
+// A function, not a static object: every role below reads live off the
+// document, the same document ColumnCard's CSS is painted against, so a
+// light/dark toggle moves the whole grid (header background included, not
+// just its text) without this module hardcoding a duplicate of each mode's
+// hex and drifting from styles.css over time. Ocean Drift itself has no
+// documented dark variant (see OCEAN_DRIFT above), so bgHeader*/bgCell/
+// accentColor/borderColor read the dark-tinted --table-header-bg*/--accent/
+// --table-border tokens styles.css defines for that gap (a second copy of
+// the same hex by necessity -- CSS custom properties can't import a JS
+// constant -- so keep them in sync by hand if either changes) rather than
+// this module inventing its own dark extrapolation.
 export function readGlideHeaderTheme() {
   const style = getComputedStyle(document.documentElement);
   const cssVar = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
@@ -59,19 +72,21 @@ export function readGlideHeaderTheme() {
   const textMuted = cssVar("--text-muted", "#5b6270");
   const textFaint = cssVar("--text-faint", "#8890a0");
   const surfaceAlt = cssVar("--surface-alt", "#f1f3f6");
+  const surface = cssVar("--surface", OCEAN_DRIFT.surface);
+  const accent = cssVar("--accent", OCEAN_DRIFT.primary);
 
   return {
-    bgHeader: OCEAN_DRIFT.background,
-    bgHeaderHasFocus: "#dcefff",
-    bgHeaderHovered: "#e5f2ff",
-    bgCell: OCEAN_DRIFT.surface,
+    bgHeader: cssVar("--table-header-bg", OCEAN_DRIFT.background),
+    bgHeaderHasFocus: cssVar("--table-header-bg-focus", "#dcefff"),
+    bgHeaderHovered: cssVar("--table-header-bg-hover", "#e5f2ff"),
+    bgCell: surface, // every other card/panel's own surface, not a fixed white -- so the grid body follows the theme toggle too, not just its header
     bgCellMedium: surfaceAlt, // the risk bar's track — same gray ColumnCard's .risk-bar-track uses, not the header background (or an empty bar reads as "no bar")
     textDark: text,
     textHeader: text,
     textMedium: textMuted,
     textLight: textFaint,
-    accentColor: OCEAN_DRIFT.primary,
-    borderColor: "rgba(15, 76, 129, 0.16)", // OCEAN_DRIFT.primary at low alpha, not glide's neutral gray
+    accentColor: accent, // the app's one unified accent token (styles.css), not a fixed light-only hex
+    borderColor: cssVar("--table-border", oceanDriftAlpha(0.16)), // OCEAN_DRIFT.primary at low alpha (dark mode: a lighter tint at higher alpha), not glide's neutral gray
     fontFamily: '-apple-system, "Segoe UI", system-ui, Roboto, sans-serif', // match the app's own body font, not glide's Inter default
   };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { truncateToWidth } from "../utils";
-import { readRiskColorStops } from "../state/palette";
+import { oceanDriftAlpha, readRiskColorStops } from "../state/palette";
 import { CELL_SIZE, CELL_GAP, ROW_LABEL_WIDTH, COL_LABEL_HEIGHT, computeMatrixSize } from "../state/matrixLayout";
 import { NO_DATA_COLOR } from "./RiskMatrix.const";
 import InfoTrigger from "./InfoTrigger";
@@ -244,7 +244,7 @@ export default function RiskMatrix({
     if (highlightRow >= 0 || highlightCol >= 0) {
       const gridWidth = ROW_LABEL_WIDTH + cols.length * CELL_SIZE;
       const gridBottom = COL_LABEL_HEIGHT + rows.length * CELL_SIZE;
-      ctx.fillStyle = "rgba(15, 76, 129, 0.09)"; // OCEAN_DRIFT.primary, low alpha
+      ctx.fillStyle = oceanDriftAlpha(0.09);
       if (highlightRow >= 0) {
         ctx.fillRect(0, COL_LABEL_HEIGHT + highlightRow * CELL_SIZE, gridWidth, CELL_SIZE);
       }
