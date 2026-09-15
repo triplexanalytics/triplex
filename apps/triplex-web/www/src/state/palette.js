@@ -69,6 +69,7 @@ export function readGlideHeaderTheme() {
   const surfaceAlt = cssVar("--surface-alt", "#f1f3f6");
   const surface = cssVar("--surface", OCEAN_DRIFT.surface);
   const accent = cssVar("--accent", OCEAN_DRIFT.primary);
+  const accentFg = cssVar("--accent-text", "#ffffff");
 
   return {
     bgHeader: cssVar("--table-header-bg", OCEAN_DRIFT.background),
@@ -80,6 +81,14 @@ export function readGlideHeaderTheme() {
     textHeader: text,
     textMedium: textMuted,
     textLight: textFaint,
+    // Read (not derived on the fly) by useTableHeaderCanvas's drawHeader: when
+    // Glide marks a header `isSelected` it fills the whole cell with solid
+    // accentColor first (data-grid-render.header.js), so the text drawn on
+    // top has to switch to this instead of textDark/textMedium/textLight or
+    // it's dark-on-dark-navy and unreadable. Same --accent-text token
+    // button.primary already uses for the same "text sitting on solid accent"
+    // case.
+    accentFg,
     accentColor: accent, // the app's one unified accent token (styles.css), not a fixed light-only hex
     borderColor: cssVar("--table-border", oceanDriftAlpha(0.16)), // OCEAN_DRIFT.primary at low alpha, not glide's neutral gray
     fontFamily: '-apple-system, "Segoe UI", system-ui, Roboto, sans-serif', // match the app's own body font, not glide's Inter default

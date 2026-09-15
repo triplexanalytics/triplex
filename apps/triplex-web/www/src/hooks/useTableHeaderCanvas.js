@@ -68,7 +68,7 @@ export function useTableHeaderCanvas({
   // it shouldn't also draw its default single-line title on top.
   const drawHeader = useCallback(
     (args) => {
-      const { ctx, rect, column, theme } = args;
+      const { ctx, rect, column, theme, isSelected } = args;
       const innerX = rect.x + HEADER_PADDING;
       const icon = menuIconLocalRect(rect.width, ICON_LAYOUT);
       const sortArrowWidth = 12;
@@ -79,9 +79,14 @@ export function useTableHeaderCanvas({
       // comment for the color side of this same match.
       const nameFont = `700 13px ${fontFamily}`;
       const statFont = `500 11px ${fontFamily}`;
-      const nameColor = theme?.textDark ?? "#1a1d24";
-      const faintColor = theme?.textLight ?? "#8890a0"; // --text-faint: the type icon only
-      const mutedColor = theme?.textMedium ?? "#5b6270"; // --text-muted: every stat's label AND value
+      // Glide paints the whole cell solid accentColor when the column is
+      // selected (data-grid-render.header.js), so every text/icon color
+      // below has to switch to accentFg or it's the normal dark-on-light
+      // palette rendered dark-on-navy instead.
+      const nameColor = isSelected ? (theme?.accentFg ?? "#ffffff") : (theme?.textDark ?? "#1a1d24");
+      const faintColor = isSelected ? (theme?.accentFg ?? "#ffffff") : (theme?.textLight ?? "#8890a0"); // --text-faint: the type icon only
+      const mutedColor = isSelected ? (theme?.accentFg ?? "#ffffff") : (theme?.textMedium ?? "#5b6270"); // --text-muted: every stat's label AND value
+      const iconTheme = isSelected ? { ...theme, textLight: theme?.accentFg ?? "#ffffff", accentColor: theme?.accentFg ?? "#ffffff" } : theme;
 
       ctx.textBaseline = "middle";
 
@@ -113,9 +118,9 @@ export function useTableHeaderCanvas({
         rect.x + icon.x - sortArrowWidth / 2,
         nameRowCenterY,
         sort?.column === column.id ? sort.direction : null,
-        theme,
+        iconTheme,
       );
-      drawMenuIcon(ctx, rect.x + icon.x, rect.y + icon.y, icon.size, theme);
+      drawMenuIcon(ctx, rect.x + icon.x, rect.y + icon.y, icon.size, iconTheme);
 
       // --- histogram row ---
       const bars = barsFor(distributionByName[column.id]);
