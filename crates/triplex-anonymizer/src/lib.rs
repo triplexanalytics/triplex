@@ -42,6 +42,10 @@ Keep the mapping file secured and separate from the anonymized dataset.";
 pub struct AnonymizeReport {
     pub rows_processed: usize,
     pub columns_anonymized: Vec<String>,
+    /// Columns declared with `AnonymizeMethod::Drop` — excluded from the
+    /// output entirely, not masked in place, so tracked separately from
+    /// `columns_anonymized` rather than folded into it.
+    pub columns_dropped: Vec<String>,
     pub unique_masked_values_minted: usize,
     pub warning: &'static str,
 }
@@ -84,59 +88,97 @@ struct ResolvedColumn<'a> {
     mechanism: Box<dyn mechanism::Mechanism>,
 }
 
+/// Splits a recipe's declared columns into the ones that get masked in
+/// place (`ResolvedColumn`s, needing a real salt) and the ones declared
+/// `AnonymizeMethod::Drop` (just their header index, collected into the
+/// returned set — `Drop` needs no salt and no `Mechanism`, since it never
+/// touches a cell value at all; see `drop_columns`, which does the actual
+/// exclusion after masking runs).
 fn resolve_columns<'a>(
     recipe: &'a AnonymizeRecipe,
     headers: &[String],
-) -> Result<Vec<ResolvedColumn<'a>>> {
-    recipe
-        .columns
-        .iter()
-        .map(|declared| {
-            let header_index = headers
-                .iter()
-                .position(|h| h == &declared.name)
-                .ok_or_else(|| Error::ColumnNotFound(declared.name.clone()))?;
-            let salt = std::env::var(&declared.salt_env)
-                .map_err(|_| Error::MissingEnvVar(declared.salt_env.clone()))?
-                .into_bytes();
-            Ok(ResolvedColumn {
-                header_index,
-                declared,
-                mechanism: mechanism::build_mechanism(declared, &salt),
-            })
-        })
-        .collect()
+) -> Result<(Vec<ResolvedColumn<'a>>, HashSet<usize>)> {
+    let mut resolved = Vec::new();
+    let mut drop_indices = HashSet::new();
+    for declared in &recipe.columns {
+        let header_index = headers
+            .iter()
+            .position(|h| h == &declared.name)
+            .ok_or_else(|| Error::ColumnNotFound(declared.name.clone()))?;
+        if declared.method == AnonymizeMethod::Drop {
+            drop_indices.insert(header_index);
+            continue;
+        }
+        let salt = std::env::var(&declared.salt_env)
+            .map_err(|_| Error::MissingEnvVar(declared.salt_env.clone()))?
+            .into_bytes();
+        resolved.push(ResolvedColumn {
+            header_index,
+            declared,
+            mechanism: mechanism::build_mechanism(declared, &salt),
+        });
+    }
+    Ok((resolved, drop_indices))
 }
 
 /// Like `resolve_columns`, but takes each column's salt directly from
 /// `salts` (keyed by declared column name) instead of reading an OS env
 /// var — the browser/WASM path (`apps/triplex-web`) has no environment to
-/// read from; the salt comes from what the user typed into the page.
+/// read from; the salt comes from what the user typed into the page. A
+/// `Drop`-method column needs no entry in `salts` either, same reasoning.
 fn resolve_columns_with_salts<'a>(
     recipe: &'a AnonymizeRecipe,
     headers: &[String],
     salts: &std::collections::HashMap<String, String>,
-) -> Result<Vec<ResolvedColumn<'a>>> {
-    recipe
-        .columns
-        .iter()
-        .map(|declared| {
-            let header_index = headers
-                .iter()
-                .position(|h| h == &declared.name)
-                .ok_or_else(|| Error::ColumnNotFound(declared.name.clone()))?;
-            let salt = salts
-                .get(&declared.name)
-                .ok_or_else(|| Error::MissingSalt(declared.name.clone()))?
-                .clone()
-                .into_bytes();
-            Ok(ResolvedColumn {
-                header_index,
-                declared,
-                mechanism: mechanism::build_mechanism(declared, &salt),
-            })
-        })
-        .collect()
+) -> Result<(Vec<ResolvedColumn<'a>>, HashSet<usize>)> {
+    let mut resolved = Vec::new();
+    let mut drop_indices = HashSet::new();
+    for declared in &recipe.columns {
+        let header_index = headers
+            .iter()
+            .position(|h| h == &declared.name)
+            .ok_or_else(|| Error::ColumnNotFound(declared.name.clone()))?;
+        if declared.method == AnonymizeMethod::Drop {
+            drop_indices.insert(header_index);
+            continue;
+        }
+        let salt = salts
+            .get(&declared.name)
+            .ok_or_else(|| Error::MissingSalt(declared.name.clone()))?
+            .clone()
+            .into_bytes();
+        resolved.push(ResolvedColumn {
+            header_index,
+            declared,
+            mechanism: mechanism::build_mechanism(declared, &salt),
+        });
+    }
+    Ok((resolved, drop_indices))
+}
+
+/// Removes every column at a `drop_indices` header index from both the
+/// header row and every data row — `AnonymizeMethod::Drop`'s actual effect:
+/// the column doesn't appear in the output at all, unlike every other
+/// method, which masks a column's values in place but keeps the column
+/// itself. Its original values are never even examined by `mask_rows`
+/// (`Drop` columns never enter `resolved`), so nothing about them reaches
+/// this far except the fact that they exist — same trust boundary as any
+/// other value that never leaves the client machine.
+fn drop_columns(sample: triplex_io::Sample, drop_indices: &HashSet<usize>) -> triplex_io::Sample {
+    if drop_indices.is_empty() {
+        return sample;
+    }
+    let keep = |row: Vec<String>| -> Vec<String> {
+        row.into_iter()
+            .enumerate()
+            .filter(|(i, _)| !drop_indices.contains(i))
+            .map(|(_, v)| v)
+            .collect()
+    };
+    triplex_io::Sample {
+        headers: keep(sample.headers),
+        rows: sample.rows.into_iter().map(keep).collect(),
+    }
 }
 
 /// The masking loop shared by every entry point: runs each resolved
@@ -145,7 +187,10 @@ fn resolve_columns_with_salts<'a>(
 /// the same way whether the `Sample` came from a local file or from
 /// browser bytes. Oblivious to *which* mechanism a column uses — adding a
 /// fifth one (see `mechanism.rs`) never touches this loop.
-fn mask_rows(resolved: &[ResolvedColumn], sample: triplex_io::Sample) -> (triplex_io::Sample, Vec<mapping::MappingEntry>) {
+fn mask_rows(
+    resolved: &[ResolvedColumn],
+    sample: triplex_io::Sample,
+) -> (triplex_io::Sample, Vec<mapping::MappingEntry>) {
     let (headers, mut rows) = (sample.headers, sample.rows);
     let mut mapping_entries = Vec::new();
     let mut seen = HashSet::new();
@@ -184,8 +229,13 @@ pub fn anonymize_file(
     mapping_passphrase: Option<&str>,
 ) -> Result<AnonymizeReport> {
     let sample = read_rows(input_path)?;
-    let resolved = resolve_columns(recipe, &sample.headers)?;
+    let (resolved, drop_indices) = resolve_columns(recipe, &sample.headers)?;
     let (masked, mapping_entries) = mask_rows(&resolved, sample);
+    let columns_dropped: Vec<String> = drop_indices
+        .iter()
+        .map(|&i| masked.headers[i].clone())
+        .collect();
+    let masked = drop_columns(masked, &drop_indices);
 
     triplex_io::write_csv(output_path, &masked.headers, &masked.rows)?;
 
@@ -203,6 +253,7 @@ pub fn anonymize_file(
     Ok(AnonymizeReport {
         rows_processed: masked.rows.len(),
         columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
+        columns_dropped,
         unique_masked_values_minted: mapping_entries.len(),
         warning: PSEUDONYMIZATION_WARNING,
     })
@@ -223,8 +274,13 @@ pub fn anonymize_bytes(
     salts: &std::collections::HashMap<String, String>,
 ) -> Result<AnonymizeBytesResult> {
     let sample = read_rows_bytes(bytes, extension)?;
-    let resolved = resolve_columns_with_salts(recipe, &sample.headers, salts)?;
+    let (resolved, drop_indices) = resolve_columns_with_salts(recipe, &sample.headers, salts)?;
     let (masked, mapping_entries) = mask_rows(&resolved, sample);
+    let columns_dropped: Vec<String> = drop_indices
+        .iter()
+        .map(|&i| masked.headers[i].clone())
+        .collect();
+    let masked = drop_columns(masked, &drop_indices);
 
     let masked_csv = triplex_io::write_csv_bytes(&masked.headers, &masked.rows)?;
     let mapping_csv = mapping::mapping_to_csv(&mapping_entries)?;
@@ -234,6 +290,7 @@ pub fn anonymize_bytes(
         report: AnonymizeReport {
             rows_processed: masked.rows.len(),
             columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
+            columns_dropped,
             unique_masked_values_minted: mapping_entries.len(),
             warning: PSEUDONYMIZATION_WARNING,
         },
@@ -373,6 +430,66 @@ mod tests {
     }
 
     #[test]
+    fn anonymize_bytes_with_drop_removes_the_column_entirely_and_needs_no_salt() {
+        let recipe = recipe_with_method("name", AnonymizeMethod::Drop, "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let salts = std::collections::HashMap::new(); // empty -- Drop needs no salt
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+            .expect("anonymize_bytes should succeed with no salt for a Drop-only recipe");
+        let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+
+        assert_eq!(masked.headers, vec!["id", "price", "in_stock"]);
+        assert_eq!(masked.rows[0], vec!["1", "9.99", "true"]);
+        assert_eq!(result.report.columns_dropped, vec!["name"]);
+        assert!(result.report.columns_anonymized.is_empty());
+        // Nothing to reverse for a dropped column -- no mapping entry at all.
+        let mapping = triplex_io::read_csv_full_bytes(&result.mapping_csv).unwrap();
+        assert!(mapping.rows.is_empty());
+    }
+
+    #[test]
+    fn anonymize_bytes_with_drop_and_a_masked_column_keeps_indices_aligned() {
+        let recipe = AnonymizeRecipe {
+            version: 1,
+            columns: vec![
+                AnonymizeColumn {
+                    name: "id".to_string(),
+                    method: AnonymizeMethod::Drop,
+                    salt_env: "unused".to_string(),
+                    bucket_width: 10,
+                    keep_prefix: 0,
+                    keep_suffix: 4,
+                },
+                AnonymizeColumn {
+                    name: "name".to_string(),
+                    method: AnonymizeMethod::TokenHmac,
+                    salt_env: "unused".to_string(),
+                    bucket_width: 10,
+                    keep_prefix: 0,
+                    keep_suffix: 4,
+                },
+            ],
+        };
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string()); // no "id" entry needed
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+            .expect("anonymize_bytes should succeed");
+        let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+
+        // "id" (originally index 0) is gone; "price"/"in_stock" keep their
+        // original values at their shifted-left positions; "name" (now
+        // index 2) is masked, not just relocated.
+        assert_eq!(masked.headers, vec!["price", "in_stock", "name"]);
+        assert_eq!(masked.rows[0][0], "9.99");
+        assert_eq!(masked.rows[0][1], "true");
+        assert_ne!(masked.rows[0][2], "widget");
+        assert_eq!(masked.rows[0][2].len(), 64); // hex-encoded HMAC-SHA256
+    }
+
+    #[test]
     fn anonymize_bytes_matches_anonymize_file_for_the_same_input_and_salt() {
         std::env::set_var("TRIPLEX_TEST_SALT_BYTES_PARITY", "test-salt");
         let recipe = recipe_for("name", "TRIPLEX_TEST_SALT_BYTES_PARITY");
@@ -391,7 +508,10 @@ mod tests {
         let result = anonymize_bytes(&bytes, "csv", &recipe, &salts).unwrap();
         let via_bytes = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
 
-        assert_eq!(via_bytes.rows, via_path.rows, "the same salt must mint the same tokens regardless of delivery surface");
+        assert_eq!(
+            via_bytes.rows, via_path.rows,
+            "the same salt must mint the same tokens regardless of delivery surface"
+        );
     }
 
     #[test]
@@ -425,14 +545,8 @@ mod tests {
         let output = temp_path("output_1.csv");
         let mapping_out = temp_path("mapping_1.csv");
 
-        let report = anonymize_file(
-            &fixture("sample.csv"),
-            &recipe,
-            &output,
-            &mapping_out,
-            None,
-        )
-        .expect("anonymize should succeed");
+        let report = anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None)
+            .expect("anonymize should succeed");
 
         assert_eq!(report.rows_processed, 4);
         assert_eq!(report.columns_anonymized, vec!["name"]);

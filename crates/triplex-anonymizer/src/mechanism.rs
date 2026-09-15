@@ -20,7 +20,12 @@ pub(crate) trait Mechanism {
 }
 
 /// Builds the masking strategy for one resolved column from its declared
-/// method, salt, and method-specific parameters.
+/// method, salt, and method-specific parameters. Never actually called for
+/// `AnonymizeMethod::Drop` — `lib.rs`'s `resolve_columns`/
+/// `resolve_columns_with_salts` filter those out before reaching here,
+/// since a dropped column needs no per-cell transform at all — but the
+/// match still has to be exhaustive, so that case names the invariant
+/// instead of silently falling through a wildcard arm.
 pub(crate) fn build_mechanism(column: &AnonymizeColumn, salt: &[u8]) -> Box<dyn Mechanism> {
     match column.method {
         AnonymizeMethod::TokenHmac => Box::new(tokenize::HmacTokenizer::new(salt)),
@@ -30,5 +35,8 @@ pub(crate) fn build_mechanism(column: &AnonymizeColumn, salt: &[u8]) -> Box<dyn 
             column.keep_prefix,
             column.keep_suffix,
         )),
+        AnonymizeMethod::Drop => {
+            unreachable!("Drop columns are filtered out before build_mechanism is called")
+        }
     }
 }

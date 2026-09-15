@@ -3,11 +3,14 @@ use std::path::Path;
 use triplex_core::{Error, Result};
 
 /// The four Tier 1 mechanisms from the design notes's
-/// product matrix. Declaring any other method is a clear deserialization
-/// error, not a silently ignored no-op. Each variant's own file
-/// (`tokenize.rs`/`fpe.rs`/`bucket.rs`/`partial_mask.rs`) implements the
-/// `Mechanism` trait; `mechanism::build_mechanism` is the one place that
-/// dispatches a value here to its concrete masking strategy.
+/// product matrix, plus `Drop`: not a masking strategy at all, but a
+/// declared column's other valid fate — excluded from the output entirely
+/// rather than transformed in place. Declaring any other method is a clear
+/// deserialization error, not a silently ignored no-op. Each masking
+/// variant's own file (`tokenize.rs`/`fpe.rs`/`bucket.rs`/`partial_mask.rs`)
+/// implements the `Mechanism` trait; `mechanism::build_mechanism` is the one
+/// place that dispatches a value here to its concrete masking strategy —
+/// `Drop` never reaches it (see `resolve_columns`'s doc comment).
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AnonymizeMethod {
@@ -15,6 +18,7 @@ pub enum AnonymizeMethod {
     Fpe,
     Bucket,
     PartialMask,
+    Drop,
 }
 
 impl AnonymizeMethod {
@@ -27,6 +31,7 @@ impl AnonymizeMethod {
         AnonymizeMethod::Fpe,
         AnonymizeMethod::Bucket,
         AnonymizeMethod::PartialMask,
+        AnonymizeMethod::Drop,
     ];
 }
 
@@ -148,7 +153,7 @@ mod tests {
 
     #[test]
     fn all_lists_every_implemented_method() {
-        // Deliberate tripwire: fails the moment a fifth `AnonymizeMethod`
+        // Deliberate tripwire: fails the moment a sixth `AnonymizeMethod`
         // variant is added, forcing a conscious update here — the whole
         // point of `ALL` is that a UI can read it instead of hardcoding a
         // menu, so it must never silently fall behind the enum.
@@ -159,6 +164,7 @@ mod tests {
                 AnonymizeMethod::Fpe,
                 AnonymizeMethod::Bucket,
                 AnonymizeMethod::PartialMask,
+                AnonymizeMethod::Drop,
             ]
         );
     }

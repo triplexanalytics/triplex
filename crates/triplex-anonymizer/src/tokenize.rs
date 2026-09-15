@@ -70,6 +70,8 @@ mod tests {
     fn is_a_64_character_lowercase_hex_string() {
         let token = hmac_token(b"salt", "alice@example.com");
         assert_eq!(token.len(), 64);
-        assert!(token.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(token
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
     }
 }
