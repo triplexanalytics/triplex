@@ -53,7 +53,6 @@ export default function AnalysisOverlay({
   salt,
   onPickMethod,
   onClearMethod,
-  onRemoveColumn,
   onSaltChange,
   onAnonymize,
   anonymizing,
@@ -130,7 +129,6 @@ export default function AnalysisOverlay({
               salt={salt}
               onPickMethod={onPickMethod}
               onClearMethod={onClearMethod}
-              onRemoveColumn={onRemoveColumn}
               onSaltChange={onSaltChange}
               onAnonymize={onAnonymize}
               anonymizing={anonymizing}

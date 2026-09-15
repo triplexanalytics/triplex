@@ -1,4 +1,3 @@
-import { Trash2 } from "lucide-react";
 import { IMPUTATION_OPTIONS, METHOD_INFO, METHOD_META, METHOD_META_FALLBACK } from "./ColumnMenu.const";
 import InfoTrigger from "./InfoTrigger";
 
@@ -6,7 +5,11 @@ import InfoTrigger from "./InfoTrigger";
 
 /** Anchored dropdown opened from the small icon next to a column's name in
  * the Table tab's header — the per-column decisions (anonymization now,
- * imputation once it exists) live here instead of a fixed corner panel. */
+ * imputation once it exists) live here instead of a fixed corner panel.
+ * Picking "drop" (the "Delete from output" method card) is this menu's one
+ * destructive-feeling action; it has no confirm() dialog like a plain
+ * delete button might, because it isn't a dead end -- the card it hides
+ * behind gets a one-click undo instead (see ColumnCard). */
 export default function ColumnMenu({
   columnName,
   x,
@@ -18,7 +21,6 @@ export default function ColumnMenu({
   onSaltChange,
   onAnonymize,
   anonymizing,
-  onRemove,
   onClose,
   isLikelyIdentifier,
   declaredAsString,
@@ -116,20 +118,6 @@ export default function ColumnMenu({
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="column-menu-section">
-          <button
-            className="danger full-width"
-            onClick={() => {
-              if (window.confirm(`Remove "${columnName}" from the dataset? This can't be undone here.`)) {
-                onRemove();
-              }
-            }}
-          >
-            <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-            Remove from dataset
-          </button>
         </div>
       </div>
     </>

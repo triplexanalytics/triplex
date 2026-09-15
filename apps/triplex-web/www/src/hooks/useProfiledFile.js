@@ -29,10 +29,15 @@ export function useProfiledFile(wasm) {
   const [contract, setContract] = useState(null);
   const [recipe, setRecipe] = useState(createEmptyRecipe());
   const [salt, setSalt] = useState("");
-  // Columns the user removed from the working view — a frontend-only hide
-  // (drops it from the table, contract, and recipe), not a backend "drop
-  // column" action: the anonymize/export pipeline has no such action yet,
-  // so "Download data" still includes it in the masked CSV until that lands.
+  // Columns currently hidden from the table view -- exactly the columns
+  // whose recipe method is "drop" ("Delete from output," see pickMethod
+  // below): one merged action, not two. It used to be its own independent
+  // "Remove from dataset" button that hid a column from the table/contract
+  // without the anonymize/export pipeline actually excluding it from the
+  // output (a real gap: "Download data" still included it) -- now that
+  // AnonymizeMethod::Drop genuinely excludes it, keeping a second,
+  // differently-behaved hide action alongside it was just confusing (two
+  // buttons that each hide the column, doing different things to it).
   const [removedColumns, setRemovedColumns] = useState(() => new Set());
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -67,22 +72,35 @@ export function useProfiledFile(wasm) {
     }
   }, []);
 
+  // Picking "drop" hides the column from the table view too (see
+  // removedColumns above) -- a dropped column can't also be half-shown, so
+  // this is the one place that toggles both together. Picking any other
+  // method after a drop implicitly undoes the hide: a column can't be both
+  // hidden-as-dropped and actively masked with something else, so choosing
+  // a real method is itself the "no, mask it instead" signal, without
+  // requiring a separate undo click first.
   const pickMethod = useCallback((columnName, method) => {
     setRecipe((r) => upsertRecipeColumn(r, columnName, method, "unused_in_the_browser"));
+    setRemovedColumns((s) => {
+      const isDropped = s.has(columnName);
+      if (method === "drop") return isDropped ? s : new Set(s).add(columnName);
+      if (!isDropped) return s;
+      const next = new Set(s);
+      next.delete(columnName);
+      return next;
+    });
   }, []);
 
-  // Clears a column's declared method (e.g. undoing "Delete from output")
-  // without touching `removedColumns`/`contract` the way `removeColumn`
-  // does -- this only ever un-declares the recipe entry, leaving the
-  // column fully present everywhere else.
+  // Undoes "Delete from output": un-declares the recipe entry and restores
+  // table visibility together, the same pairing pickMethod sets up.
   const clearMethod = useCallback((columnName) => {
     setRecipe((r) => removeRecipeColumn(r, columnName));
-  }, []);
-
-  const removeColumn = useCallback((columnName) => {
-    setRemovedColumns((s) => new Set(s).add(columnName));
-    setRecipe((r) => removeRecipeColumn(r, columnName));
-    setContract((c) => c && { ...c, columns: c.columns.filter((col) => col.name !== columnName) });
+    setRemovedColumns((s) => {
+      if (!s.has(columnName)) return s;
+      const next = new Set(s);
+      next.delete(columnName);
+      return next;
+    });
   }, []);
 
   const downloadContract = useCallback(() => {
@@ -114,7 +132,6 @@ export function useProfiledFile(wasm) {
     pickMethod,
     clearMethod,
     removedColumns,
-    removeColumn,
     salt,
     setSalt,
     error,

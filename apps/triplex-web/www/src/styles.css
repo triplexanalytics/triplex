@@ -43,10 +43,10 @@
   --method-generalize: #0d9488;
   --method-mask: #b45309;
   --method-default: #6e7484;
-  /* A live reference, not its own hex: "delete from output" is the same
-     destructive action --error-text/button.danger already mean elsewhere
-     in this menu ("Remove from dataset"), so it reuses that token instead
-     of risking an independent red drifting from it over time. */
+  /* A live reference, not its own hex: this is a destructive action, the
+     same role --error-text already plays everywhere else in the app, so it
+     reuses that token instead of risking an independent red drifting from
+     it over time. */
   --method-drop: var(--error-text);
   /* Read by palette.js's readGlideHeaderTheme() -- glide-data-grid takes a
      plain JS theme object, not CSS, so these are what let the table's own

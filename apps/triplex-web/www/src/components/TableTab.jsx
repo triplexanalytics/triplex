@@ -22,7 +22,6 @@ export default function TableTab({
   salt,
   onPickMethod,
   removedColumns,
-  onRemoveColumn,
   onSaltChange,
   onAnonymize,
   anonymizing,
@@ -426,10 +425,6 @@ export default function TableTab({
           onSaltChange={onSaltChange}
           onAnonymize={onAnonymize}
           anonymizing={anonymizing}
-          onRemove={() => {
-            onRemoveColumn(menu.name);
-            setMenu(null);
-          }}
           onClose={() => setMenu(null)}
           isLikelyIdentifier={isLikelyIdentifierByName[menu.name]}
           declaredAsString={contract?.columns.find((c) => c.name === menu.name)?.type === "string"}

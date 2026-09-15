@@ -110,7 +110,6 @@ export default function App() {
               salt={file.salt}
               onPickMethod={file.pickMethod}
               removedColumns={file.removedColumns}
-              onRemoveColumn={file.removeColumn}
               onSaltChange={file.setSalt}
               onAnonymize={anonymize.run}
               anonymizing={anonymize.anonymizing}
@@ -152,7 +151,6 @@ export default function App() {
               salt={file.salt}
               onPickMethod={file.pickMethod}
               onClearMethod={file.clearMethod}
-              onRemoveColumn={file.removeColumn}
               onSaltChange={file.setSalt}
               onAnonymize={anonymize.run}
               anonymizing={anonymize.anonymizing}

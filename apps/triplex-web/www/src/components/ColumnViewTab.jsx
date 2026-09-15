@@ -15,15 +15,14 @@ import ColumnMenu from "./ColumnMenu";
  * cross-highlight, lifted to App.jsx since the table header and matrices
  * on the other end of it live outside this whole overlay.
  *
- * `methods`/`recipe`/`salt`/`onPickMethod`/`onClearMethod`/`onRemoveColumn`/
- * `onSaltChange`/`onAnonymize`/`anonymizing` are the same
- * anonymization-workflow props `TableTab` already takes — a card's menu
- * button opens the exact same `ColumnMenu` the table header's menu icon
- * does, not a card-only re-implementation of those actions, so `menu`
- * state here mirrors `TableTab.jsx`'s own `menu` state one-for-one. A card
- * whose declared method is "Delete from output" (`AnonymizeMethod::Drop`)
- * skips the menu trigger for a one-click undo instead — see ColumnCard's
- * own doc comment. */
+ * `methods`/`recipe`/`salt`/`onPickMethod`/`onClearMethod`/`onSaltChange`/
+ * `onAnonymize`/`anonymizing` are the same anonymization-workflow props
+ * `TableTab` already takes — a card's menu button opens the exact same
+ * `ColumnMenu` the table header's menu icon does, not a card-only
+ * re-implementation of those actions, so `menu` state here mirrors
+ * `TableTab.jsx`'s own `menu` state one-for-one. A card whose declared
+ * method is "Delete from output" (`AnonymizeMethod::Drop`) skips the menu
+ * trigger for a one-click undo instead — see ColumnCard's own doc comment. */
 export default function ColumnViewTab({
   profile,
   selectedColumn,
@@ -43,7 +42,6 @@ export default function ColumnViewTab({
   salt,
   onPickMethod,
   onClearMethod,
-  onRemoveColumn,
   onSaltChange,
   onAnonymize,
   anonymizing,
@@ -95,10 +93,6 @@ export default function ColumnViewTab({
           onSaltChange={onSaltChange}
           onAnonymize={onAnonymize}
           anonymizing={anonymizing}
-          onRemove={() => {
-            onRemoveColumn(menu.name);
-            setMenu(null);
-          }}
           onClose={() => setMenu(null)}
           isLikelyIdentifier={
             profile.columns.find((c) => c.name === menu.name)?.semantic_type === "likely_identifier"

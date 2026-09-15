@@ -13,13 +13,14 @@ import InfoTrigger from "./InfoTrigger";
  *
  * `onOpenMenu`, if given, renders the same menu-icon affordance the Table
  * tab's header has next to a column's name — opening the same `ColumnMenu`
- * (anonymization method, salt, remove-from-dataset), not a card-only
- * duplicate of those actions.
+ * (anonymization method, salt), not a card-only duplicate of those actions.
  *
- * `isDroppedFromOutput` (declared method "Delete from output") keeps the
- * card in place rather than hiding it — unlike `onRemoveColumn`, dropping
- * is about the *exported* data, not this working view, so the column stays
- * visible here, just muted, with the menu trigger swapped for a one-click
+ * `isDroppedFromOutput` (declared method "Delete from output") is the one
+ * state where this card keeps showing even though the column has
+ * disappeared from the Table tab's grid (see `useProfiledFile.js`'s
+ * `pickMethod`) — muted (grayscale, not just faded, since the histogram's
+ * own color would otherwise just look like a lighter version of itself
+ * rather than "off"), with the menu trigger swapped for a one-click
  * `onUndoDrop` instead of reopening the whole menu to reverse it. */
 export default function ColumnCard({
   col,
