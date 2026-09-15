@@ -149,6 +149,14 @@ export default function App() {
               rowRiskModel={diversityMatrix.rowRiskModel}
               onRowRiskModelChange={diversityMatrix.setRowRiskModel}
               onJointKCellClick={rowFilter.setRowFilter}
+              methods={methods}
+              recipe={file.recipe}
+              salt={file.salt}
+              onPickMethod={file.pickMethod}
+              onRemoveColumn={file.removeColumn}
+              onSaltChange={file.setSalt}
+              onAnonymize={anonymize.run}
+              anonymizing={anonymize.anonymizing}
             />
           </Suspense>
         )}

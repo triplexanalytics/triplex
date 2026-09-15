@@ -695,7 +695,23 @@ button.full-width { width: 100%; justify-content: center; }
    cleanly if a card is both at once. */
 .column-card.highlighted { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 
+.column-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4rem; }
 .column-card h3 { margin: 0 0 0.35rem; font-size: 0.92rem; }
+
+/* Same menu-icon affordance as the Table tab's header (see drawMenuIcon in
+   utils.jsx) -- a plain icon-only button, no border/fill of its own, that
+   only picks up color on hover so it doesn't compete with the card's own
+   content for attention. */
+.column-card-menu-btn {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0.1rem;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+}
+.column-card-menu-btn:hover { color: var(--text); }
 
 .column-card dl { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--text-muted); }
 .column-card dl dt { font-weight: 500; }

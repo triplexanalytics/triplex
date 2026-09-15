@@ -1,4 +1,6 @@
+import { useState } from "react";
 import ColumnCard from "./ColumnCard";
+import ColumnMenu from "./ColumnMenu";
 
 /** Grid of per-column detail cards — one `ColumnCard` per profiled column,
  * fed the same profile that drives the Table tab's header sparklines.
@@ -11,7 +13,14 @@ import ColumnCard from "./ColumnCard";
  * loads instead of lagging a beat behind whenever the overlay is opened.
  * `highlightColumnNames`/`onColumnHover` are the table/matrix<->card
  * cross-highlight, lifted to App.jsx since the table header and matrices
- * on the other end of it live outside this whole overlay. */
+ * on the other end of it live outside this whole overlay.
+ *
+ * `methods`/`recipe`/`salt`/`onPickMethod`/`onRemoveColumn`/`onSaltChange`/
+ * `onAnonymize`/`anonymizing` are the same anonymization-workflow props
+ * `TableTab` already takes — a card's menu button opens the exact same
+ * `ColumnMenu` the table header's menu icon does, not a card-only
+ * re-implementation of those actions, so `menu` state here mirrors
+ * `TableTab.jsx`'s own `menu` state one-for-one. */
 export default function ColumnViewTab({
   profile,
   selectedColumn,
@@ -26,7 +35,17 @@ export default function ColumnViewTab({
   onDeclareAsString,
   highlightColumnNames,
   onColumnHover,
+  methods,
+  recipe,
+  salt,
+  onPickMethod,
+  onRemoveColumn,
+  onSaltChange,
+  onAnonymize,
+  anonymizing,
 }) {
+  const [menu, setMenu] = useState(null); // { name, x, y } | null
+
   if (!profile) return null;
 
   return (
@@ -52,8 +71,33 @@ export default function ColumnViewTab({
           onDeclareAsString={onDeclareAsString}
           highlighted={highlightColumnNames?.includes(col.name)}
           onHoverChange={onColumnHover}
+          onOpenMenu={(name, x, y) => setMenu({ name, x, y })}
         />
       ))}
+      {menu && (
+        <ColumnMenu
+          columnName={menu.name}
+          x={menu.x}
+          y={menu.y}
+          methods={methods}
+          currentMethod={recipe.columns.find((c) => c.name === menu.name)?.method}
+          currentSalt={salt}
+          onPickMethod={(method) => onPickMethod(menu.name, method)}
+          onSaltChange={onSaltChange}
+          onAnonymize={onAnonymize}
+          anonymizing={anonymizing}
+          onRemove={() => {
+            onRemoveColumn(menu.name);
+            setMenu(null);
+          }}
+          onClose={() => setMenu(null)}
+          isLikelyIdentifier={
+            profile.columns.find((c) => c.name === menu.name)?.semantic_type === "likely_identifier"
+          }
+          declaredAsString={contract?.columns.find((c) => c.name === menu.name)?.type === "string"}
+          onDeclareAsString={onDeclareAsString}
+        />
+      )}
     </div>
   );
 }

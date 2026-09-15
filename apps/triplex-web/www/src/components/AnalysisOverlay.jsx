@@ -48,6 +48,14 @@ export default function AnalysisOverlay({
   rowRiskModel,
   onRowRiskModelChange,
   onJointKCellClick,
+  methods,
+  recipe,
+  salt,
+  onPickMethod,
+  onRemoveColumn,
+  onSaltChange,
+  onAnonymize,
+  anonymizing,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState("columns");
@@ -116,6 +124,14 @@ export default function AnalysisOverlay({
               onDeclareAsString={onDeclareAsString}
               highlightColumnNames={highlightColumnNames}
               onColumnHover={onColumnHover}
+              methods={methods}
+              recipe={recipe}
+              salt={salt}
+              onPickMethod={onPickMethod}
+              onRemoveColumn={onRemoveColumn}
+              onSaltChange={onSaltChange}
+              onAnonymize={onAnonymize}
+              anonymizing={anonymizing}
             />
           )}
           {innerTab === "analysis" && (
