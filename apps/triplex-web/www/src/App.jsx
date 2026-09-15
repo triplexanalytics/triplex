@@ -115,8 +115,6 @@ export default function App() {
               onAnonymize={anonymize.run}
               anonymizing={anonymize.anonymizing}
               anonymizeResult={anonymize.anonymizeResult}
-              riskByName={columnRisk.riskByName}
-              riskLoading={columnRisk.riskLoading}
               onColumnHover={handleColumnHover}
               highlightColumnNames={highlightColumnNames}
               contract={file.contract}

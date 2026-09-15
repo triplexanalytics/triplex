@@ -27,8 +27,6 @@ export default function TableTab({
   onAnonymize,
   anonymizing,
   anonymizeResult,
-  riskByName,
-  riskLoading,
   onColumnHover,
   highlightColumnNames,
   contract,
@@ -53,19 +51,6 @@ export default function TableTab({
   const missingByName = useMemo(() => {
     const map = {};
     for (const col of profile?.columns ?? []) map[col.name] = formatMissingPercent(col);
-    return map;
-  }, [profile]);
-
-  // Separate from typeByName: the risk bar/distinct-count row draws for
-  // whatever column useColumnRisk actually scores (integer, generalized
-  // into a bucket, or categorical/string, scored on exact values — see
-  // the design notes), which needs the bare primitive/distribution kind
-  // regardless of whatever semantic type is also displayed.
-  const isRiskableByName = useMemo(() => {
-    const map = {};
-    for (const col of profile?.columns ?? []) {
-      map[col.name] = col.inferred_type === "integer" || col.distribution?.kind === "categorical";
-    }
     return map;
   }, [profile]);
 
@@ -245,24 +230,16 @@ export default function TableTab({
   );
 
   // Glide draws each header cell once via `drawHeader` and caches it on its
-  // own canvas — it has no way to know a header needs repainting (the risk
-  // bar going from "loading" to "done", or a sort arrow appearing) purely
-  // because `drawHeader`'s closure captured new values. Tried `updateCells`
-  // ("damage", Glide's imperative repaint API) with row -1 (Glide's own
-  // internal sentinel for a column header, per its source) first, since
-  // that would be more surgical than a remount — it didn't actually
-  // repaint the header in practice, only body cells. Remounting the grid
-  // is the one approach confirmed to work; resetting scroll-to-top is also
-  // just normal, expected behavior right after a sort anyway, not a
-  // regression the way it would be for the risk-bar-loading case.
+  // own canvas — it has no way to know a header needs repainting (a sort
+  // arrow appearing) purely because `drawHeader`'s closure captured new
+  // values. Tried `updateCells` ("damage", Glide's imperative repaint API)
+  // with row -1 (Glide's own internal sentinel for a column header, per its
+  // source) first, since that would be more surgical than a remount — it
+  // didn't actually repaint the header in practice, only body cells.
+  // Remounting the grid is the one approach confirmed to work;
+  // resetting scroll-to-top is also just normal, expected behavior right
+  // after a sort anyway, not a regression.
   const [gridKey, setGridKey] = useState(0);
-  const wasRiskLoading = useRef(riskLoading);
-  useEffect(() => {
-    if (wasRiskLoading.current && !riskLoading) {
-      setGridKey((k) => k + 1);
-    }
-    wasRiskLoading.current = riskLoading;
-  }, [riskLoading]);
   useEffect(() => {
     setGridKey((k) => k + 1);
   }, [sort]);
@@ -311,11 +288,8 @@ export default function TableTab({
     sort,
     typeByName,
     missingByName,
-    isRiskableByName,
     isCategoricalByName,
     distributionByName,
-    riskByName,
-    riskLoading,
     onColumnHover,
   });
 

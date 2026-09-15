@@ -12,7 +12,9 @@
 // The header's field order, top to bottom. A caller changes what the
 // header shows by editing this array, not by restructuring drawHeader.
 // "distinct" mirrors ColumnCard: only shown for categorical columns.
-export const TABLE_HEADER_FIELDS = ["name", "histogram", "type", "missing", "distinct", "risk"];
+// Privacy risk is deliberately not part of this set — it stays on
+// ColumnCard only (the Columns tab), not duplicated into the table header.
+export const TABLE_HEADER_FIELDS = ["name", "histogram", "type", "missing", "distinct"];
 
 /** ColumnCard shows this as `col.null_percentage.toFixed(1)}%`; the header
  * needs the exact same value formatted the exact same way. */

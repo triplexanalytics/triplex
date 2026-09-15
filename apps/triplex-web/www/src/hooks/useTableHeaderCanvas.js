@@ -2,8 +2,8 @@ import { useCallback, useRef, useState } from "react";
 import { barsFor, binTooltip } from "../state/binTooltip";
 import { truncateToWidth, menuIconLocalRect, drawMenuIcon, drawSortArrows } from "../utils";
 import { TYPE_ICON_NODES, drawIconNode } from "../state/typeIconNodes";
-import { readRiskColorStops, HISTOGRAM_COLOR, reciprocalRisk } from "../state/palette";
-import { kAnonymityExplanation, distinctCountExplanation } from "../state/riskExplanations";
+import { HISTOGRAM_COLOR } from "../state/palette";
+import { distinctCountExplanation } from "../state/riskExplanations";
 import {
   HEADER_PADDING,
   NAME_ROW_HEIGHT,
@@ -17,9 +17,6 @@ import {
   MISSING_ROW_HEIGHT,
   DISTINCT_TOP,
   DISTINCT_ROW_HEIGHT,
-  RISK_TOP,
-  RISK_ROW_HEIGHT,
-  RISK_BAR_HEIGHT,
   MENU_ICON_SIZE,
 } from "../components/TableTab.const";
 
@@ -33,15 +30,17 @@ const ICON_LAYOUT = {
  * `drawHeader`/`onItemHovered` callbacks Glide calls into, and the hover
  * tooltip state they drive. Split out from TableTab.jsx because this is
  * the single largest, most self-contained piece of it — name/type-icon/
- * risk-bar/sparkline layout and its hover hit-testing don't touch sort or
+ * sparkline layout and its hover hit-testing don't touch sort or
  * cell-content state at all, just `columns` and the per-column lookup maps
  * the caller already built from `profile`.
  *
- * Row order (name, histogram, type, missing, risk) mirrors
+ * Row order (name, histogram, type, missing, distinct) mirrors
  * TABLE_HEADER_FIELDS in columnFields.js — ColumnCard's fuller info,
- * reduced to what fits here, same order. Row heights/offsets live in
- * TableTab.const.jsx so drawHeader and this hook's hover hit-testing can't
- * silently disagree about where a row starts.
+ * reduced to what fits here, same order. Privacy risk is deliberately not
+ * part of this reduced set: it stays on ColumnCard only, not duplicated
+ * into the table header. Row heights/offsets live in TableTab.const.jsx so
+ * drawHeader and this hook's hover hit-testing can't silently disagree
+ * about where a row starts.
  *
  * Header cells are canvas-rendered by the grid itself (not DOM), so this
  * layout has to be drawn directly into Glide's own header-drawing pass
@@ -52,11 +51,8 @@ export function useTableHeaderCanvas({
   sort,
   typeByName,
   missingByName,
-  isRiskableByName,
   isCategoricalByName,
   distributionByName,
-  riskByName,
-  riskLoading,
   onColumnHover,
 }) {
   // Whether the last draw pass had to truncate each column's name — read by
@@ -79,15 +75,13 @@ export function useTableHeaderCanvas({
       const fontFamily = theme?.fontFamily ?? "sans-serif";
       // Matched to ColumnCard's actual CSS, not an independently chosen
       // scale: h3 (0.92rem, bold) for the name, the <dl> (0.78rem, weight
-      // 500) for type/missing, .risk-bar-label (0.72rem) for the risk
-      // caption — see palette.js's readGlideHeaderTheme doc comment for the
-      // color side of this same match.
+      // 500) for type/missing — see palette.js's readGlideHeaderTheme doc
+      // comment for the color side of this same match.
       const nameFont = `700 13px ${fontFamily}`;
       const statFont = `500 11px ${fontFamily}`;
-      const captionFont = `10px ${fontFamily}`;
       const nameColor = theme?.textDark ?? "#1a1d24";
       const faintColor = theme?.textLight ?? "#8890a0"; // --text-faint: the type icon only
-      const mutedColor = theme?.textMedium ?? "#5b6270"; // --text-muted: every stat's label AND value, plus the risk caption
+      const mutedColor = theme?.textMedium ?? "#5b6270"; // --text-muted: every stat's label AND value
 
       ctx.textBaseline = "middle";
 
@@ -95,14 +89,13 @@ export function useTableHeaderCanvas({
       // every dt sits in a label column sized to the widest label, every dd
       // starts at the same fixed x regardless of its own row's label
       // length. Replicate that instead of each row computing its own
-      // label-width gap (misaligns "Type"/"Missing"/"Privacy risk"'s values
-      // the moment the labels aren't all the same width).
+      // label-width gap (misaligns "Type"/"Missing"/"Distinct"'s values the
+      // moment the labels aren't all the same width).
       ctx.font = statFont;
       const labelColumnWidth = Math.max(
         ctx.measureText("Type").width,
         ctx.measureText("Missing").width,
         ctx.measureText("Distinct").width,
-        ctx.measureText("Privacy risk").width,
       );
       const valueX = innerX + labelColumnWidth + 6;
 
@@ -180,8 +173,7 @@ export function useTableHeaderCanvas({
 
       // --- distinct row --- ColumnCard's <dt>Distinct</dt>, categorical
       // columns only (a numeric column has no equivalent stat — the row's
-      // space still reserves, it just stays blank, same as the risk row
-      // does for a non-riskable column).
+      // space still reserves, it just stays blank for that column).
       if (isCategoricalByName[column.id]) {
         const cardinality = distributionByName[column.id]?.cardinality;
         if (cardinality !== undefined) {
@@ -193,62 +185,23 @@ export function useTableHeaderCanvas({
         }
       }
 
-      // --- risk row --- ColumnCard's order: the bar (.risk-bar-track/-fill)
-      // first, its label (.risk-bar-label — small, --text-muted, a caption,
-      // not a headline) after/below it, not the reverse this used to draw.
-      // A full-width pill (rounded via the canvas's native roundRect, no
-      // manual bezier path); track stays visible while loading (canvas has
-      // no CSS pulse animation to reuse) rather than nothing at all. A
-      // categorical column's label also carries its distinct-value count
-      // since k-anonymity alone doesn't say how many distinct values that
-      // group size is spread across.
-      if (isRiskableByName[column.id]) {
-        const risk = riskByName?.[column.id];
-        const barY = rect.y + RISK_TOP + 4;
-        const barWidth = rect.x + rect.width - HEADER_PADDING - valueX;
-        const radius = RISK_BAR_HEIGHT / 2;
-
-        ctx.font = statFont;
-        ctx.fillStyle = mutedColor;
-        ctx.textAlign = "left";
-        ctx.fillText("Privacy risk", innerX, barY + RISK_BAR_HEIGHT / 2);
-
-        ctx.fillStyle = theme?.bgCellMedium ?? "#f1f3f6";
-        ctx.beginPath();
-        ctx.roundRect(valueX, barY, barWidth, RISK_BAR_HEIGHT, radius);
-        ctx.fill();
-        if (!riskLoading && risk) {
-          const fillWidth = Math.max(RISK_BAR_HEIGHT, reciprocalRisk(risk.value) * barWidth);
-          ctx.fillStyle = readRiskColorStops().riskColor(reciprocalRisk(risk.value));
-          ctx.beginPath();
-          ctx.roundRect(valueX, barY, fillWidth, RISK_BAR_HEIGHT, radius);
-          ctx.fill();
-        }
-        const valueText = risk && !riskLoading ? `k=${risk.value}` : "";
-        if (valueText) {
-          ctx.font = captionFont;
-          ctx.fillStyle = mutedColor;
-          ctx.fillText(valueText, valueX, barY + RISK_BAR_HEIGHT + 10);
-        }
-      }
-
       return true;
     },
-    [distributionByName, typeByName, missingByName, isRiskableByName, isCategoricalByName, riskByName, riskLoading, sort],
+    [distributionByName, typeByName, missingByName, isCategoricalByName, sort],
   );
 
   // Same header hover callback drives two mutually-exclusive tooltips (the
-  // truncated-name one and the histogram-bin/risk one, whichever region the
-  // cursor is actually over) plus `onColumnHover`, reported for the whole
-  // header regardless of which sub-region — AnalysisOverlay's Columns tab
-  // (when open) highlights the matching ColumnCard off this. One-directional
-  // only: the reverse (a card hover highlighting the table header) needs
-  // Glide to repaint a header canvas cell with no accompanying grid
-  // interaction to trigger it, which its imperative damage API doesn't do
-  // reliably (tried: corrupted the risk-bar row on repaint) and a gridKey
-  // remount does but resets scroll position on every hover — not worth
-  // either cost for a highlight. Revisit if Glide ships a real per-cell
-  // repaint API for this.
+  // truncated-name one and the histogram-bin/distinct-count one, whichever
+  // region the cursor is actually over) plus `onColumnHover`, reported for
+  // the whole header regardless of which sub-region — AnalysisOverlay's
+  // Columns tab (when open) highlights the matching ColumnCard off this.
+  // One-directional only: the reverse (a card hover highlighting the table
+  // header) needs Glide to repaint a header canvas cell with no
+  // accompanying grid interaction to trigger it, which its imperative
+  // damage API doesn't do reliably (tried: corrupted a header row on
+  // repaint) and a gridKey remount does but resets scroll position on every
+  // hover — not worth either cost for a highlight. Revisit if Glide ships a
+  // real per-cell repaint API for this.
   const onItemHovered = useCallback(
     (args) => {
       if (args.kind !== "header") {
@@ -268,21 +221,7 @@ export function useTableHeaderCanvas({
 
       const localX = args.localEventX ?? 0;
       const localY = args.localEventY ?? 0;
-      if (localY >= RISK_TOP && isRiskableByName[column.id]) {
-        const risk = riskByName?.[column.id];
-        if (risk) {
-          setHoveredHeader(null);
-          setHoveredBin({
-            title: `k-anonymity ${risk.value}`,
-            detail: kAnonymityExplanation(risk.value),
-            wrap: true,
-            x: args.bounds.x + localX,
-            y: args.bounds.y + RISK_TOP,
-          });
-          return;
-        }
-      }
-      if (localY >= DISTINCT_TOP && localY < RISK_TOP && isCategoricalByName[column.id]) {
+      if (localY >= DISTINCT_TOP && isCategoricalByName[column.id]) {
         const cardinality = distributionByName[column.id]?.cardinality;
         if (cardinality !== undefined) {
           setHoveredHeader(null);
@@ -335,7 +274,7 @@ export function useTableHeaderCanvas({
         setHoveredHeader(null);
       }
     },
-    [columns, typeByName, distributionByName, isRiskableByName, isCategoricalByName, riskByName, onColumnHover],
+    [columns, typeByName, distributionByName, isCategoricalByName, onColumnHover],
   );
 
   return { drawHeader, onItemHovered, hoveredHeader, hoveredBin };
