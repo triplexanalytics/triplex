@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { barsFor, binTooltip } from "../state/binTooltip";
+import { barsFor, binFilterEntry, binTooltip } from "../state/binTooltip";
 import { HISTOGRAM_COLOR, OCEAN_DRIFT } from "../state/palette";
 import { WIDTH, HEIGHT } from "./HeaderSparkline.const";
 
@@ -14,10 +14,10 @@ import { WIDTH, HEIGHT } from "./HeaderSparkline.const";
  * way this one did (leftover pre-Ocean-Drift indigo, `#818cf8`/`#4338ca`,
  * missed when the header's version moved to the palette module).
  *
- * ponytail: no range selection/filtering yet — clicking or dragging across
- * bars to filter the table by that range is a planned follow-up, not built
- * here. */
-export default function HeaderSparkline({ distribution }) {
+ * `onBinClick`, if given, turns a bar click into a table row filter (see
+ * useRowFilter.js) — dragging across bars to select a range is still a
+ * planned follow-up, not built here. */
+export default function HeaderSparkline({ distribution, columnName, onBinClick }) {
   const ref = useRef(null);
   const [hovered, setHovered] = useState(null);
 
@@ -43,6 +43,8 @@ export default function HeaderSparkline({ distribution }) {
 
   const barCount = barsFor(distribution).length;
   const info = hovered !== null ? binTooltip(distribution, hovered) : null;
+  const indexAt = (offsetX) =>
+    Math.min(Math.max(Math.floor((offsetX / WIDTH) * barCount), 0), barCount - 1);
 
   return (
     <div style={{ position: "relative", width: WIDTH, height: HEIGHT }}>
@@ -50,15 +52,18 @@ export default function HeaderSparkline({ distribution }) {
         ref={ref}
         width={WIDTH}
         height={HEIGHT}
+        style={onBinClick ? { cursor: "pointer" } : undefined}
         onMouseMove={(e) => {
           if (barCount === 0) return;
-          const index = Math.min(
-            Math.max(Math.floor((e.nativeEvent.offsetX / WIDTH) * barCount), 0),
-            barCount - 1,
-          );
-          setHovered(index);
+          setHovered(indexAt(e.nativeEvent.offsetX));
         }}
         onMouseLeave={() => setHovered(null)}
+        onClick={(e) => {
+          if (!onBinClick || barCount === 0) return;
+          e.stopPropagation();
+          const entry = binFilterEntry(columnName, distribution, indexAt(e.nativeEvent.offsetX));
+          if (entry) onBinClick([entry]);
+        }}
       />
       {info && (
         <div
@@ -71,7 +76,7 @@ export default function HeaderSparkline({ distribution }) {
           }}
         >
           <strong>{info.title}</strong>
-          <span>{info.detail}</span>
+          <span>{info.detail}{onBinClick ? " — click to filter" : ""}</span>
         </div>
       )}
     </div>

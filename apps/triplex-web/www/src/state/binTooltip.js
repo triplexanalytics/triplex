@@ -38,3 +38,18 @@ export function barsFor(distribution) {
     ? distribution.bins.map((b) => b.count)
     : distribution.top_values.map((v) => v.count);
 }
+
+/** A clicked bar's `useRowFilter` condition — a categorical bar's value is
+ * already the exact cell value (same shape a matrix click's `bucketValue`
+ * is), so it's just `{ columnName, bucketValue }`; a numeric bin has no
+ * single value to match against (it's a range), so it's `{ columnName,
+ * binIndex }` instead — see useRowFilter.js for how each is resolved back
+ * to matching rows. */
+export function binFilterEntry(columnName, distribution, index) {
+  if (!distribution) return null;
+  if (distribution.kind === "numeric") {
+    return distribution.bins[index] ? { columnName, binIndex: index } : null;
+  }
+  const entry = distribution.top_values[index];
+  return entry ? { columnName, bucketValue: entry.value } : null;
+}

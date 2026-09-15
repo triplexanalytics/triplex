@@ -46,6 +46,7 @@ export default function ColumnViewTab({
   onSaltChange,
   onAnonymize,
   anonymizing,
+  onBinClick,
 }) {
   const [menu, setMenu] = useState(null); // { name, x, y } | null
 
@@ -77,6 +78,7 @@ export default function ColumnViewTab({
           onOpenMenu={(name, x, y) => setMenu({ name, x, y })}
           appliedMethod={recipe.columns.find((c) => c.name === col.name)?.method}
           onClearMethod={onClearMethod}
+          onBinClick={onBinClick}
         />
       ))}
       {menu && (

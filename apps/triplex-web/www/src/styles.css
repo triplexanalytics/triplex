@@ -430,6 +430,12 @@ button.full-width { width: 100%; justify-content: center; }
   left: 8px;
   top: 8px;
   margin: 0;
+  /* Above .analysis-overlay's z-index: 20 -- that panel is drawn on top of
+     the grid, not beside it (see AnalysisOverlay.jsx), so a narrow table's
+     top-left banner can land underneath it and its Clear button becomes
+     unclickable otherwise. Most reachable now that a sparkline bin click
+     (Columns tab, inside that same panel) can set this filter too. */
+  z-index: 21;
   display: flex;
   align-items: center;
   gap: 0.6rem;

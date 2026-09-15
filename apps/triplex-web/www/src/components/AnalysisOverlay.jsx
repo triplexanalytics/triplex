@@ -132,6 +132,7 @@ export default function AnalysisOverlay({
               onSaltChange={onSaltChange}
               onAnonymize={onAnonymize}
               anonymizing={anonymizing}
+              onBinClick={onJointKCellClick}
             />
           )}
           {innerTab === "analysis" && (

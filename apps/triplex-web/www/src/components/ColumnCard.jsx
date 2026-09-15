@@ -28,7 +28,11 @@ import InfoTrigger from "./InfoTrigger";
  * category color `ColumnMenu`'s method-card uses, so a real anonymization
  * choice is visible on the card without reopening the whole menu to check
  * or reverse it -- `onClearMethod(col.name)` (shared with the drop-undo
- * button) un-declares it either way. */
+ * button) un-declares it either way.
+ *
+ * `onBinClick`, forwarded to `HeaderSparkline`, is the same row-filter
+ * setter a Privacy Analysis matrix click already drives (`useRowFilter.js`)
+ * -- clicking a bar filters the Table tab to that bin/value. */
 export default function ColumnCard({
   col,
   risk,
@@ -44,6 +48,7 @@ export default function ColumnCard({
   onOpenMenu,
   appliedMethod,
   onClearMethod,
+  onBinClick,
 }) {
   const { value: riskValue, loading: riskLoading } = risk;
   const { declared: declaredPattern, check, checking } = pattern;
@@ -112,7 +117,7 @@ export default function ColumnCard({
           )
         )}
       </div>
-      <HeaderSparkline distribution={col.distribution} />
+      <HeaderSparkline distribution={col.distribution} columnName={col.name} onBinClick={onBinClick} />
       <dl>
         <dt>Type</dt>
         <dd className="type-with-icon">
