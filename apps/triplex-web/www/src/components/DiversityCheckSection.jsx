@@ -78,8 +78,11 @@ export default function DiversityCheckSection({
         label: String(cell.value),
         tooltip: {
           title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
-          detail: `l-diversity ${cell.value}: ${lDiversityDetail(cell.value)}`,
+          detail: `l-diversity ${cell.value}: ${lDiversityDetail(cell.value)}${
+            cell.worstGroup ? " — click to filter the table to that group." : ""
+          }`,
         },
+        worstGroup: cell.worstGroup,
       };
     },
     [raw, quasiColumns, allColumns],
@@ -95,8 +98,11 @@ export default function DiversityCheckSection({
         label: value.toFixed(2),
         tooltip: {
           title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
-          detail: `t-closeness ${value.toFixed(2)}: ${tClosenessDetail(value)}`,
+          detail: `t-closeness ${value.toFixed(2)}: ${tClosenessDetail(value)}${
+            cell.worstGroup ? " — click to filter the table to that group." : ""
+          }`,
         },
+        worstGroup: cell.worstGroup,
       };
     },
     [raw, quasiColumns, allColumns],
@@ -112,8 +118,11 @@ export default function DiversityCheckSection({
         label: value.toFixed(2),
         tooltip: {
           title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
-          detail: `β-likeness ${value.toFixed(2)}: ${betaLikenessDetail(value)}`,
+          detail: `β-likeness ${value.toFixed(2)}: ${betaLikenessDetail(value)}${
+            cell.worstGroup ? " — click to filter the table to that group." : ""
+          }`,
         },
+        worstGroup: cell.worstGroup,
       };
     },
     [raw, quasiColumns, allColumns],
@@ -129,8 +138,11 @@ export default function DiversityCheckSection({
         label: value.toFixed(2),
         tooltip: {
           title: `${quasiColumns[i].name} → ${allColumns[j].name}`,
-          detail: `δ-disclosure ${value.toFixed(2)}: ${deltaDisclosureDetail(value)}`,
+          detail: `δ-disclosure ${value.toFixed(2)}: ${deltaDisclosureDetail(value)}${
+            cell.worstGroup ? " — click to filter the table to that group." : ""
+          }`,
         },
+        worstGroup: cell.worstGroup,
       };
     },
     [raw, quasiColumns, allColumns],
@@ -153,6 +165,22 @@ export default function DiversityCheckSection({
       };
     },
     [raw, quasiColumns],
+  );
+
+  // Unlike jointK's two-column composite key, these four matrices pair one
+  // quasi-identifier column (the row) against one candidate sensitive
+  // column (the col) -- the worst group is a plain bucket value on the
+  // row's own column alone, so filtering only ever needs one condition, no
+  // U+001F split. `cellAt` is whichever of the four matrix's own accessors
+  // owns this click.
+  const makeSingleColumnCellClickHandler = useCallback(
+    (cellAt) =>
+      ({ row, col, rowName }) => {
+        const cell = cellAt(row, col);
+        if (!cell?.worstGroup) return;
+        onJointKCellClick?.([{ columnName: rowName, bucketValue: cell.worstGroup }]);
+      },
+    [onJointKCellClick],
   );
 
   // jointKMatrix (the worker) only computes each pair once (i < j) and
@@ -224,6 +252,7 @@ export default function DiversityCheckSection({
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
               onHoverChange={onHoverNamesChange}
+              onCellClick={onJointKCellClick ? makeSingleColumnCellClickHandler(lDiversityCellAt) : undefined}
             />
             <RiskMatrix
               title="t-closeness"
@@ -236,6 +265,7 @@ export default function DiversityCheckSection({
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
               onHoverChange={onHoverNamesChange}
+              onCellClick={onJointKCellClick ? makeSingleColumnCellClickHandler(tClosenessCellAt) : undefined}
             />
             <RiskMatrix
               title="β-likeness"
@@ -248,6 +278,7 @@ export default function DiversityCheckSection({
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
               onHoverChange={onHoverNamesChange}
+              onCellClick={onJointKCellClick ? makeSingleColumnCellClickHandler(betaLikenessCellAt) : undefined}
             />
             <RiskMatrix
               title="δ-disclosure"
@@ -260,6 +291,7 @@ export default function DiversityCheckSection({
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
               onHoverChange={onHoverNamesChange}
+              onCellClick={onJointKCellClick ? makeSingleColumnCellClickHandler(deltaDisclosureCellAt) : undefined}
             />
             {showJointK && (
               <RiskMatrix

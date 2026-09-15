@@ -53,6 +53,18 @@ function diversityMatrix(rows, cols, bucketWidth, rowRiskModel) {
         row.kind === "string"
           ? JSON.parse(wasm.score_column_pair_risk_string(JSON.stringify(row.values), colsJson[j], 0))
           : JSON.parse(wasm.score_column_pair_risk(row.values, colsJson[j], bucketWidth));
+      // Each model's own worst-scoring quasi-identifier bucket -- same
+      // "which group" pairing jointKMatrix does for combined k-anonymity,
+      // letting a click on this cell filter the table to exactly that
+      // group instead of just showing its severity.
+      const [lWorst, tWorst, betaWorst, deltaWorst] =
+        row.kind === "string"
+          ? JSON.parse(wasm.worst_group_column_pair_risk_string(JSON.stringify(row.values), colsJson[j], 0))
+          : JSON.parse(wasm.worst_group_column_pair_risk(row.values, colsJson[j], bucketWidth));
+      l.worstGroup = lWorst ?? null;
+      t.worstGroup = tWorst ?? null;
+      beta.worstGroup = betaWorst ?? null;
+      delta.worstGroup = deltaWorst ?? null;
       lRow.push(l);
       tRow.push(t);
       betaRow.push(beta);
