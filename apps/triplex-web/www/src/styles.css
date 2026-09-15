@@ -136,6 +136,24 @@ button.full-width { width: 100%; justify-content: center; }
 
 .navbar .spacer { flex: 1; }
 
+.navbar input[type="file"] {
+  font: inherit;
+  color: var(--text-faint);
+}
+
+.navbar input[type="file"]::file-selector-button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.35rem 0.7rem;
+  margin-right: 0.6rem;
+}
+
+.navbar input[type="file"]::file-selector-button:hover { background: var(--surface-alt); }
+
 .download-menu { position: relative; }
 
 .download-menu > summary {
