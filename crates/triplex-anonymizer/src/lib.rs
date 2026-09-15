@@ -47,7 +47,49 @@ pub struct AnonymizeReport {
     /// `columns_anonymized` rather than folded into it.
     pub columns_dropped: Vec<String>,
     pub unique_masked_values_minted: usize,
+    /// The audit-JSON risk report the design notes's Tier 1 row promises
+    /// ("audit JSON reporting which risk model(s) the output satisfies") —
+    /// see `assess_bucket_risk`. `None` when the recipe declares no
+    /// `AnonymizeMethod::Bucket` column, since there's no quasi-identifier
+    /// to score.
+    pub risk_assessment: Option<RiskAssessment>,
     pub warning: &'static str,
+}
+
+/// k-anonymity over every `AnonymizeMethod::Bucket` column's own masked
+/// (generalized) values, composed into one equivalence-class key if there's
+/// more than one — `Bucket`, by definition, is what makes a column a
+/// quasi-identifier here, so this needs no separate recipe declaration (see
+/// the decision to keep v1 to auto k-anonymity only, not a
+/// selectable model + declared sensitive column). Reads `masked`, not the
+/// original sample: the risk being reported is about the *output*, the same
+/// composite an attacker would actually see. `.expect(...)`, not `?`:
+/// `RiskModel::KAnonymity` is the one `evaluate_risk_model` arm that always
+/// computes directly from the values given (see that function) — it cannot
+/// error the way `DeltaPresence`/`KMap` do.
+fn assess_bucket_risk(
+    resolved: &[ResolvedColumn],
+    masked: &triplex_io::Sample,
+) -> Option<RiskAssessment> {
+    let bucket_columns: Vec<Vec<String>> = resolved
+        .iter()
+        .filter(|c| c.declared.method == AnonymizeMethod::Bucket)
+        .map(|c| {
+            masked
+                .rows
+                .iter()
+                .map(|row| row[c.header_index].clone())
+                .collect()
+        })
+        .collect();
+    if bucket_columns.is_empty() {
+        return None;
+    }
+    let composite = triplex_datasetcard::compose_quasi_identifiers(&bucket_columns);
+    Some(
+        evaluate_risk_model(RiskModel::KAnonymity, &composite, &[])
+            .expect("RiskModel::KAnonymity never errors"),
+    )
 }
 
 /// The masked dataset plus its reversible mapping, both as in-memory CSV
@@ -235,6 +277,7 @@ pub fn anonymize_file(
         .iter()
         .map(|&i| masked.headers[i].clone())
         .collect();
+    let risk_assessment = assess_bucket_risk(&resolved, &masked);
     let masked = drop_columns(masked, &drop_indices);
 
     triplex_io::write_csv(output_path, &masked.headers, &masked.rows)?;
@@ -255,6 +298,7 @@ pub fn anonymize_file(
         columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
         columns_dropped,
         unique_masked_values_minted: mapping_entries.len(),
+        risk_assessment,
         warning: PSEUDONYMIZATION_WARNING,
     })
 }
@@ -280,6 +324,7 @@ pub fn anonymize_bytes(
         .iter()
         .map(|&i| masked.headers[i].clone())
         .collect();
+    let risk_assessment = assess_bucket_risk(&resolved, &masked);
     let masked = drop_columns(masked, &drop_indices);
 
     let masked_csv = triplex_io::write_csv_bytes(&masked.headers, &masked.rows)?;
@@ -292,6 +337,7 @@ pub fn anonymize_bytes(
             columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
             columns_dropped,
             unique_masked_values_minted: mapping_entries.len(),
+            risk_assessment,
             warning: PSEUDONYMIZATION_WARNING,
         },
         mapping_csv,
@@ -408,6 +454,65 @@ mod tests {
         // ids 1..4 (recipe_with_method's default bucket_width: 10) all fall
         // in the same "0-9" bucket.
         assert!(masked.rows.iter().all(|r| r[0] == "0-9"));
+        // All 4 rows share one equivalence class -> k-anonymity 4.
+        assert_eq!(
+            result.report.risk_assessment,
+            Some(RiskAssessment::KAnonymity(4))
+        );
+    }
+
+    #[test]
+    fn anonymize_bytes_with_two_bucket_columns_scores_k_anonymity_on_the_composite() {
+        let recipe = AnonymizeRecipe {
+            version: 1,
+            columns: vec![
+                AnonymizeColumn {
+                    name: "id".to_string(),
+                    method: AnonymizeMethod::Bucket,
+                    salt_env: "unused".to_string(),
+                    bucket_width: 1, // no generalization: id stays its own class
+                    keep_prefix: 0,
+                    keep_suffix: 4,
+                },
+                AnonymizeColumn {
+                    name: "price".to_string(),
+                    method: AnonymizeMethod::Bucket,
+                    salt_env: "unused".to_string(),
+                    bucket_width: 10,
+                    keep_prefix: 0,
+                    keep_suffix: 4,
+                },
+            ],
+        };
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        // Bucket ignores the salt *value*, but resolve_columns_with_salts
+        // still requires an entry per declared non-Drop column.
+        salts.insert("id".to_string(), "unused".to_string());
+        salts.insert("price".to_string(), "unused".to_string());
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+            .expect("anonymize_bytes should succeed");
+
+        // Composing id (width 1: every row its own bucket) with price still
+        // leaves every row in its own equivalence class -> k-anonymity 1.
+        assert_eq!(
+            result.report.risk_assessment,
+            Some(RiskAssessment::KAnonymity(1))
+        );
+    }
+
+    #[test]
+    fn anonymize_bytes_with_no_bucket_column_reports_no_risk_assessment() {
+        let recipe = recipe_for("name", "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string());
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+            .expect("anonymize_bytes should succeed");
+
+        assert_eq!(result.report.risk_assessment, None);
     }
 
     #[test]
