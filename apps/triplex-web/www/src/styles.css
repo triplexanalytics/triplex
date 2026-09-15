@@ -38,11 +38,16 @@
   /* One shared hue for every real anonymization technique (ColumnMenu.const.jsx
      METHOD_META) -- token_hmac/fpe/bucket/partial_mask all transform a
      value in place, the same *kind* of action underneath four different
-     algorithms, so they read as one family (orange) rather than four
-     unrelated colors. --method-drop is the one card that isn't a
-     transform at all -- it excludes the column instead -- so it stays its
-     own, more prominent color (see below) rather than joining that family. */
-  --method-pseudonymize: #ea580c;
+     algorithms, so they read as one family rather than four unrelated
+     colors. A live reference to --accent, not its own hex: the app's one
+     unified accent blue is exactly "this is an emphasized action" already
+     everywhere else, and .method-card's own color-mix() formula (7% idle,
+     12% selected) turns any --method-color into a light background tint
+     automatically, no separate background token needed. --method-drop is
+     the one card that isn't a transform at all -- it excludes the column
+     instead -- so it stays its own, more prominent color (see below)
+     rather than joining this family. */
+  --method-pseudonymize: var(--accent);
   --method-encrypt: var(--method-pseudonymize);
   --method-generalize: var(--method-pseudonymize);
   --method-mask: var(--method-pseudonymize);
@@ -1004,6 +1009,19 @@ button.full-width { width: 100%; justify-content: center; }
 .method-card-encrypt { --method-color: var(--method-encrypt); }
 .method-card-generalize { --method-color: var(--method-generalize); }
 .method-card-mask { --method-color: var(--method-mask); }
+/* --accent is a dark, low-lightness navy -- the base .method-card formula's
+   7% idle mix reads as barely-there gray for a hue this dark (blue reads
+   "grayer" than a warm hue like orange at the same low mix, even at equal
+   numeric distance from --surface-alt), so these four get a stronger mix
+   of their own, same relationship .method-card-drop's dedicated override
+   already has to the generic formula. */
+.method-card-pseudonymize:not(.selected),
+.method-card-encrypt:not(.selected),
+.method-card-generalize:not(.selected),
+.method-card-mask:not(.selected) {
+  background: color-mix(in srgb, var(--method-color) 18%, var(--surface-alt));
+  border-color: color-mix(in srgb, var(--method-color) 35%, var(--border));
+}
 .method-card-drop { --method-color: var(--method-drop); }
 /* Stronger than the generic 7%/12% every other card gets: this one isn't
    just a different-colored technique, it's the only destructive action in
