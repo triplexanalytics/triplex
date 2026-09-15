@@ -62,7 +62,26 @@ export default function ColumnCard({
       onMouseLeave={() => onHoverChange?.(null)}
     >
       <div className="column-card-head">
-        <h3>{col.name}</h3>
+        <span className="column-card-title">
+          <h3>{col.name}</h3>
+          {pillMethod && (
+            <span className={`column-card-method-pill method-card-${pillMeta.category}`}>
+              <pillMeta.icon size={10} strokeWidth={2} aria-hidden="true" />
+              {pillMeta.label ?? pillMethod}
+              <button
+                type="button"
+                aria-label={`Remove ${pillMeta.label ?? pillMethod} from ${col.name}`}
+                title="Undo this anonymization"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClearMethod?.(col.name);
+                }}
+              >
+                <X size={9} strokeWidth={2.5} aria-hidden="true" />
+              </button>
+            </span>
+          )}
+        </span>
         {isDroppedFromOutput ? (
           <button
             type="button"
@@ -93,23 +112,6 @@ export default function ColumnCard({
           )
         )}
       </div>
-      {pillMethod && (
-        <span className={`column-card-method-pill method-card-${pillMeta.category}`}>
-          <pillMeta.icon size={12} strokeWidth={2} aria-hidden="true" />
-          {pillMeta.label ?? pillMethod}
-          <button
-            type="button"
-            aria-label={`Remove ${pillMeta.label ?? pillMethod} from ${col.name}`}
-            title="Undo this anonymization"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClearMethod?.(col.name);
-            }}
-          >
-            <X size={10} strokeWidth={2.5} aria-hidden="true" />
-          </button>
-        </span>
-      )}
       <HeaderSparkline distribution={col.distribution} />
       <dl>
         <dt>Type</dt>

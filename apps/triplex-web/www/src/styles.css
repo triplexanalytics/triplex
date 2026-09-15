@@ -666,7 +666,8 @@ button.full-width { width: 100%; justify-content: center; }
 .column-card.muted { filter: grayscale(1); opacity: 0.6; }
 
 .column-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4rem; }
-.column-card h3 { margin: 0 0 0.35rem; font-size: 0.92rem; }
+.column-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; min-width: 0; }
+.column-card h3 { margin: 0 0 0.35rem; font-size: 0.92rem; min-width: 0; }
 
 /* Same menu-icon affordance as the Table tab's header (see drawMenuIcon in
    utils.jsx) -- a plain icon-only button, no border/fill of its own, that
@@ -687,15 +688,19 @@ button.full-width { width: 100%; justify-content: center; }
    whole card instead -- see .column-card.muted) is applied, so that's
    visible on the card without reopening ColumnMenu to check. Reuses
    .method-card-<category>'s --method-color (ColumnMenu's method grid) via
-   the same class name, not a second copy of the category->color mapping. */
+   the same class name, not a second copy of the category->color mapping.
+   inline-flex + width: fit-content (not the dl's own 1fr column width, or
+   any implicit block stretch) keeps it exactly as wide as its own content
+   -- a small tag, not a second full-width row. */
 .column-card-method-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  margin: 0.35rem 0 0;
-  padding: 0.15rem 0.3rem 0.15rem 0.5rem;
+  width: fit-content;
+  gap: 0.15rem;
+  margin: 0 0 0.35rem;
+  padding: 0.05rem 0.2rem 0.05rem 0.35rem;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   font-weight: 600;
   background: color-mix(in srgb, var(--method-color) 18%, var(--surface-alt));
   border: 1px solid color-mix(in srgb, var(--method-color) 35%, var(--border));
@@ -708,8 +713,8 @@ button.full-width { width: 100%; justify-content: center; }
   align-items: center;
   border: none;
   background: none;
-  padding: 0.15rem;
-  margin-left: 0.1rem;
+  padding: 0.1rem;
+  margin-left: 0.05rem;
   color: var(--text-faint);
   cursor: pointer;
 }
