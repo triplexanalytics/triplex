@@ -58,6 +58,12 @@
   --table-header-bg-hover: #e5f2ff;
   --table-header-bg-focus: #dcefff;
   --table-border: rgba(15, 76, 129, 0.16);
+  /* The active tier-picker gradient's top stop (see .tier-option.active) --
+     equal to --accent in light mode, but its own, more saturated blue in
+     dark mode: --accent's dark tint is deliberately desaturated for text/
+     border contrast (see above), which reads as too close in value to the
+     gradient's teal bottom stop to look like a real top-to-bottom sweep. */
+  --tier-gradient-top: var(--accent);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -104,6 +110,7 @@
     --table-header-bg-hover: #35485c;
     --table-header-bg-focus: #3e5469;
     --table-border: rgba(123, 157, 186, 0.3);
+    --tier-gradient-top: #488fc6;
   }
 }
 
@@ -255,24 +262,30 @@ button.full-width { width: 100%; justify-content: center; }
    button is the "which tier is actually running" indicator, worth a
    distinct, more eye-catching treatment. Classic two-layer background
    trick (solid fill on the padding-box, gradient on the border-box) so it
-   works with the button's existing border-radius, no extra markup. The
-   gradient sweeps through OCEAN_DRIFT.accent (the palette's teal, unused
-   everywhere else in the app) between the theme's own --accent/
-   --accent-hover, and slowly drifts for a subtle "active" shimmer rather
-   than a static line. */
+   works with the button's existing border-radius, no extra markup. Top to
+   bottom, --accent straight into OCEAN_DRIFT.accent (the palette's teal,
+   unused everywhere else in the app) -- two full-strength stops, not a
+   diluted three-stop blend back to blue, for real top/bottom contrast --
+   and slowly drifts for a subtle "active" shimmer rather than a static
+   line. */
 .tier-option.active {
   position: relative;
   border: 1.5px solid transparent;
   background:
-    linear-gradient(var(--surface-alt), var(--surface-alt)) padding-box,
-    linear-gradient(135deg, var(--accent), #38b2ac, var(--accent-hover)) border-box;
-  background-size: auto, 300% 300%;
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(180deg, var(--tier-gradient-top), #38b2ac) border-box;
+  /* 180% (not the button's own 100%) stretches the blue->teal transition
+     across nearly two button-heights' worth of space, so the visible slice
+     is a longer, more gradual stretch of it than the full change
+     compressed into exactly one button's height -- without stretching so
+     far the second color barely shows at all. */
+  background-size: auto, 100% 180%;
   animation: tier-gradient-shift 6s ease infinite;
 }
 
 @keyframes tier-gradient-shift {
-  0%, 100% { background-position: 0% 0%, 0% 50%; }
-  50% { background-position: 0% 0%, 100% 50%; }
+  0%, 100% { background-position: 0% 0%, 0% 0%; }
+  50% { background-position: 0% 0%, 0% 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
