@@ -48,7 +48,7 @@ export default function ColumnMenu({
           <div className="column-menu-section-title">Anonymization</div>
           <div className="method-grid" role="radiogroup" aria-label="Anonymization method">
             {methods.map((method) => {
-              const { icon: Icon, category } = METHOD_META[method] ?? METHOD_META_FALLBACK;
+              const { icon: Icon, category, label } = METHOD_META[method] ?? METHOD_META_FALLBACK;
               const selected = currentMethod === method;
               return (
                 <button
@@ -60,7 +60,7 @@ export default function ColumnMenu({
                   onClick={() => onPickMethod(method)}
                 >
                   <Icon size={18} strokeWidth={2} aria-hidden="true" />
-                  <span className="method-card-name">{method}</span>
+                  <span className="method-card-name">{label ?? method}</span>
                   {METHOD_INFO[method] && (
                     // stopPropagation: the info glyph sits inside the card's own
                     // click target, and hovering/focusing it must not select the method.

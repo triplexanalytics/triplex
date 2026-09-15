@@ -71,6 +71,14 @@ export function useProfiledFile(wasm) {
     setRecipe((r) => upsertRecipeColumn(r, columnName, method, "unused_in_the_browser"));
   }, []);
 
+  // Clears a column's declared method (e.g. undoing "Delete from output")
+  // without touching `removedColumns`/`contract` the way `removeColumn`
+  // does -- this only ever un-declares the recipe entry, leaving the
+  // column fully present everywhere else.
+  const clearMethod = useCallback((columnName) => {
+    setRecipe((r) => removeRecipeColumn(r, columnName));
+  }, []);
+
   const removeColumn = useCallback((columnName) => {
     setRemovedColumns((s) => new Set(s).add(columnName));
     setRecipe((r) => removeRecipeColumn(r, columnName));
@@ -104,6 +112,7 @@ export function useProfiledFile(wasm) {
     setContract,
     recipe,
     pickMethod,
+    clearMethod,
     removedColumns,
     removeColumn,
     salt,

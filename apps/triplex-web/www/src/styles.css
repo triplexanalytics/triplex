@@ -43,6 +43,11 @@
   --method-generalize: #0d9488;
   --method-mask: #b45309;
   --method-default: #6e7484;
+  /* A live reference, not its own hex: "delete from output" is the same
+     destructive action --error-text/button.danger already mean elsewhere
+     in this menu ("Remove from dataset"), so it reuses that token instead
+     of risking an independent red drifting from it over time. */
+  --method-drop: var(--error-text);
   /* Read by palette.js's readGlideHeaderTheme() -- glide-data-grid takes a
      plain JS theme object, not CSS, so these are what let the table's own
      header chrome (background behind the sparkline/risk-bar row) follow
@@ -695,6 +700,13 @@ button.full-width { width: 100%; justify-content: center; }
    cleanly if a card is both at once. */
 .column-card.highlighted { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 
+/* "Delete from output" (see ColumnMenu's method grid): the column stays in
+   the working view -- unlike .selected/.highlighted this isn't a hover or
+   click state, it's a standing fact about the column, so every stat inside
+   fades along with it (opacity, not a background wash) rather than
+   layering another tint on top of whatever else the card is doing. */
+.column-card.muted { opacity: 0.55; }
+
 .column-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4rem; }
 .column-card h3 { margin: 0 0 0.35rem; font-size: 0.92rem; }
 
@@ -1035,6 +1047,7 @@ button.full-width { width: 100%; justify-content: center; }
 .method-card-encrypt { --method-color: var(--method-encrypt); }
 .method-card-generalize { --method-color: var(--method-generalize); }
 .method-card-mask { --method-color: var(--method-mask); }
+.method-card-drop { --method-color: var(--method-drop); }
 .method-card-default { --method-color: var(--method-default); }
 
 .column-menu select {

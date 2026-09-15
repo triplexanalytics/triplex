@@ -52,6 +52,7 @@ export default function AnalysisOverlay({
   recipe,
   salt,
   onPickMethod,
+  onClearMethod,
   onRemoveColumn,
   onSaltChange,
   onAnonymize,
@@ -128,6 +129,7 @@ export default function AnalysisOverlay({
               recipe={recipe}
               salt={salt}
               onPickMethod={onPickMethod}
+              onClearMethod={onClearMethod}
               onRemoveColumn={onRemoveColumn}
               onSaltChange={onSaltChange}
               onAnonymize={onAnonymize}

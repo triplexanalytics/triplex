@@ -151,6 +151,7 @@ export default function App() {
               recipe={file.recipe}
               salt={file.salt}
               onPickMethod={file.pickMethod}
+              onClearMethod={file.clearMethod}
               onRemoveColumn={file.removeColumn}
               onSaltChange={file.setSalt}
               onAnonymize={anonymize.run}

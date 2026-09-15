@@ -1,4 +1,4 @@
-import { MoreVertical } from "lucide-react";
+import { MoreVertical, Undo2 } from "lucide-react";
 import HeaderSparkline from "./HeaderSparkline";
 import { readRiskColorStops, reciprocalRisk } from "../state/palette";
 import { kAnonymityExplanation, distinctCountExplanation } from "../state/riskExplanations";
@@ -14,7 +14,13 @@ import InfoTrigger from "./InfoTrigger";
  * `onOpenMenu`, if given, renders the same menu-icon affordance the Table
  * tab's header has next to a column's name — opening the same `ColumnMenu`
  * (anonymization method, salt, remove-from-dataset), not a card-only
- * duplicate of those actions. */
+ * duplicate of those actions.
+ *
+ * `isDroppedFromOutput` (declared method "Delete from output") keeps the
+ * card in place rather than hiding it — unlike `onRemoveColumn`, dropping
+ * is about the *exported* data, not this working view, so the column stays
+ * visible here, just muted, with the menu trigger swapped for a one-click
+ * `onUndoDrop` instead of reopening the whole menu to reverse it. */
 export default function ColumnCard({
   col,
   risk,
@@ -28,6 +34,8 @@ export default function ColumnCard({
   highlighted,
   onHoverChange,
   onOpenMenu,
+  isDroppedFromOutput,
+  onUndoDrop,
 }) {
   const { value: riskValue, loading: riskLoading } = risk;
   const { declared: declaredPattern, check, checking } = pattern;
@@ -37,26 +45,41 @@ export default function ColumnCard({
 
   return (
     <div
-      className={`column-card${selected ? " selected" : ""}${highlighted ? " highlighted" : ""}`}
+      className={`column-card${selected ? " selected" : ""}${highlighted ? " highlighted" : ""}${isDroppedFromOutput ? " muted" : ""}`}
       onClick={onSelect}
       onMouseEnter={() => onHoverChange?.(col.name)}
       onMouseLeave={() => onHoverChange?.(null)}
     >
       <div className="column-card-head">
         <h3>{col.name}</h3>
-        {onOpenMenu && (
+        {isDroppedFromOutput ? (
           <button
             type="button"
             className="column-card-menu-btn"
-            aria-label={`${col.name} actions`}
+            aria-label={`Undo delete from output for ${col.name}`}
+            title="Deleted from output — undo"
             onClick={(e) => {
               e.stopPropagation();
-              const rect = e.currentTarget.getBoundingClientRect();
-              onOpenMenu(col.name, rect.left, rect.bottom + 4);
+              onUndoDrop?.();
             }}
           >
-            <MoreVertical size={16} strokeWidth={2} aria-hidden="true" />
+            <Undo2 size={16} strokeWidth={2} aria-hidden="true" />
           </button>
+        ) : (
+          onOpenMenu && (
+            <button
+              type="button"
+              className="column-card-menu-btn"
+              aria-label={`${col.name} actions`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                onOpenMenu(col.name, rect.left, rect.bottom + 4);
+              }}
+            >
+              <MoreVertical size={16} strokeWidth={2} aria-hidden="true" />
+            </button>
+          )
         )}
       </div>
       <HeaderSparkline distribution={col.distribution} />

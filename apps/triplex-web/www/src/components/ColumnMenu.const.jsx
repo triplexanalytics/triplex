@@ -1,4 +1,4 @@
-import { Hash, KeyRound, Layers, EyeOff, Wrench } from "lucide-react";
+import { Hash, KeyRound, Layers, EyeOff, FileX, Wrench } from "lucide-react";
 
 // Placeholder options only — no backend support exists yet (no imputation
 // logic anywhere in `triplex-schemacast`/`triplex-anonymizer`). Shown
@@ -22,15 +22,20 @@ export const METHOD_INFO = {
     'Numeric generalization, also known as k-anonymity bucketing: replaces a value with the numeric range it falls in, e.g. 23 → "20-29". Salt is unused — every run buckets the same way.',
   partial_mask:
     "Keeps a fixed prefix and suffix of the value and replaces everything between with *, e.g. a card number showing only its last 4 digits. Salt is unused.",
+  drop: "Excludes this column from the anonymized output entirely -- unlike the other methods, nothing about its values is masked and kept; the column just doesn't appear in the downloaded file at all. Salt is unused.",
 };
 
 // Icon + category per method, for the card-grid picker — a method not
 // listed here (new backend variant the UI hasn't caught up to yet) falls
-// back to a generic tool glyph rather than breaking the grid.
+// back to a generic tool glyph rather than breaking the grid. `label`
+// overrides the card's own display name (normally just the raw method
+// string, e.g. "token_hmac") for a method where that raw name wouldn't
+// read as an action — every other method still shows its raw name.
 export const METHOD_META = {
   token_hmac: { icon: Hash, category: "pseudonymize" },
   fpe: { icon: KeyRound, category: "encrypt" },
   bucket: { icon: Layers, category: "generalize" },
   partial_mask: { icon: EyeOff, category: "mask" },
+  drop: { icon: FileX, category: "drop", label: "Delete from output" },
 };
 export const METHOD_META_FALLBACK = { icon: Wrench, category: "default" };
