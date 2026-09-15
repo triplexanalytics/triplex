@@ -214,6 +214,26 @@ fn pair_risk_models(
     ])
 }
 
+/// The bucket value achieving each of l-diversity/t-closeness/β-likeness/
+/// δ-disclosure's own worst case for a class/sensitive-value pairing --
+/// `pair_risk_models`'s "which group" counterpart, used by
+/// `worst_group_column_pair_risk` and its string counterpart so the
+/// four-model list lives in exactly one place, same reasoning as
+/// `pair_risk_models` itself. Returns
+/// `[l_diversity, t_closeness, beta_likeness, delta_disclosure]` worst-group
+/// keys, any of which can be `None` only when there are no rows.
+fn pair_risk_worst_groups(
+    bucketed_or_exact: &[String],
+    sensitive_values: &[String],
+) -> [Option<String>; 4] {
+    [
+        triplex_datasetcard::l_diversity_worst_group(bucketed_or_exact, sensitive_values),
+        triplex_datasetcard::t_closeness_worst_group(bucketed_or_exact, sensitive_values),
+        triplex_datasetcard::beta_likeness_worst_group(bucketed_or_exact, sensitive_values),
+        triplex_datasetcard::delta_disclosure_worst_group(bucketed_or_exact, sensitive_values),
+    ]
+}
+
 /// Dataset Anonymity Analysis tab: l-diversity, t-closeness, β-likeness and
 /// δ-disclosure for one user-chosen pair of columns — `quasi_values` (the
 /// quasi-identifier, typed and generalized the same way as
@@ -290,6 +310,50 @@ pub fn score_column_pair_risk_string(
         .map(|v| triplex_anonymizer::generalize_string_prefix(prefix_width as usize, v))
         .collect();
     let results = pair_risk_models(&generalized, &sensitive_values)?;
+    serde_json::to_string(&results).map_err(to_js_err)
+}
+
+/// `score_column_pair_risk`'s worst-group counterpart, same relationship
+/// `worst_group_joint_column_risk` has to `score_joint_column_risk`: names
+/// the specific bucket driving each of the four models' worst case instead
+/// of just its severity, so a click on that pair's cell can filter the
+/// table down to exactly that quasi-identifier group. Same inputs as
+/// `score_column_pair_risk`. Returns the same four-element order
+/// (`[l_diversity, t_closeness, beta_likeness, delta_disclosure]`) as a
+/// JSON array of nullable strings.
+#[wasm_bindgen]
+pub fn worst_group_column_pair_risk(
+    quasi_values: &[f64],
+    sensitive_values_json: &str,
+    bucket_width: u32,
+) -> Result<String, JsValue> {
+    let sensitive_values: Vec<String> =
+        serde_json::from_str(sensitive_values_json).map_err(to_js_err)?;
+    let bucketed: Vec<String> = quasi_values
+        .iter()
+        .map(|v| triplex_anonymizer::bucket_numeric(bucket_width as u64, *v))
+        .collect();
+    let results = pair_risk_worst_groups(&bucketed, &sensitive_values);
+    serde_json::to_string(&results).map_err(to_js_err)
+}
+
+/// `score_column_pair_risk_string`'s worst-group counterpart -- see
+/// `worst_group_column_pair_risk`'s doc comment. Same inputs as
+/// `score_column_pair_risk_string`.
+#[wasm_bindgen]
+pub fn worst_group_column_pair_risk_string(
+    quasi_values_json: &str,
+    sensitive_values_json: &str,
+    prefix_width: u32,
+) -> Result<String, JsValue> {
+    let quasi_values: Vec<String> = serde_json::from_str(quasi_values_json).map_err(to_js_err)?;
+    let sensitive_values: Vec<String> =
+        serde_json::from_str(sensitive_values_json).map_err(to_js_err)?;
+    let generalized: Vec<String> = quasi_values
+        .iter()
+        .map(|v| triplex_anonymizer::generalize_string_prefix(prefix_width as usize, v))
+        .collect();
+    let results = pair_risk_worst_groups(&generalized, &sensitive_values);
     serde_json::to_string(&results).map_err(to_js_err)
 }
 

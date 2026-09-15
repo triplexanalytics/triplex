@@ -135,6 +135,26 @@ pub fn l_diversity(bucketed_values: &[String], sensitive_values: &[String]) -> u
     classes.values().map(|s| s.len()).min().unwrap_or(0)
 }
 
+/// The bucket value achieving `l_diversity`'s minimum, same "which group"
+/// counterpart `k_anonymity_worst_group` is to `k_anonymity`. `None` only
+/// for empty input.
+pub fn l_diversity_worst_group(
+    bucketed_values: &[String],
+    sensitive_values: &[String],
+) -> Option<String> {
+    let mut classes: HashMap<&str, HashSet<&str>> = HashMap::new();
+    for (bucket, sensitive) in bucketed_values.iter().zip(sensitive_values) {
+        classes
+            .entry(bucket.as_str())
+            .or_default()
+            .insert(sensitive.as_str());
+    }
+    classes
+        .into_iter()
+        .min_by_key(|(_, set)| set.len())
+        .map(|(key, _)| key.to_string())
+}
+
 fn distribution<'a>(values: &[&'a str]) -> HashMap<&'a str, f64> {
     let mut counts: HashMap<&str, f64> = HashMap::new();
     for v in values {
@@ -200,6 +220,40 @@ pub fn t_closeness(bucketed_values: &[String], sensitive_values: &[String]) -> f
         .fold(0.0, f64::max)
 }
 
+/// The bucket value achieving `t_closeness`'s maximum -- the equivalence
+/// class whose sensitive-attribute mix strays furthest from the
+/// dataset-wide distribution. `None` only for empty input. Ties broken by
+/// `HashMap` iteration order, same as `k_anonymity_worst_group`.
+pub fn t_closeness_worst_group(
+    bucketed_values: &[String],
+    sensitive_values: &[String],
+) -> Option<String> {
+    let all_sensitive: Vec<&str> = sensitive_values.iter().map(String::as_str).collect();
+    let overall = distribution(&all_sensitive);
+
+    let mut classes: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (bucket, sensitive) in bucketed_values.iter().zip(sensitive_values) {
+        classes
+            .entry(bucket.as_str())
+            .or_default()
+            .push(sensitive.as_str());
+    }
+
+    classes
+        .into_iter()
+        .map(|(key, class_values)| {
+            let distance = total_variation_distance(&overall, &distribution(&class_values));
+            (key, distance)
+        })
+        .fold(None, |best: Option<(&str, f64)>, (key, distance)| {
+            match best {
+                Some((_, best_distance)) if best_distance >= distance => best,
+                _ => Some((key, distance)),
+            }
+        })
+        .map(|(key, _)| key.to_string())
+}
+
 /// Basic β-likeness (Cao & Karras 2012): the largest "belief raise" an
 /// attacker gets from any one equivalence class about any one sensitive
 /// value — `ln(local_share / global_share)`, but only counted where a
@@ -242,6 +296,46 @@ pub fn beta_likeness(bucketed_values: &[String], sensitive_values: &[String]) ->
         .fold(0.0, f64::max)
 }
 
+/// The bucket value achieving `beta_likeness`'s maximum -- the equivalence
+/// class that raises belief in some sensitive value the most above its
+/// dataset-wide baseline. `None` only for empty input. Ties broken by
+/// `HashMap` iteration order, same as `k_anonymity_worst_group`.
+pub fn beta_likeness_worst_group(
+    bucketed_values: &[String],
+    sensitive_values: &[String],
+) -> Option<String> {
+    let all_sensitive: Vec<&str> = sensitive_values.iter().map(String::as_str).collect();
+    let overall = distribution(&all_sensitive);
+
+    let mut classes: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (bucket, sensitive) in bucketed_values.iter().zip(sensitive_values) {
+        classes
+            .entry(bucket.as_str())
+            .or_default()
+            .push(sensitive.as_str());
+    }
+
+    classes
+        .into_iter()
+        .map(|(key, class_values)| {
+            let local = distribution(&class_values);
+            let score = local
+                .iter()
+                .filter_map(|(value, local_share)| {
+                    let global_share = overall.get(value).copied().unwrap_or(0.0);
+                    (*local_share >= global_share && global_share > 0.0)
+                        .then(|| (local_share / global_share).ln())
+                })
+                .fold(0.0, f64::max);
+            (key, score)
+        })
+        .fold(None, |best: Option<(&str, f64)>, (key, score)| match best {
+            Some((_, best_score)) if best_score >= score => best,
+            _ => Some((key, score)),
+        })
+        .map(|(key, _)| key.to_string())
+}
+
 /// δ-disclosure privacy (Brickell & Shmatikov 2008): the largest belief
 /// *shift* an attacker gets from any one equivalence class about any one
 /// sensitive value, in either direction — `|ln(local_share / global_share)|`
@@ -279,6 +373,49 @@ pub fn delta_disclosure(bucketed_values: &[String], sensitive_values: &[String])
                 .fold(0.0, f64::max)
         })
         .fold(0.0, f64::max)
+}
+
+/// The bucket value achieving `delta_disclosure`'s maximum -- the
+/// equivalence class whose belief shift (either direction) about some
+/// sensitive value is largest. `None` only for empty input. Ties broken by
+/// `HashMap` iteration order, same as `k_anonymity_worst_group`.
+pub fn delta_disclosure_worst_group(
+    bucketed_values: &[String],
+    sensitive_values: &[String],
+) -> Option<String> {
+    let all_sensitive: Vec<&str> = sensitive_values.iter().map(String::as_str).collect();
+    let overall = distribution(&all_sensitive);
+
+    let mut classes: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (bucket, sensitive) in bucketed_values.iter().zip(sensitive_values) {
+        classes
+            .entry(bucket.as_str())
+            .or_default()
+            .push(sensitive.as_str());
+    }
+
+    classes
+        .into_iter()
+        .map(|(key, class_values)| {
+            let local = distribution(&class_values);
+            let score = local
+                .iter()
+                .map(|(value, local_share)| {
+                    let global_share = overall.get(value).copied().unwrap_or(0.0);
+                    if global_share > 0.0 {
+                        (local_share / global_share).ln().abs()
+                    } else {
+                        0.0
+                    }
+                })
+                .fold(0.0, f64::max);
+            (key, score)
+        })
+        .fold(None, |best: Option<(&str, f64)>, (key, score)| match best {
+            Some((_, best_score)) if best_score >= score => best,
+            _ => Some((key, score)),
+        })
+        .map(|(key, _)| key.to_string())
 }
 
 /// Zips N already-bucketed/generalized columns into one composite
@@ -404,6 +541,22 @@ mod tests {
     }
 
     #[test]
+    fn l_diversity_worst_group_names_the_least_diverse_class() {
+        let buckets = vec!["20-29", "20-29", "20-29", "30-39", "30-39"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let diagnoses = vec!["flu", "flu", "flu", "flu", "diabetes"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            l_diversity_worst_group(&buckets, &diagnoses),
+            Some("20-29".to_string())
+        );
+    }
+
+    #[test]
     fn t_closeness_is_zero_when_every_class_matches_the_global_distribution() {
         let buckets = vec!["20-29", "20-29", "30-39", "30-39"]
             .into_iter()
@@ -428,6 +581,22 @@ mod tests {
             .collect::<Vec<_>>();
         // "20-29" is 100% "flu" while the global mix is 75%/25% — a real gap.
         assert!(t_closeness(&buckets, &diagnoses) > 0.0);
+    }
+
+    #[test]
+    fn t_closeness_worst_group_names_the_most_divergent_class() {
+        let buckets = vec!["20-29", "20-29", "20-29", "30-39"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let diagnoses = vec!["flu", "flu", "flu", "diabetes"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            t_closeness_worst_group(&buckets, &diagnoses),
+            Some("30-39".to_string())
+        );
     }
 
     /// Exercises exactly the case the optimized `total_variation_distance`
@@ -599,6 +768,22 @@ mod tests {
         assert_eq!(beta, 4.0_f64.ln());
     }
 
+    #[test]
+    fn beta_likeness_worst_group_names_the_class_with_the_biggest_belief_raise() {
+        let buckets = vec!["20-29", "20-29", "20-29", "30-39"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let diagnoses = vec!["flu", "flu", "flu", "diabetes"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            beta_likeness_worst_group(&buckets, &diagnoses),
+            Some("30-39".to_string())
+        );
+    }
+
     /// Hand-verified two-class, three-value dataset where the single
     /// biggest belief *shift* in either direction is a *lowered* value —
     /// proving `delta_disclosure` (which considers both directions) and
@@ -636,6 +821,14 @@ mod tests {
         assert_eq!(beta, 2.0_f64.ln());
         assert_eq!(delta, 5.0_f64.ln());
         assert!(delta > beta, "delta ({delta}) should exceed beta ({beta})");
+
+        // Class "A"'s lowered G share (ln(5)) is the dataset's biggest
+        // shift in either direction — bigger than class "B"'s own largest
+        // shift (R1 dropping, |ln(0.1/0.3)| ≈ 1.10 < ln(5) ≈ 1.61).
+        assert_eq!(
+            delta_disclosure_worst_group(&buckets, &diagnoses),
+            Some("A".to_string())
+        );
     }
 
     #[test]
