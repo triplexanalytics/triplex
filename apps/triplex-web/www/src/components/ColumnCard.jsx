@@ -32,7 +32,11 @@ import InfoTrigger from "./InfoTrigger";
  *
  * `onBinClick`, forwarded to `HeaderSparkline`, is the same row-filter
  * setter a Privacy Analysis matrix click already drives (`useRowFilter.js`)
- * -- clicking a bar filters the Table tab to that bin/value. */
+ * -- clicking or dragging across bars filters the Table tab to that
+ * bin/value span. `subsetCounts` (this column's own entry from
+ * useColumnSubsetDistributions.js), also forwarded, is what turns every
+ * card's sparkline into the coordinated-view overlay once any row filter is
+ * active, not just the card that set it. */
 export default function ColumnCard({
   col,
   risk,
@@ -49,6 +53,7 @@ export default function ColumnCard({
   appliedMethod,
   onClearMethod,
   onBinClick,
+  subsetCounts,
 }) {
   const { value: riskValue, loading: riskLoading } = risk;
   const { declared: declaredPattern, check, checking } = pattern;
@@ -117,7 +122,12 @@ export default function ColumnCard({
           )
         )}
       </div>
-      <HeaderSparkline distribution={col.distribution} columnName={col.name} onBinClick={onBinClick} />
+      <HeaderSparkline
+        distribution={col.distribution}
+        columnName={col.name}
+        onBinClick={onBinClick}
+        subsetCounts={subsetCounts}
+      />
       <dl>
         <dt>Type</dt>
         <dd className="type-with-icon">

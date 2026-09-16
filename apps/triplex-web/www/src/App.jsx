@@ -5,6 +5,7 @@ import { useAnonymize } from "./hooks/useAnonymize";
 import { useColumnRisk } from "./hooks/useColumnRisk";
 import { useDiversityMatrix } from "./hooks/useDiversityMatrix";
 import { useRowFilter } from "./hooks/useRowFilter";
+import { useColumnSubsetDistributions } from "./hooks/useColumnSubsetDistributions";
 import { withColumnType } from "./state/yamlBuilder";
 import Navbar from "./components/Navbar";
 import Dropzone from "./components/Dropzone";
@@ -39,6 +40,7 @@ export default function App() {
   const columnRisk = useColumnRisk(file.sample, file.profile);
   const diversityMatrix = useDiversityMatrix(file.sample, file.profile);
   const rowFilter = useRowFilter(wasm, file.sample, file.profile);
+  const columnSubsets = useColumnSubsetDistributions(file.sample, file.profile, rowFilter.filteredRowIndices);
   const [selectedColumn, setSelectedColumn] = useState(null);
   // { rowName, colName } | null — the one shared hover state behind every
   // cross-highlight in the app: RiskMatrix cells cross-highlight each other
@@ -154,6 +156,7 @@ export default function App() {
               onSaltChange={file.setSalt}
               onAnonymize={anonymize.run}
               anonymizing={anonymize.anonymizing}
+              columnSubsets={columnSubsets}
             />
           </Suspense>
         )}

@@ -34,6 +34,18 @@ export function oceanDriftAlpha(alpha) {
 // blue, so it's the one actually used for a small bar mark.
 export const HISTOGRAM_COLOR = OCEAN_DRIFT.secondary;
 
+// The "full dataset, before this filter" baseline bar HeaderSparkline draws
+// once a row filter (useRowFilter.js) is active anywhere in the app --
+// coordinated-view brushing: every card keeps showing its own bars at full
+// (unfiltered) height in this muted gray, with a shorter HISTOGRAM_COLOR
+// overlay on top sized to how many of that bar's own rows survive the
+// filter. Deliberately not held to HISTOGRAM_COLOR's >=3:1 mark-contrast
+// floor -- once overlaid, this is the *receded* layer, not the primary data
+// mark (the overlay is), the same "faded background, one real mark on top"
+// relationship a track/fill risk bar already has (ColumnCard's
+// .risk-bar-track).
+export const HISTOGRAM_BASELINE_COLOR = "#d7dbe2";
+
 // glide-data-grid ships its own default theme (light gray #F7F7F8 header,
 // Inter font, an unrelated #4F5DFF accent) and nothing in this app ever
 // overrode it — TableTab's <DataEditor> took no `theme` prop, so every

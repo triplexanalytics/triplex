@@ -23,7 +23,12 @@ import ColumnMenu from "./ColumnMenu";
  * `TableTab.jsx`'s own `menu` state one-for-one. Each card also gets the
  * column's current recipe method (`appliedMethod`), so it can show its own
  * pill/muted-state reflection of that without reopening the menu — see
- * ColumnCard's own doc comment for what each method does with it. */
+ * ColumnCard's own doc comment for what each method does with it.
+ *
+ * `onBinClick`/`columnSubsets` are useRowFilter.js's setter and
+ * useColumnSubsetDistributions.js's per-column result, both from App.jsx —
+ * `columnSubsets?.[col.name]` is threaded to each card individually so
+ * ColumnCard/HeaderSparkline never need to know the shape of the whole map. */
 export default function ColumnViewTab({
   profile,
   selectedColumn,
@@ -47,6 +52,7 @@ export default function ColumnViewTab({
   onAnonymize,
   anonymizing,
   onBinClick,
+  columnSubsets,
 }) {
   const [menu, setMenu] = useState(null); // { name, x, y } | null
 
@@ -79,6 +85,7 @@ export default function ColumnViewTab({
           appliedMethod={recipe.columns.find((c) => c.name === col.name)?.method}
           onClearMethod={onClearMethod}
           onBinClick={onBinClick}
+          subsetCounts={columnSubsets?.[col.name]}
         />
       ))}
       {menu && (

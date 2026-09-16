@@ -56,6 +56,7 @@ export default function AnalysisOverlay({
   onSaltChange,
   onAnonymize,
   anonymizing,
+  columnSubsets,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState("columns");
@@ -133,6 +134,7 @@ export default function AnalysisOverlay({
               onAnonymize={onAnonymize}
               anonymizing={anonymizing}
               onBinClick={onJointKCellClick}
+              columnSubsets={columnSubsets}
             />
           )}
           {innerTab === "analysis" && (
