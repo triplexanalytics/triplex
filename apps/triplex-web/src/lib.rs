@@ -8,7 +8,7 @@
 //! JS-facing signatures and error conversion only, no logic of its own —
 //! everything real lives in `triplex-schemacast`/`triplex-anonymizer`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use triplex_anonymizer::{AnonymizeMethod, AnonymizeRecipe};
 use triplex_schemacast::DeclaredContract;
 use wasm_bindgen::prelude::*;
@@ -125,18 +125,30 @@ pub struct AnonymizeOutput {
 /// `salt_env` from in a browser — see `triplex_anonymizer::anonymize_bytes`).
 /// The mapping file is always plaintext here (no passphrase-encryption
 /// option in the browser flow) — still never leaves this page.
+/// `excluded_row_indices` — 0-based row numbers to drop from the output
+/// entirely before masking (e.g. the page's own row-filter "remove these
+/// rows" action); see `triplex_anonymizer::exclude_rows`.
 #[wasm_bindgen]
 pub fn anonymize(
     bytes: &[u8],
     extension: &str,
     recipe_yaml: &str,
     salts_json: &str,
+    excluded_row_indices: &[u32],
 ) -> Result<AnonymizeOutput, JsValue> {
     let recipe: AnonymizeRecipe = serde_yaml_ng::from_str(recipe_yaml).map_err(to_js_err)?;
     let salts: HashMap<String, String> = serde_json::from_str(salts_json).map_err(to_js_err)?;
+    let excluded_row_indices: HashSet<usize> =
+        excluded_row_indices.iter().map(|&i| i as usize).collect();
 
-    let result =
-        triplex_anonymizer::anonymize_bytes(bytes, extension, &recipe, &salts).map_err(to_js_err)?;
+    let result = triplex_anonymizer::anonymize_bytes(
+        bytes,
+        extension,
+        &recipe,
+        &salts,
+        &excluded_row_indices,
+    )
+    .map_err(to_js_err)?;
     let report_json = serde_json::to_string(&result.report).map_err(to_js_err)?;
 
     Ok(AnonymizeOutput {

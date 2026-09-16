@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.";
+const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.";
 
 /// Exit codes per the design notes: 0 success, 1
 /// non-blocking warning (no coercion modes exist yet, so unused today), 2
@@ -58,6 +58,29 @@ fn optional_delimiter(args: &[String], flag: &str) -> std::result::Result<Option
         Some(value) => parse_delimiter(flag, &value).map(Some),
         None => Ok(None),
     }
+}
+
+/// Parses `--exclude-rows`'s comma-separated 0-based row-index list (e.g.
+/// `"1,4,7"`) into the `HashSet<usize>` `anonymize_file` expects — an empty
+/// set (no rows excluded) if the flag wasn't given at all, so this is
+/// backward compatible with every existing `triplex anonymize` invocation.
+fn parse_excluded_rows(
+    args: &[String],
+) -> std::result::Result<std::collections::HashSet<usize>, ExitCode> {
+    let Some(value) = flag_value(args, "--exclude-rows") else {
+        return Ok(std::collections::HashSet::new());
+    };
+    value
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            s.parse::<usize>().map_err(|_| {
+                eprintln!("error: --exclude-rows expects comma-separated row numbers, got {s:?}");
+                ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+            })
+        })
+        .collect()
 }
 
 fn main() -> ExitCode {
@@ -203,6 +226,11 @@ fn main() -> ExitCode {
                 None => None,
             };
 
+            let excluded_rows = match parse_excluded_rows(&args) {
+                Ok(set) => set,
+                Err(code) => return code,
+            };
+
             let recipe = match triplex_anonymizer::load_recipe(&PathBuf::from(recipe)) {
                 Ok(r) => r,
                 Err(e) => {
@@ -217,6 +245,7 @@ fn main() -> ExitCode {
                 &PathBuf::from(output),
                 &PathBuf::from(mapping_out),
                 passphrase.as_deref(),
+                &excluded_rows,
             ) {
                 Ok(report) => {
                     eprintln!("warning: {}", report.warning);

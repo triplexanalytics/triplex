@@ -53,6 +53,12 @@ pub struct AnonymizeReport {
     /// `AnonymizeMethod::Bucket` column, since there's no quasi-identifier
     /// to score.
     pub risk_assessment: Option<RiskAssessment>,
+    /// How many input rows `exclude_rows` actually removed before anything
+    /// else ran — a caller-chosen exclusion (e.g. apps/triplex-web's row
+    /// filter, "remove these rows from the output"), not a recipe
+    /// declaration, so it has no `AnonymizeColumn`-style name list the way
+    /// `columns_dropped` does.
+    pub rows_excluded: usize,
     pub warning: &'static str,
 }
 
@@ -223,6 +229,44 @@ fn drop_columns(sample: triplex_io::Sample, drop_indices: &HashSet<usize>) -> tr
     }
 }
 
+/// Drops every row at an `excluded_row_indices` position (0-based, matching
+/// the input file's row order) before anything else runs — the row analog
+/// of `drop_columns`, except rows are excluded by the *caller's* own choice
+/// (e.g. apps/triplex-web's row-filter brush, "remove these rows from the
+/// output") rather than a recipe declaration: there's no per-row equivalent
+/// of a column's declared `AnonymizeMethod`, so this takes a plain index set
+/// instead of deriving one from `recipe`. Applied before
+/// `resolve_columns`/`mask_rows`/`assess_bucket_risk`, so an excluded row's
+/// values never count toward `unique_masked_values_minted`, the
+/// k-anonymity assessment, or the output at all — same as if it had never
+/// been in the input. Returns how many rows were actually removed (an
+/// out-of-range index in `excluded_row_indices` removes nothing), for
+/// `AnonymizeReport::rows_excluded`.
+fn exclude_rows(
+    sample: triplex_io::Sample,
+    excluded_row_indices: &HashSet<usize>,
+) -> (triplex_io::Sample, usize) {
+    if excluded_row_indices.is_empty() {
+        return (sample, 0);
+    }
+    let before = sample.rows.len();
+    let rows: Vec<_> = sample
+        .rows
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _)| !excluded_row_indices.contains(i))
+        .map(|(_, row)| row)
+        .collect();
+    let removed = before - rows.len();
+    (
+        triplex_io::Sample {
+            headers: sample.headers,
+            rows,
+        },
+        removed,
+    )
+}
+
 /// The masking loop shared by every entry point: runs each resolved
 /// column's `Mechanism` over its values in place, minting one mapping entry
 /// per distinct (column, original_value) pair. Pure — no I/O — so it runs
@@ -258,19 +302,21 @@ fn mask_rows(
     (triplex_io::Sample { headers, rows }, mapping_entries)
 }
 
-/// Reads `input_path` (`.csv` or `.parquet`), masks every column the
-/// recipe declares, writes the masked dataset to `output_path` as CSV, and
-/// writes a separate reversible mapping to `mapping_out_path` — plaintext
-/// CSV, or an AES-256-GCM-encrypted JSON envelope if `mapping_passphrase`
-/// is given.
+/// Reads `input_path` (`.csv` or `.parquet`), excludes `excluded_row_indices`
+/// (see `exclude_rows`), masks every column the recipe declares, writes the
+/// masked dataset to `output_path` as CSV, and writes a separate reversible
+/// mapping to `mapping_out_path` — plaintext CSV, or an AES-256-GCM-encrypted
+/// JSON envelope if `mapping_passphrase` is given.
 pub fn anonymize_file(
     input_path: &Path,
     recipe: &AnonymizeRecipe,
     output_path: &Path,
     mapping_out_path: &Path,
     mapping_passphrase: Option<&str>,
+    excluded_row_indices: &HashSet<usize>,
 ) -> Result<AnonymizeReport> {
     let sample = read_rows(input_path)?;
+    let (sample, rows_excluded) = exclude_rows(sample, excluded_row_indices);
     let (resolved, drop_indices) = resolve_columns(recipe, &sample.headers)?;
     let (masked, mapping_entries) = mask_rows(&resolved, sample);
     let columns_dropped: Vec<String> = drop_indices
@@ -299,6 +345,7 @@ pub fn anonymize_file(
         columns_dropped,
         unique_masked_values_minted: mapping_entries.len(),
         risk_assessment,
+        rows_excluded,
         warning: PSEUDONYMIZATION_WARNING,
     })
 }
@@ -311,13 +358,16 @@ pub fn anonymize_file(
 /// env-var lookup. No passphrase encryption here; the mapping is offered as
 /// a plaintext download, same trust boundary as any other client-side-only
 /// output (still `PSEUDONYMIZATION_WARNING`'s responsibility to convey).
+/// `excluded_row_indices` — see `exclude_rows`.
 pub fn anonymize_bytes(
     bytes: &[u8],
     extension: &str,
     recipe: &AnonymizeRecipe,
     salts: &std::collections::HashMap<String, String>,
+    excluded_row_indices: &HashSet<usize>,
 ) -> Result<AnonymizeBytesResult> {
     let sample = read_rows_bytes(bytes, extension)?;
+    let (sample, rows_excluded) = exclude_rows(sample, excluded_row_indices);
     let (resolved, drop_indices) = resolve_columns_with_salts(recipe, &sample.headers, salts)?;
     let (masked, mapping_entries) = mask_rows(&resolved, sample);
     let columns_dropped: Vec<String> = drop_indices
@@ -338,6 +388,7 @@ pub fn anonymize_bytes(
             columns_dropped,
             unique_masked_values_minted: mapping_entries.len(),
             risk_assessment,
+            rows_excluded,
             warning: PSEUDONYMIZATION_WARNING,
         },
         mapping_csv,
@@ -406,7 +457,7 @@ mod tests {
         let mut salts = std::collections::HashMap::new();
         salts.insert("name".to_string(), "test-salt".to_string());
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new())
             .expect("anonymize_bytes should succeed");
 
         assert_eq!(result.report.rows_processed, 4);
@@ -431,7 +482,7 @@ mod tests {
         let mut salts = std::collections::HashMap::new();
         salts.insert("name".to_string(), "test-salt".to_string());
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new())
             .expect("anonymize_bytes should succeed");
         let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
 
@@ -447,7 +498,7 @@ mod tests {
         let mut salts = std::collections::HashMap::new();
         salts.insert("id".to_string(), "unused".to_string()); // Bucket ignores the salt
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new())
             .expect("anonymize_bytes should succeed");
         let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
 
@@ -491,7 +542,7 @@ mod tests {
         salts.insert("id".to_string(), "unused".to_string());
         salts.insert("price".to_string(), "unused".to_string());
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new())
             .expect("anonymize_bytes should succeed");
 
         // Composing id (width 1: every row its own bucket) with price still
@@ -509,10 +560,86 @@ mod tests {
         let mut salts = std::collections::HashMap::new();
         salts.insert("name".to_string(), "test-salt".to_string());
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new())
             .expect("anonymize_bytes should succeed");
 
         assert_eq!(result.report.risk_assessment, None);
+    }
+
+    #[test]
+    fn anonymize_bytes_excludes_the_given_row_indices_from_the_output() {
+        let recipe = recipe_for("name", "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string());
+        let excluded = HashSet::from([1]); // row 1: "2,3.50,false,gadget"
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &excluded)
+            .expect("anonymize_bytes should succeed");
+        let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+
+        assert_eq!(result.report.rows_excluded, 1);
+        assert_eq!(result.report.rows_processed, 3);
+        assert_eq!(masked.rows.len(), 3);
+        assert!(masked.rows.iter().all(|r| r[0] != "2"));
+    }
+
+    #[test]
+    fn anonymize_bytes_with_an_out_of_range_excluded_row_index_removes_nothing() {
+        let recipe = recipe_for("name", "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string());
+        let excluded = HashSet::from([99]);
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &excluded)
+            .expect("anonymize_bytes should succeed");
+
+        assert_eq!(result.report.rows_excluded, 0);
+        assert_eq!(result.report.rows_processed, 4);
+    }
+
+    #[test]
+    fn anonymize_bytes_with_excluded_rows_scores_risk_on_the_remaining_rows_only() {
+        // id bucketed at width 1 (no generalization -- every id is its own
+        // class): without exclusion this is k-anonymity 1 regardless: with
+        // all 4 distinct ids, excluding one still leaves the rest at 1.
+        // What this actually guards is unique_masked_values_minted/
+        // rows_processed reflecting 3 rows, not 4 -- an excluded row's id
+        // must never reach assess_bucket_risk (or mask_rows) at all.
+        let mut recipe = recipe_with_method("id", AnonymizeMethod::Bucket, "unused");
+        recipe.columns[0].bucket_width = 1;
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("id".to_string(), "unused".to_string());
+        let excluded = HashSet::from([1]); // id "2"
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &excluded)
+            .expect("anonymize_bytes should succeed");
+        let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
+
+        assert_eq!(result.report.rows_processed, 3);
+        assert!(masked.rows.iter().all(|r| r[0] != "2"));
+        assert_eq!(
+            result.report.risk_assessment,
+            Some(RiskAssessment::KAnonymity(1))
+        );
+    }
+
+    #[test]
+    fn anonymize_bytes_with_all_rows_excluded_reports_zero_rows_processed() {
+        let recipe = recipe_for("name", "unused_in_the_bytes_path");
+        let bytes = std::fs::read(fixture("sample.csv")).unwrap();
+        let mut salts = std::collections::HashMap::new();
+        salts.insert("name".to_string(), "test-salt".to_string());
+        let excluded = HashSet::from([0, 1, 2, 3]);
+
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &excluded)
+            .expect("anonymize_bytes should succeed even with an empty result");
+
+        assert_eq!(result.report.rows_excluded, 4);
+        assert_eq!(result.report.rows_processed, 0);
+        assert_eq!(result.report.unique_masked_values_minted, 0);
     }
 
     #[test]
@@ -526,7 +653,7 @@ mod tests {
         let mut salts = std::collections::HashMap::new();
         salts.insert("name".to_string(), "unused".to_string()); // PartialMask ignores the salt
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new())
             .expect("anonymize_bytes should succeed");
         let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
 
@@ -540,7 +667,7 @@ mod tests {
         let bytes = std::fs::read(fixture("sample.csv")).unwrap();
         let salts = std::collections::HashMap::new(); // empty -- Drop needs no salt
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new())
             .expect("anonymize_bytes should succeed with no salt for a Drop-only recipe");
         let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
 
@@ -580,7 +707,7 @@ mod tests {
         let mut salts = std::collections::HashMap::new();
         salts.insert("name".to_string(), "test-salt".to_string()); // no "id" entry needed
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts)
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new())
             .expect("anonymize_bytes should succeed");
         let masked = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
 
@@ -601,8 +728,15 @@ mod tests {
         let output = temp_path("output_bytes_parity.csv");
         let mapping_out = temp_path("mapping_bytes_parity.csv");
 
-        anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None)
-            .expect("anonymize_file should succeed");
+        anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            None,
+            &HashSet::new(),
+        )
+        .expect("anonymize_file should succeed");
         let via_path = triplex_io::read_csv_full(&output).unwrap();
         std::fs::remove_file(&output).ok();
         std::fs::remove_file(&mapping_out).ok();
@@ -610,7 +744,7 @@ mod tests {
         let bytes = std::fs::read(fixture("sample.csv")).unwrap();
         let mut salts = std::collections::HashMap::new();
         salts.insert("name".to_string(), "test-salt".to_string());
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts).unwrap();
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new()).unwrap();
         let via_bytes = triplex_io::read_csv_full_bytes(&result.masked_csv).unwrap();
 
         assert_eq!(
@@ -625,7 +759,7 @@ mod tests {
         let bytes = std::fs::read(fixture("sample.csv")).unwrap();
         let salts = std::collections::HashMap::new(); // no "name" entry
 
-        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts);
+        let result = anonymize_bytes(&bytes, "csv", &recipe, &salts, &HashSet::new());
         match result {
             Err(e) => assert_eq!(e.code(), "MISSING_SALT"),
             Ok(_) => panic!("expected an error for a column with no supplied salt"),
@@ -639,7 +773,7 @@ mod tests {
         let mut salts = std::collections::HashMap::new();
         salts.insert("name".to_string(), "test-salt".to_string());
 
-        let result = anonymize_bytes(&bytes, "parquet", &recipe, &salts);
+        let result = anonymize_bytes(&bytes, "parquet", &recipe, &salts, &HashSet::new());
         assert!(result.is_err(), "parquet input isn't supported via bytes");
     }
 
@@ -650,8 +784,15 @@ mod tests {
         let output = temp_path("output_1.csv");
         let mapping_out = temp_path("mapping_1.csv");
 
-        let report = anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None)
-            .expect("anonymize should succeed");
+        let report = anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            None,
+            &HashSet::new(),
+        )
+        .expect("anonymize should succeed");
 
         assert_eq!(report.rows_processed, 4);
         assert_eq!(report.columns_anonymized, vec!["name"]);
@@ -677,6 +818,35 @@ mod tests {
     }
 
     #[test]
+    fn anonymize_file_excludes_the_given_row_indices_from_the_output() {
+        std::env::set_var("TRIPLEX_TEST_SALT_EXCLUDE_ROWS", "test-salt");
+        let recipe = recipe_for("name", "TRIPLEX_TEST_SALT_EXCLUDE_ROWS");
+        let output = temp_path("output_exclude_rows.csv");
+        let mapping_out = temp_path("mapping_exclude_rows.csv");
+        let excluded = HashSet::from([1, 3]); // "gadget" and "doohickey"
+
+        let report = anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            None,
+            &excluded,
+        )
+        .expect("anonymize should succeed");
+
+        assert_eq!(report.rows_excluded, 2);
+        assert_eq!(report.rows_processed, 2);
+        let masked = triplex_io::read_csv_full(&output).unwrap();
+        assert_eq!(masked.rows.len(), 2);
+        assert_eq!(masked.rows[0][0], "1");
+        assert_eq!(masked.rows[1][0], "3");
+
+        std::fs::remove_file(&output).ok();
+        std::fs::remove_file(&mapping_out).ok();
+    }
+
+    #[test]
     fn anonymizes_a_parquet_input_the_same_way() {
         std::env::set_var("TRIPLEX_TEST_SALT_2", "test-salt");
         let recipe = recipe_for("name", "TRIPLEX_TEST_SALT_2");
@@ -689,6 +859,7 @@ mod tests {
             &output,
             &mapping_out,
             None,
+            &HashSet::new(),
         )
         .expect("anonymize should succeed on parquet input");
 
@@ -707,8 +878,15 @@ mod tests {
         let output = temp_path("output_3.csv");
         let mapping_out = temp_path("mapping_3.csv");
 
-        anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None)
-            .expect("anonymize should succeed");
+        anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            None,
+            &HashSet::new(),
+        )
+        .expect("anonymize should succeed");
 
         let masked = triplex_io::read_csv_full(&output).unwrap();
         // in_stock is true,false,true,true — two distinct values, so rows 0
@@ -730,7 +908,14 @@ mod tests {
         let output = temp_path("output_4.csv");
         let mapping_out = temp_path("mapping_4.csv");
 
-        let result = anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None);
+        let result = anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            None,
+            &HashSet::new(),
+        );
         assert!(result.is_err());
     }
 
@@ -741,7 +926,14 @@ mod tests {
         let output = temp_path("output_5.csv");
         let mapping_out = temp_path("mapping_5.csv");
 
-        let result = anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None);
+        let result = anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            None,
+            &HashSet::new(),
+        );
         assert!(result.is_err());
     }
 
@@ -758,6 +950,7 @@ mod tests {
             &output,
             &mapping_out,
             Some("a strong passphrase"),
+            &HashSet::new(),
         )
         .expect("anonymize should succeed");
 
@@ -785,6 +978,7 @@ mod tests {
             &output,
             &mapping_out,
             Some("a strong passphrase"),
+            &HashSet::new(),
         )
         .expect("anonymize should succeed");
 
@@ -814,6 +1008,7 @@ mod tests {
             &output,
             &mapping_out,
             Some("correct passphrase"),
+            &HashSet::new(),
         )
         .expect("anonymize should succeed");
 
@@ -832,8 +1027,15 @@ mod tests {
         let mapping_out = temp_path("mapping_9.csv");
         let revealed = temp_path("revealed_9.csv");
 
-        anonymize_file(&fixture("sample.csv"), &recipe, &output, &mapping_out, None)
-            .expect("anonymize should succeed");
+        anonymize_file(
+            &fixture("sample.csv"),
+            &recipe,
+            &output,
+            &mapping_out,
+            None,
+            &HashSet::new(),
+        )
+        .expect("anonymize should succeed");
 
         let result = reveal_mapping(&mapping_out, "any passphrase", &revealed);
         assert!(result.is_err());
