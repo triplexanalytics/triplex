@@ -39,8 +39,8 @@ fn row_to_json_line(headers: &[String], row: &[String]) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::jsonl_source::{read_jsonl_full, read_jsonl_full_bytes};
+    use super::*;
 
     #[test]
     fn write_jsonl_bytes_round_trips_through_read_jsonl_full_bytes() {

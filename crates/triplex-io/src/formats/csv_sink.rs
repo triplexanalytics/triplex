@@ -29,8 +29,8 @@ pub fn write_csv_bytes(headers: &[String], rows: &[Vec<String>]) -> Result<Vec<u
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::csv_source::{read_csv_full, read_csv_full_with_delimiter};
+    use super::*;
 
     #[test]
     fn write_csv_round_trips_through_read_csv_full() {

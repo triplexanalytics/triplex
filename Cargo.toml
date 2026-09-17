@@ -8,9 +8,35 @@ members = [
     "crates/triplex-datasetcard",
     "apps/triplex-cli",
     "apps/triplex-web",
+    "apps/triplex-mcp",
 ]
 
 [workspace.package]
 version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
+
+# Single source of truth for every dependency shared by 2+ workspace
+# members, so a new crate (DriftGuard, ModelCard, ...) never has to guess a
+# version that's already pinned elsewhere. A crate opts in with
+# `foo = { workspace = true }` (plus any extra `features` it alone needs);
+# a dependency only one crate uses stays pinned locally in that crate's own
+# Cargo.toml instead of moving here.
+[workspace.dependencies]
+triplex-core = { path = "crates/triplex-core" }
+triplex-io = { path = "crates/triplex-io" }
+triplex-schemacast = { path = "crates/triplex-schemacast" }
+triplex-anonymizer = { path = "crates/triplex-anonymizer" }
+triplex-datasetcard = { path = "crates/triplex-datasetcard" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml_ng = "0.10.0"
+csv = "1"
+regex = "1"
+# arrow-*/parquet must stay in lockstep — parquet's "arrow" feature links
+# against the exact arrow-* versions resolved elsewhere in the graph.
+arrow-array = { version = "59.2.0", default-features = false }
+arrow-cast = { version = "59.2.0", default-features = false }
+arrow-ipc = { version = "59.2.0", default-features = false }
+arrow-schema = { version = "59.2.0", default-features = false }
+parquet = { version = "59.2.0", default-features = false }

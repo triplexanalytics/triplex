@@ -24,4 +24,6 @@ pub use shared::distribution::{
     compute_column_distribution, CategoryCount, ColumnDistribution, HistogramBin, ValueKind,
 };
 pub use shared::sample::Sample;
-pub use shared::statistics::{compute_column_statistics, ColumnStatistics, ColumnStatisticsBuilder};
+pub use shared::statistics::{
+    compute_column_statistics, ColumnStatistics, ColumnStatisticsBuilder,
+};

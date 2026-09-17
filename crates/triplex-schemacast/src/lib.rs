@@ -483,7 +483,11 @@ mod tests {
             .expect("parquet fixture should be readable");
 
         assert_eq!(
-            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            contract
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["id", "price", "in_stock", "name"]
         );
         assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
@@ -531,7 +535,11 @@ mod tests {
             .expect("tsv fixture should be readable");
 
         assert_eq!(
-            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            contract
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["id", "price", "in_stock", "name"]
         );
         assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
@@ -542,11 +550,16 @@ mod tests {
 
     #[test]
     fn infers_a_schema_from_a_semicolon_delimited_csv_with_an_explicit_delimiter() {
-        let contract = infer_schema_from_csv_with_delimiter(&fixture("sample.semicolon.csv"), b';', 100)
-            .expect("semicolon fixture should be readable");
+        let contract =
+            infer_schema_from_csv_with_delimiter(&fixture("sample.semicolon.csv"), b';', 100)
+                .expect("semicolon fixture should be readable");
 
         assert_eq!(
-            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            contract
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["id", "price", "in_stock", "name"]
         );
         assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
@@ -559,7 +572,11 @@ mod tests {
             .expect("jsonl fixture should be readable");
 
         assert_eq!(
-            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            contract
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["id", "price", "in_stock", "name"]
         );
         assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
@@ -576,8 +593,16 @@ mod tests {
         let from_bytes = infer_schema_from_bytes(&bytes, "csv").expect("bytes should infer");
         let from_path = infer_schema_from_path(&fixture("sample.csv"), 100).unwrap();
         assert_eq!(
-            from_bytes.columns.iter().map(|c| c.inferred_type).collect::<Vec<_>>(),
-            from_path.columns.iter().map(|c| c.inferred_type).collect::<Vec<_>>()
+            from_bytes
+                .columns
+                .iter()
+                .map(|c| c.inferred_type)
+                .collect::<Vec<_>>(),
+            from_path
+                .columns
+                .iter()
+                .map(|c| c.inferred_type)
+                .collect::<Vec<_>>()
         );
     }
 
@@ -647,7 +672,11 @@ mod tests {
 
         let declared = parse_contract(&yaml).expect("generated yaml should itself be parseable");
         assert_eq!(
-            declared.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            declared
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["id", "price", "in_stock", "name"]
         );
         assert_eq!(declared.columns[0].column_type, ColumnType::Integer);
@@ -665,7 +694,11 @@ mod tests {
             .expect("fixture should be readable");
 
         assert_eq!(
-            contract.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            contract
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["id", "price", "in_stock", "name"]
         );
         assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);

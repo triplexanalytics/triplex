@@ -15,8 +15,8 @@ pub fn write_tsv_bytes(headers: &[String], rows: &[Vec<String>]) -> Result<Vec<u
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tsv_source::{read_tsv_full, read_tsv_full_bytes};
+    use super::*;
 
     #[test]
     fn write_tsv_bytes_round_trips_through_read_tsv_full_bytes() {

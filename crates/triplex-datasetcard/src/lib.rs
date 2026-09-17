@@ -245,12 +245,13 @@ pub fn t_closeness_worst_group(
             let distance = total_variation_distance(&overall, &distribution(&class_values));
             (key, distance)
         })
-        .fold(None, |best: Option<(&str, f64)>, (key, distance)| {
-            match best {
+        .fold(
+            None,
+            |best: Option<(&str, f64)>, (key, distance)| match best {
                 Some((_, best_distance)) if best_distance >= distance => best,
                 _ => Some((key, distance)),
-            }
-        })
+            },
+        )
         .map(|(key, _)| key.to_string())
 }
 

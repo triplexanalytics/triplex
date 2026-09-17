@@ -1,0 +1,17 @@
+[package]
+name = "triplex-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "triplex-mcp"
+path = "src/main.rs"
+
+[dependencies]
+triplex-schemacast = { workspace = true }
+triplex-anonymizer = { workspace = true }
+serde_json = { workspace = true }
+rmcp = { version = "3.4.0", features = ["server", "transport-io"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }
+serde = { workspace = true, features = ["derive"] }

@@ -8,9 +8,9 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-triplex-schemacast = { path = "../../crates/triplex-schemacast" }
-triplex-anonymizer = { path = "../../crates/triplex-anonymizer" }
-triplex-datasetcard = { path = "../../crates/triplex-datasetcard" }
+triplex-schemacast = { workspace = true }
+triplex-anonymizer = { workspace = true }
+triplex-datasetcard = { workspace = true }
 wasm-bindgen = "0.2"
-serde_json = "1"
-serde_yaml_ng = "0.10.0"
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }

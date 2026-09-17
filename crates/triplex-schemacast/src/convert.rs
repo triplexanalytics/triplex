@@ -90,7 +90,9 @@ pub fn convert_file_with_delimiters(
 
     match output_format.as_str() {
         "csv" => match output_delimiter {
-            Some(d) => triplex_io::write_csv_with_delimiter(output_path, d, &sample.headers, &sample.rows)?,
+            Some(d) => {
+                triplex_io::write_csv_with_delimiter(output_path, d, &sample.headers, &sample.rows)?
+            }
             None => triplex_io::write_csv(output_path, &sample.headers, &sample.rows)?,
         },
         "tsv" => triplex_io::write_tsv(output_path, &sample.headers, &sample.rows)?,
@@ -179,10 +181,7 @@ mod tests {
 
         let read_back = triplex_io::read_tsv_full(&output).expect("output should be readable");
         std::fs::remove_file(&output).ok();
-        assert_eq!(
-            read_back.headers,
-            vec!["id", "price", "in_stock", "name"]
-        );
+        assert_eq!(read_back.headers, vec!["id", "price", "in_stock", "name"]);
         assert_eq!(read_back.rows[0], vec!["1", "9.99", "true", "widget"]);
     }
 
@@ -202,8 +201,8 @@ mod tests {
 
         // Read back via schema inference to confirm the written types are
         // real Parquet types, not just strings that happen to look numeric.
-        let contract = crate::infer_schema_from_path(&output, 100)
-            .expect("parquet output should be readable");
+        let contract =
+            crate::infer_schema_from_path(&output, 100).expect("parquet output should be readable");
         std::fs::remove_file(&output).ok();
 
         assert_eq!(contract.columns[0].inferred_type, ColumnType::Integer);
@@ -215,8 +214,8 @@ mod tests {
     #[test]
     fn converts_parquet_to_csv() {
         let output = temp_path("out_from_parquet.csv");
-        let report = convert_file(&fixture("sample.parquet"), &output)
-            .expect("conversion should succeed");
+        let report =
+            convert_file(&fixture("sample.parquet"), &output).expect("conversion should succeed");
         assert_eq!(report.input_format, "parquet");
         assert_eq!(report.rows_converted, 4);
 
@@ -356,10 +355,7 @@ mod tests {
         let read_back = triplex_io::read_csv_full_with_delimiter(&output, b'|')
             .expect("output should be readable with the pipe delimiter");
         std::fs::remove_file(&output).ok();
-        assert_eq!(
-            read_back.headers,
-            vec!["id", "price", "in_stock", "name"]
-        );
+        assert_eq!(read_back.headers, vec!["id", "price", "in_stock", "name"]);
         assert_eq!(read_back.rows[0], vec!["1", "9.99", "true", "widget"]);
     }
 
@@ -381,8 +377,8 @@ mod tests {
         for to in ["csv", "tsv", "jsonl"] {
             let converted =
                 convert_bytes(&csv_bytes, "csv", to).unwrap_or_else(|e| panic!("csv -> {to}: {e}"));
-            let read_back =
-                read_full_bytes(&converted, to).unwrap_or_else(|e| panic!("reading {to} back: {e}"));
+            let read_back = read_full_bytes(&converted, to)
+                .unwrap_or_else(|e| panic!("reading {to} back: {e}"));
             assert_eq!(read_back.headers, vec!["id", "price", "in_stock", "name"]);
             assert_eq!(read_back.rows[0], vec!["1", "9.99", "true", "widget"]);
         }

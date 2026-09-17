@@ -101,9 +101,21 @@ const NATIONAL_ID_KEYWORDS: &[&str] = &[
     "tax_id",
     "tax id",
 ];
-const DOB_KEYWORDS: &[&str] = &["dob", "date_of_birth", "date of birth", "birthdate", "birthday"];
+const DOB_KEYWORDS: &[&str] = &[
+    "dob",
+    "date_of_birth",
+    "date of birth",
+    "birthdate",
+    "birthday",
+];
 const CREDENTIAL_KEYWORDS: &[&str] = &[
-    "password", "passwd", "secret", "api_key", "apikey", "access_token", "auth_token",
+    "password",
+    "passwd",
+    "secret",
+    "api_key",
+    "apikey",
+    "access_token",
+    "auth_token",
 ];
 
 /// HTML5's pragmatic email pattern (`local@domain.tld`) — not full RFC 5322,
@@ -484,7 +496,10 @@ mod tests {
             detect_semantic_type("passport_number", &[]),
             Some(SemanticType::NationalId),
         );
-        assert_eq!(detect_semantic_type("ssn", &[]), Some(SemanticType::NationalId));
+        assert_eq!(
+            detect_semantic_type("ssn", &[]),
+            Some(SemanticType::NationalId)
+        );
         assert_eq!(
             detect_semantic_type("date_of_birth", &[]),
             Some(SemanticType::DateOfBirth),

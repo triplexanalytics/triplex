@@ -20,11 +20,28 @@ fn main() {
         "30-39", "20-29", "40-49", "30-39", "50-59", "20-29", "40-49", "60-69", "30-39", "20-29",
     ]);
     let city = strings(&[
-        "Utrecht", "Utrecht", "Rotterdam", "Utrecht", "Amsterdam", "Rotterdam", "Utrecht", "Zurich",
-        "Utrecht", "Rotterdam",
+        "Utrecht",
+        "Utrecht",
+        "Rotterdam",
+        "Utrecht",
+        "Amsterdam",
+        "Rotterdam",
+        "Utrecht",
+        "Zurich",
+        "Utrecht",
+        "Rotterdam",
     ]);
     let plan = strings(&[
-        "free", "pro", "free", "pro", "enterprise", "free", "pro", "free", "free", "pro",
+        "free",
+        "pro",
+        "free",
+        "pro",
+        "enterprise",
+        "free",
+        "pro",
+        "free",
+        "free",
+        "pro",
     ]);
 
     println!("=== Column-level (age bucket vs. plan as the sensitive attribute) ===");
@@ -32,7 +49,10 @@ fn main() {
     println!("l-diversity:      {}", l_diversity(&age_bucket, &plan));
     println!("t-closeness:      {:.4}", t_closeness(&age_bucket, &plan));
     println!("beta-likeness:    {:.4}", beta_likeness(&age_bucket, &plan));
-    println!("delta-disclosure: {:.4}", delta_disclosure(&age_bucket, &plan));
+    println!(
+        "delta-disclosure: {:.4}",
+        delta_disclosure(&age_bucket, &plan)
+    );
 
     println!("\n=== Column-level (city, exact-value, vs. plan) ===");
     println!("k-anonymity:      {}", k_anonymity(&city));

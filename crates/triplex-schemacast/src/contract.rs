@@ -69,8 +69,12 @@ pub struct DeclaredContract {
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ValidationError {
-    MissingColumn { name: String },
-    UnexpectedColumn { name: String },
+    MissingColumn {
+        name: String,
+    },
+    UnexpectedColumn {
+        name: String,
+    },
     TypeMismatch {
         name: String,
         expected: ColumnType,
@@ -159,11 +163,20 @@ pub fn to_declared_contract(inferred: &SchemaContract) -> DeclaredContract {
 
 /// Validates an inferred schema against a declared contract. Column order does
 /// not matter; presence, requiredness, and type must match.
+// Every `!(a <= b)`/`!(a >= b)` below is deliberate, not an oversight clippy
+// caught: a NaN threshold must fail closed (reject everything), and
+// `a > NaN`/`a < NaN` are always false, which would silently pass any
+// column instead. `partial_cmp` would need the same NaN-handling logic
+// spelled out longhand at each call site for no readability gain.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn validate(declared: &DeclaredContract, inferred: &SchemaContract) -> ValidationReport {
     let mut errors = Vec::new();
 
     for declared_col in &declared.columns {
-        let Some(actual_col) = inferred.columns.iter().find(|c| c.name == declared_col.name)
+        let Some(actual_col) = inferred
+            .columns
+            .iter()
+            .find(|c| c.name == declared_col.name)
         else {
             if declared_col.required {
                 errors.push(ValidationError::MissingColumn {
@@ -293,8 +306,7 @@ pub fn validate_csv_with_delimiter(
     sample_rows: usize,
 ) -> Result<ValidationReport> {
     let declared = load_contract(schema_path)?;
-    let inferred =
-        crate::infer_schema_from_csv_with_delimiter(input_path, delimiter, sample_rows)?;
+    let inferred = crate::infer_schema_from_csv_with_delimiter(input_path, delimiter, sample_rows)?;
     Ok(validate(&declared, &inferred))
 }
 
@@ -388,7 +400,10 @@ pub fn check_patterns(declared: &DeclaredContract, sample: &Sample) -> Result<Va
 /// `check_patterns` against it in one step.
 pub fn check_patterns_path(schema_path: &Path, input_path: &Path) -> Result<ValidationReport> {
     let declared = load_contract(schema_path)?;
-    let extension = input_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let extension = input_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
     let sample = crate::convert::read_full(input_path, extension, None)?;
     check_patterns(&declared, &sample)
 }
@@ -804,18 +819,16 @@ mod tests {
         )
         .expect("broken fixture pair should still load");
         assert!(!broken_report.valid);
-        assert!(broken_report
-            .errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::NullThresholdExceeded { name, .. } if name == "price")));
+        assert!(broken_report.errors.iter().any(
+            |e| matches!(e, ValidationError::NullThresholdExceeded { name, .. } if name == "price")
+        ));
         assert!(broken_report
             .errors
             .iter()
             .any(|e| matches!(e, ValidationError::AboveMaxValue { name, .. } if name == "price")));
-        assert!(broken_report
-            .errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::MeanOutOfTolerance { name, .. } if name == "price")));
+        assert!(broken_report.errors.iter().any(
+            |e| matches!(e, ValidationError::MeanOutOfTolerance { name, .. } if name == "price")
+        ));
     }
 
     #[test]

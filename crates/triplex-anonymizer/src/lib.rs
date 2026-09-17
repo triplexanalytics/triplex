@@ -142,9 +142,18 @@ struct ResolvedColumn<'a> {
 /// returned set — `Drop` needs no salt and no `Mechanism`, since it never
 /// touches a cell value at all; see `drop_columns`, which does the actual
 /// exclusion after masking runs).
+///
+/// `salt_for` resolves one non-`Drop` column's salt bytes — generic over
+/// *where* a salt comes from so this runs the same way regardless of
+/// delivery surface: the CLI reads an OS env var named by `salt_env`, while
+/// `apps/triplex-web`'s browser/WASM path (no OS environment to read from)
+/// looks a salt up by column name in a map the page already built from what
+/// the user typed in. A future delivery surface (e.g. Python bindings) is
+/// free to resolve salts its own way without this function changing at all.
 fn resolve_columns<'a>(
     recipe: &'a AnonymizeRecipe,
     headers: &[String],
+    salt_for: impl Fn(&AnonymizeColumn) -> Result<Vec<u8>>,
 ) -> Result<(Vec<ResolvedColumn<'a>>, HashSet<usize>)> {
     let mut resolved = Vec::new();
     let mut drop_indices = HashSet::new();
@@ -157,9 +166,7 @@ fn resolve_columns<'a>(
             drop_indices.insert(header_index);
             continue;
         }
-        let salt = std::env::var(&declared.salt_env)
-            .map_err(|_| Error::MissingEnvVar(declared.salt_env.clone()))?
-            .into_bytes();
+        let salt = salt_for(declared)?;
         resolved.push(ResolvedColumn {
             header_index,
             declared,
@@ -169,39 +176,28 @@ fn resolve_columns<'a>(
     Ok((resolved, drop_indices))
 }
 
-/// Like `resolve_columns`, but takes each column's salt directly from
-/// `salts` (keyed by declared column name) instead of reading an OS env
-/// var — the browser/WASM path (`apps/triplex-web`) has no environment to
-/// read from; the salt comes from what the user typed into the page. A
-/// `Drop`-method column needs no entry in `salts` either, same reasoning.
-fn resolve_columns_with_salts<'a>(
-    recipe: &'a AnonymizeRecipe,
-    headers: &[String],
-    salts: &std::collections::HashMap<String, String>,
-) -> Result<(Vec<ResolvedColumn<'a>>, HashSet<usize>)> {
-    let mut resolved = Vec::new();
-    let mut drop_indices = HashSet::new();
-    for declared in &recipe.columns {
-        let header_index = headers
-            .iter()
-            .position(|h| h == &declared.name)
-            .ok_or_else(|| Error::ColumnNotFound(declared.name.clone()))?;
-        if declared.method == AnonymizeMethod::Drop {
-            drop_indices.insert(header_index);
-            continue;
-        }
-        let salt = salts
+/// `resolve_columns`'s env-var salt source — the CLI/native path. The salt
+/// itself is never a CLI argument, so it never lands in shell history or a
+/// process listing.
+fn salt_from_env(declared: &AnonymizeColumn) -> Result<Vec<u8>> {
+    std::env::var(&declared.salt_env)
+        .map(String::into_bytes)
+        .map_err(|_| Error::MissingEnvVar(declared.salt_env.clone()))
+}
+
+/// `resolve_columns`'s explicit-map salt source — the browser/WASM path
+/// (`apps/triplex-web`), keyed by declared column name since there's no OS
+/// environment to read a `salt_env` from; the salt comes from what the user
+/// typed into the page.
+fn salt_from_map<'a>(
+    salts: &'a std::collections::HashMap<String, String>,
+) -> impl Fn(&AnonymizeColumn) -> Result<Vec<u8>> + 'a {
+    move |declared| {
+        salts
             .get(&declared.name)
-            .ok_or_else(|| Error::MissingSalt(declared.name.clone()))?
-            .clone()
-            .into_bytes();
-        resolved.push(ResolvedColumn {
-            header_index,
-            declared,
-            mechanism: mechanism::build_mechanism(declared, &salt),
-        });
+            .ok_or_else(|| Error::MissingSalt(declared.name.clone()))
+            .map(|s| s.clone().into_bytes())
     }
-    Ok((resolved, drop_indices))
 }
 
 /// Removes every column at a `drop_indices` header index from both the
@@ -317,7 +313,7 @@ pub fn anonymize_file(
 ) -> Result<AnonymizeReport> {
     let sample = read_rows(input_path)?;
     let (sample, rows_excluded) = exclude_rows(sample, excluded_row_indices);
-    let (resolved, drop_indices) = resolve_columns(recipe, &sample.headers)?;
+    let (resolved, drop_indices) = resolve_columns(recipe, &sample.headers, salt_from_env)?;
     let (masked, mapping_entries) = mask_rows(&resolved, sample);
     let columns_dropped: Vec<String> = drop_indices
         .iter()
@@ -368,7 +364,7 @@ pub fn anonymize_bytes(
 ) -> Result<AnonymizeBytesResult> {
     let sample = read_rows_bytes(bytes, extension)?;
     let (sample, rows_excluded) = exclude_rows(sample, excluded_row_indices);
-    let (resolved, drop_indices) = resolve_columns_with_salts(recipe, &sample.headers, salts)?;
+    let (resolved, drop_indices) = resolve_columns(recipe, &sample.headers, salt_from_map(salts))?;
     let (masked, mapping_entries) = mask_rows(&resolved, sample);
     let columns_dropped: Vec<String> = drop_indices
         .iter()
