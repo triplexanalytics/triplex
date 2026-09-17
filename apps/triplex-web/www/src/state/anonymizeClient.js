@@ -8,9 +8,11 @@ const client = createWorkerRequestClient(
 
 /** Resolves to `{ masked_csv, mapping_csv, report_json }` — the same shape
  * `wasm.anonymize`'s `AnonymizeOutput` carries, just plain-object'd for the
- * worker boundary. */
-export function runAnonymize(bytes, extension, recipeYaml, saltsJson) {
-  return client.request("anonymize", { bytes, extension, recipeYaml, saltsJson });
+ * worker boundary. `excludedRowIndices` (0-based, from useProfiledFile.js's
+ * `removedRowIndices` — "remove these rows from the output") defaults to
+ * none excluded. */
+export function runAnonymize(bytes, extension, recipeYaml, saltsJson, excludedRowIndices) {
+  return client.request("anonymize", { bytes, extension, recipeYaml, saltsJson, excludedRowIndices });
 }
 
 /** Resolves to the `ValidationReport` JSON string. */

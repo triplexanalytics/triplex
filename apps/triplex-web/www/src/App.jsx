@@ -6,6 +6,7 @@ import { useColumnRisk } from "./hooks/useColumnRisk";
 import { useDiversityMatrix } from "./hooks/useDiversityMatrix";
 import { useRowFilter } from "./hooks/useRowFilter";
 import { useColumnSubsetDistributions } from "./hooks/useColumnSubsetDistributions";
+import { useHistory } from "./hooks/useHistory";
 import { withColumnType } from "./state/yamlBuilder";
 import Navbar from "./components/Navbar";
 import Dropzone from "./components/Dropzone";
@@ -36,11 +37,13 @@ export default function App() {
     salt: file.salt,
     contract: file.contract,
     setContract: file.setContract,
+    removedRowIndices: file.removedRowIndices,
   });
-  const columnRisk = useColumnRisk(file.sample, file.profile);
-  const diversityMatrix = useDiversityMatrix(file.sample, file.profile);
+  const columnRisk = useColumnRisk(file.sample, file.profile, file.removedRowIndices);
+  const diversityMatrix = useDiversityMatrix(file.sample, file.profile, file.removedRowIndices);
   const rowFilter = useRowFilter(wasm, file.sample, file.profile);
   const columnSubsets = useColumnSubsetDistributions(file.sample, file.profile, rowFilter.filteredRowIndices);
+  const history = useHistory();
   const [selectedColumn, setSelectedColumn] = useState(null);
   // { rowName, colName } | null — the one shared hover state behind every
   // cross-highlight in the app: RiskMatrix cells cross-highlight each other
@@ -73,12 +76,92 @@ export default function App() {
   const handleColumnHover = useCallback((name) => {
     setHoverNames(name ? { rowName: name, colName: name } : null);
   }, []);
-  const declareAsString = (name) => file.setContract((c) => c && withColumnType(c, name, "string"));
+  const declareAsString = (name) => {
+    const prevContract = file.contract;
+    file.setContract((c) => c && withColumnType(c, name, "string"));
+    history.log("Declare as string", "1 col", name, () => file.setContract(prevContract));
+  };
+  const handlePickMethod = (columnName, method) => {
+    const prevRecipe = file.recipe;
+    const prevRemovedColumns = file.removedColumns;
+    file.pickMethod(columnName, method);
+    history.log(`Anonymize: ${method}`, "1 col", columnName, () => {
+      file.setRecipe(prevRecipe);
+      file.setRemovedColumns(prevRemovedColumns);
+    });
+  };
+  const handleClearMethod = (columnName) => {
+    const prevRecipe = file.recipe;
+    const prevRemovedColumns = file.removedColumns;
+    file.clearMethod(columnName);
+    history.log("Clear method", "1 col", columnName, () => {
+      file.setRecipe(prevRecipe);
+      file.setRemovedColumns(prevRemovedColumns);
+    });
+  };
+  const handleRestoreRemovedRows = () => {
+    const prevRemoved = file.removedRowIndices;
+    const n = prevRemoved.size;
+    file.restoreRemovedRows();
+    history.log("Restore removed rows", `${n} rows`, null, () =>
+      file.setRemovedRowIndices(prevRemoved),
+    );
+  };
+  // TableTab's filter banner offers two directions once a filter is active
+  // -- both clear the filter afterward, since either way there's nothing
+  // left to narrow further (the visible set changed underneath it: shrunk
+  // to nothing for the "remove visible" case, grown to everything for
+  // "remove filtered", so a stale "Filtered to X of Y" banner sitting on
+  // top of the new removed-rows one would just be confusing either way).
+  //
+  // "Remove visible rows": the rows the filter currently matches (what's
+  // shown) are removed; everything else stays.
+  const handleRemoveVisibleRows = () => {
+    if (!rowFilter.filteredRowIndices) return;
+    const prevRemoved = file.removedRowIndices;
+    const n = rowFilter.filteredRowIndices.size;
+    file.removeRows(rowFilter.filteredRowIndices);
+    rowFilter.setRowFilter(null);
+    history.log("Remove visible rows", `${n} rows`, null, () =>
+      file.setRemovedRowIndices(prevRemoved),
+    );
+  };
+  // "Remove filtered rows": the complement -- rows the filter excluded
+  // (hidden, not currently shown) are removed, i.e. "keep only what's
+  // visible." Computed against rows not already removed, not the full
+  // original row count, so a second removal on top of an earlier one only
+  // ever shrinks the working set further.
+  const handleRemoveFilteredOutRows = () => {
+    if (!rowFilter.filteredRowIndices || !file.sample) return;
+    const hidden = [];
+    for (let i = 0; i < file.sample.rowCount; i++) {
+      if (!rowFilter.filteredRowIndices.has(i) && !file.removedRowIndices.has(i)) hidden.push(i);
+    }
+    const prevRemoved = file.removedRowIndices;
+    file.removeRows(hidden);
+    rowFilter.setRowFilter(null);
+    history.log("Remove filtered-out rows", `${hidden.length} rows`, null, () =>
+      file.setRemovedRowIndices(prevRemoved),
+    );
+  };
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
     rowFilter.setRowFilter(null);
     anonymize.reset();
-    await file.loadFile(uploaded);
+    const loaded = await file.loadFile(uploaded);
+    if (loaded) {
+      history.log(
+        "Load dataset",
+        `${loaded.rowCount} rows, ${loaded.headers.length} cols`,
+        null,
+        () => {
+          file.reset();
+          anonymize.reset();
+          rowFilter.setRowFilter(null);
+          history.clear();
+        },
+      );
+    }
   };
 
   const error = file.error || anonymize.error;
@@ -93,6 +176,9 @@ export default function App() {
         canDownloadContract={!!file.contract}
         canDownloadRecipe={file.recipe.columns.length > 0}
         canDownloadData={!!anonymize.anonymizeResult || !!file.fileBytes}
+        fileName={file.fileName}
+        rowCount={file.sample ? file.sample.rowCount - file.removedRowIndices.size : null}
+        columnCount={file.sample ? file.sample.headers.length - file.removedColumns.size : null}
       />
       <main className="main-content">
         {error && <div className="banner banner-error">{error}</div>}
@@ -110,7 +196,7 @@ export default function App() {
               methods={methods}
               recipe={file.recipe}
               salt={file.salt}
-              onPickMethod={file.pickMethod}
+              onPickMethod={handlePickMethod}
               removedColumns={file.removedColumns}
               onSaltChange={file.setSalt}
               onAnonymize={anonymize.run}
@@ -122,6 +208,10 @@ export default function App() {
               onDeclareAsString={declareAsString}
               filteredRowIndices={rowFilter.filteredRowIndices}
               onClearRowFilter={() => rowFilter.setRowFilter(null)}
+              onRemoveVisibleRows={handleRemoveVisibleRows}
+              onRemoveFilteredOutRows={handleRemoveFilteredOutRows}
+              removedRowIndices={file.removedRowIndices}
+              onRestoreRemovedRows={handleRestoreRemovedRows}
             />
             <AnalysisOverlay
               columnProfile={file.profile}
@@ -151,12 +241,14 @@ export default function App() {
               methods={methods}
               recipe={file.recipe}
               salt={file.salt}
-              onPickMethod={file.pickMethod}
-              onClearMethod={file.clearMethod}
+              onPickMethod={handlePickMethod}
+              onClearMethod={handleClearMethod}
               onSaltChange={file.setSalt}
               onAnonymize={anonymize.run}
               anonymizing={anonymize.anonymizing}
               columnSubsets={columnSubsets}
+              historyEntries={history.entries}
+              onUndoHistoryEntry={history.undo}
             />
           </Suspense>
         )}

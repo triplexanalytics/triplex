@@ -20,7 +20,10 @@ import { timingLog } from "../state/wasmTiming";
  * need `wasm` itself for that: `profileFile` runs in a Web Worker with its
  * own wasm instance, and `buildContractFromProfile` is plain JS. Only the
  * two downloads below call into the main-thread wasm module, taken as a
- * parameter rather than owned here. */
+ * parameter rather than owned here.
+ *
+ * `removedRowIndices` is the row analog of `removedColumns` -- see its own
+ * comment below and `removeRows`/`restoreRemovedRows`. */
 export function useProfiledFile(wasm) {
   const [fileBytes, setFileBytes] = useState(null);
   const [extension, setExtension] = useState("");
@@ -39,9 +42,17 @@ export function useProfiledFile(wasm) {
   // differently-behaved hide action alongside it was just confusing (two
   // buttons that each hide the column, doing different things to it).
   const [removedColumns, setRemovedColumns] = useState(() => new Set());
+  // Rows removed from the output entirely -- the row analog of
+  // removedColumns/AnonymizeMethod::Drop above, driven by TableTab.jsx's
+  // row-filter banner ("Remove these rows") rather than a per-column
+  // method. Threaded into useAnonymize as excluded_row_indices
+  //  -- like Drop, this only takes effect through an actual anonymize
+  // run, not the "download original before anonymizing" bypass.
+  const [removedRowIndices, setRemovedRowIndices] = useState(() => new Set());
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingFileName, setLoadingFileName] = useState("");
+  const [fileName, setFileName] = useState("");
 
   const loadFile = useCallback(async (file) => {
     setError("");
@@ -64,7 +75,10 @@ export function useProfiledFile(wasm) {
       setRecipe(createEmptyRecipe());
       setSalt("");
       setRemovedColumns(new Set());
+      setRemovedRowIndices(new Set());
+      setFileName(file.name);
       timingLog(`[main] total loadFile: ${(performance.now() - t0).toFixed(1)}ms`);
+      return readSample;
     } catch (err) {
       setError(String(err.message || err));
     } finally {
@@ -103,6 +117,38 @@ export function useProfiledFile(wasm) {
     });
   }, []);
 
+  // Adds `rowIndices` (any iterable, typically App.jsx's current
+  // rowFilter.filteredRowIndices) to the removed set -- additive, so
+  // removing a second selection doesn't undo the first.
+  const removeRows = useCallback((rowIndices) => {
+    setRemovedRowIndices((s) => {
+      const next = new Set(s);
+      for (const i of rowIndices) next.add(i);
+      return next;
+    });
+  }, []);
+
+  const restoreRemovedRows = useCallback(() => {
+    setRemovedRowIndices(new Set());
+  }, []);
+
+  // Back to the pre-upload state -- the History tab's undo for the "Load
+  // dataset" entry (see App.jsx), since there's no earlier file state to
+  // restore to.
+  const reset = useCallback(() => {
+    setFileBytes(null);
+    setExtension("");
+    setSample(null);
+    setProfile(null);
+    setContract(null);
+    setRecipe(createEmptyRecipe());
+    setSalt("");
+    setRemovedColumns(new Set());
+    setRemovedRowIndices(new Set());
+    setError("");
+    setFileName("");
+  }, []);
+
   const downloadContract = useCallback(() => {
     if (!wasm || !contract) return;
     downloadBlob(
@@ -129,14 +175,22 @@ export function useProfiledFile(wasm) {
     contract,
     setContract,
     recipe,
+    setRecipe,
     pickMethod,
     clearMethod,
     removedColumns,
+    setRemovedColumns,
+    removedRowIndices,
+    setRemovedRowIndices,
+    removeRows,
+    restoreRemovedRows,
+    reset,
     salt,
     setSalt,
     error,
     isLoading,
     loadingFileName,
+    fileName,
     loadFile,
     downloadContract,
     downloadRecipe,

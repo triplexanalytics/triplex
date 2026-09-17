@@ -18,8 +18,14 @@ const RISK_BUCKET_WIDTH = 10;
  * (already resolved by then, since useColumnRisk started as soon as the
  * file loaded) visibly finish first, with the matrix lagging a beat behind
  * it instead of everything being ready together by the time the user gets
- * there. */
-export function useDiversityMatrix(sample, profile) {
+ * there.
+ *
+ * `removedRowIndices` (useProfiledFile.js's "remove rows from output," see
+ * the design notes) is excluded from every row/col array before scoring —
+ * same reasoning as useColumnRisk.js: a removed row is gone from the real
+ * anonymize/download output, so this dataset-level analysis has to reflect
+ * what's actually left, not the original upload. */
+export function useDiversityMatrix(sample, profile, removedRowIndices) {
   const quasiColumns =
     profile?.columns.filter((c) => c.inferred_type === "integer" || c.distribution?.kind === "categorical") ?? [];
   const allColumns = profile?.columns ?? [];
@@ -47,23 +53,30 @@ export function useDiversityMatrix(sample, profile) {
     setError(null);
     const colIndex = {};
     sample.headers.forEach((name, i) => (colIndex[name] = i));
+    const includedRows = removedRowIndices?.size
+      ? Array.from({ length: sample.rowCount }, (_, i) => i).filter((i) => !removedRowIndices.has(i))
+      : Array.from({ length: sample.rowCount }, (_, i) => i);
     // rows (quasi-identifier): an integer column's wasm call takes a typed
     // array; a categorical/string column stays stringified cells, same as
     // cols (candidate sensitive attribute, which can be any column type).
-    const rows = quasiColumns.map((c) =>
-      c.inferred_type === "integer"
-        ? { name: c.name, kind: "numeric", values: sample.getNumericColumn(colIndex[c.name]) }
-        : {
-            name: c.name,
-            kind: "string",
-            values: Array.from({ length: sample.rowCount }, (_, row) =>
-              sample.getCell(row, colIndex[c.name]),
-            ),
-          },
-    );
+    const rows = quasiColumns.map((c) => {
+      if (c.inferred_type === "integer") {
+        const values = sample.getNumericColumn(colIndex[c.name]);
+        return {
+          name: c.name,
+          kind: "numeric",
+          values: removedRowIndices?.size ? Float64Array.from(includedRows, (row) => values[row]) : values,
+        };
+      }
+      return {
+        name: c.name,
+        kind: "string",
+        values: includedRows.map((row) => sample.getCell(row, colIndex[c.name])),
+      };
+    });
     const cols = allColumns.map((c) => ({
       name: c.name,
-      values: Array.from({ length: sample.rowCount }, (_, row) => sample.getCell(row, colIndex[c.name])),
+      values: includedRows.map((row) => sample.getCell(row, colIndex[c.name])),
     }));
     scoreDiversityMatrix(rows, cols, RISK_BUCKET_WIDTH, rowRiskModel)
       .then((result) => {
@@ -84,7 +97,7 @@ export function useDiversityMatrix(sample, profile) {
         setError(String(err?.message || err));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sample, profile, rowRiskModel]);
+  }, [sample, profile, rowRiskModel, removedRowIndices]);
 
   return { raw, loading, error, quasiColumns, allColumns, rowRiskModel, setRowRiskModel };
 }

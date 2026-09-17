@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { ChevronsRight } from "lucide-react";
 import LoadingOverlay from "./LoadingOverlay";
+import HistoryTab from "./HistoryTab";
 
 const ColumnViewTab = lazy(() => import("./ColumnViewTab"));
 const DiversityCheckSection = lazy(() => import("./DiversityCheckSection"));
@@ -8,6 +9,7 @@ const DiversityCheckSection = lazy(() => import("./DiversityCheckSection"));
 const OVERLAY_TABS = [
   { id: "columns", label: "Columns" },
   { id: "analysis", label: "Privacy Analysis" },
+  { id: "history", label: "History" },
 ];
 
 /** Slide panel docked to the right edge of the Table view, drawn on top of
@@ -57,6 +59,8 @@ export default function AnalysisOverlay({
   onAnonymize,
   anonymizing,
   columnSubsets,
+  historyEntries,
+  onUndoHistoryEntry,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState("columns");
@@ -151,6 +155,9 @@ export default function AnalysisOverlay({
               onRowRiskModelChange={onRowRiskModelChange}
               onJointKCellClick={onJointKCellClick}
             />
+          )}
+          {innerTab === "history" && (
+            <HistoryTab entries={historyEntries} onUndo={onUndoHistoryEntry} />
           )}
         </Suspense>
       </div>

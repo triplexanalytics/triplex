@@ -29,6 +29,7 @@ self.onmessage = async (event) => {
         payload.extension,
         payload.recipeYaml,
         payload.saltsJson,
+        payload.excludedRowIndices ?? [],
       );
       result = {
         masked_csv: output.masked_csv,

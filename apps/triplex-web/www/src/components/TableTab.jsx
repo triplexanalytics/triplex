@@ -32,6 +32,10 @@ export default function TableTab({
   onDeclareAsString,
   filteredRowIndices,
   onClearRowFilter,
+  onRemoveVisibleRows,
+  onRemoveFilteredOutRows,
+  removedRowIndices,
+  onRestoreRemovedRows,
 }) {
   const distributionByName = useMemo(() => {
     const map = {};
@@ -187,8 +191,9 @@ export default function TableTab({
   // which rows are.
   const visibleRowIndices = useMemo(() => {
     const all = Array.from({ length: sample.rowCount }, (_, i) => i);
-    return filteredRowIndices ? all.filter((i) => filteredRowIndices.has(i)) : all;
-  }, [sample.rowCount, filteredRowIndices]);
+    const notRemoved = removedRowIndices?.size ? all.filter((i) => !removedRowIndices.has(i)) : all;
+    return filteredRowIndices ? notRemoved.filter((i) => filteredRowIndices.has(i)) : notRemoved;
+  }, [sample.rowCount, filteredRowIndices, removedRowIndices]);
 
   const sortedRowIndices = useMemo(() => {
     const indices = [...visibleRowIndices];
@@ -429,12 +434,42 @@ export default function TableTab({
           Anonymized {JSON.parse(anonymizeResult.report_json).rows_processed} rows.
         </div>
       )}
-      {filteredRowIndices && (
-        <div className="banner banner-warning table-row-filter-banner">
-          Filtered to {sortedRowIndices.length} of {sample.rowCount} rows.
-          <button type="button" onClick={onClearRowFilter}>
-            Clear
-          </button>
+      {(filteredRowIndices || removedRowIndices?.size > 0) && (
+        <div className="table-status-banners">
+          {filteredRowIndices && (
+            <div className="banner banner-warning">
+              Filtered to {sortedRowIndices.length} of {sample.rowCount} rows.
+              <button type="button" onClick={onClearRowFilter}>
+                Clear
+              </button>
+              {onRemoveVisibleRows && (
+                <button
+                  type="button"
+                  title="Remove these (shown) rows from the anonymize/download output"
+                  onClick={onRemoveVisibleRows}
+                >
+                  Remove visible rows
+                </button>
+              )}
+              {onRemoveFilteredOutRows && (
+                <button
+                  type="button"
+                  title="Remove every row NOT shown from the anonymize/download output — keep only these"
+                  onClick={onRemoveFilteredOutRows}
+                >
+                  Remove filtered rows
+                </button>
+              )}
+            </div>
+          )}
+          {removedRowIndices?.size > 0 && (
+            <div className="banner banner-warning">
+              {removedRowIndices.size} row{removedRowIndices.size === 1 ? "" : "s"} removed from output.
+              <button type="button" onClick={onRestoreRemovedRows}>
+                Restore
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

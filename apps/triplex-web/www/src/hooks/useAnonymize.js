@@ -21,8 +21,23 @@ import { runAnonymize, checkPatternConformance, convertBytes } from "../state/an
  * (`check_pattern_conformance`) run in a worker (anonymizeClient) since
  * both touch every row of the dataset — `recipe_json_to_yaml`/
  * `contract_json_to_yaml` stay on the main thread here since they only
- * touch the (column-count-sized, not row-count-sized) recipe/contract. */
-export function useAnonymize({ wasm, fileBytes, extension, recipe, salt, contract, setContract }) {
+ * touch the (column-count-sized, not row-count-sized) recipe/contract.
+ *
+ * `removedRowIndices` (`useProfiledFile.js`'s own state, "remove these rows
+ * from the output") is forwarded straight to `wasm.anonymize`'s
+ * `excluded_row_indices` — those rows never enter the masked output at all,
+ * not just hidden from the Table tab (see the design notes for why this
+ * belongs to the real anonymize call, not a client-side pre-filter). */
+export function useAnonymize({
+  wasm,
+  fileBytes,
+  extension,
+  recipe,
+  salt,
+  contract,
+  setContract,
+  removedRowIndices,
+}) {
   const [anonymizeResult, setAnonymizeResult] = useState(null);
   const [anonymizing, setAnonymizing] = useState(false);
   const [patternChecks, setPatternChecks] = useState({});
@@ -38,14 +53,20 @@ export function useAnonymize({ wasm, fileBytes, extension, recipe, salt, contrac
       const saltsJson = JSON.stringify(
         Object.fromEntries(recipe.columns.map((c) => [c.name, salt])),
       );
-      const result = await runAnonymize(fileBytes, extension, recipeYaml, saltsJson);
+      const result = await runAnonymize(
+        fileBytes,
+        extension,
+        recipeYaml,
+        saltsJson,
+        Array.from(removedRowIndices ?? []),
+      );
       setAnonymizeResult(result);
     } catch (err) {
       setError(String(err.message || err));
     } finally {
       setAnonymizing(false);
     }
-  }, [wasm, fileBytes, extension, recipe, salt]);
+  }, [wasm, fileBytes, extension, recipe, salt, removedRowIndices]);
 
   const checkPattern = useCallback(
     async (columnName, pattern) => {

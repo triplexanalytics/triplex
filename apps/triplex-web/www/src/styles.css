@@ -136,23 +136,7 @@ button.full-width { width: 100%; justify-content: center; }
 
 .navbar .spacer { flex: 1; }
 
-.navbar input[type="file"] {
-  font: inherit;
-  color: var(--text-faint);
-}
-
-.navbar input[type="file"]::file-selector-button {
-  font: inherit;
-  cursor: pointer;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  padding: 0.35rem 0.7rem;
-  margin-right: 0.6rem;
-}
-
-.navbar input[type="file"]::file-selector-button:hover { background: var(--surface-alt); }
+.navbar .file-shape { color: var(--text-faint); white-space: nowrap; }
 
 .download-menu { position: relative; }
 
@@ -355,6 +339,52 @@ button.full-width { width: 100%; justify-content: center; }
 
 .analysis-overlay-body { flex: 1; overflow: auto; padding: 1rem; }
 
+/* === History tab === */
+
+.history-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.82rem; }
+
+.history-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 0.4rem 0.6rem 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-table td {
+  padding: 0.5rem 0.6rem 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-table tbody tr:hover { background: var(--border); }
+
+.history-col-time { width: 17%; color: var(--text-muted); }
+.history-col-op { width: 36%; }
+.history-col-count { width: 24%; color: var(--text-muted); }
+.history-col-column { width: 19%; }
+.history-col-undo {
+  width: 2.2rem;
+  text-align: right;
+  padding-right: 0;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.history-undo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: none;
+  color: var(--accent);
+}
+.history-undo-btn:hover { background: var(--accent); color: var(--accent-text); }
+
 /* Breathing room between the grid's own content/scrollbars and the rest of
    the page — Glide renders its scrollbars flush against its container's
    edge otherwise. */
@@ -425,22 +455,32 @@ button.full-width { width: 100%; justify-content: center; }
 .banner-warning { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); }
 .banner-success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); margin: 0; }
 
-.table-row-filter-banner {
+/* Wraps the row-filter banner and the rows-removed banner, stacked -- both
+   independent (a filter can be active, rows can be removed, both, or
+   neither), so this positions/z-indexes the pair once instead of each
+   banner repeating the same absolute placement and colliding. */
+.table-status-banners {
   position: absolute;
   left: 8px;
   top: 8px;
-  margin: 0;
   /* Above .analysis-overlay's z-index: 20 -- that panel is drawn on top of
      the grid, not beside it (see AnalysisOverlay.jsx), so a narrow table's
-     top-left banner can land underneath it and its Clear button becomes
+     top-left banner can land underneath it and its buttons become
      unclickable otherwise. Most reachable now that a sparkline bin click
-     (Columns tab, inside that same panel) can set this filter too. */
+     (Columns tab, inside that same panel) can set the filter that leads
+     here too. */
   z-index: 21;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.table-status-banners .banner {
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 0.6rem;
 }
-.table-row-filter-banner button {
+.table-status-banners .banner button {
   padding: 0.1rem 0.5rem;
   font-size: 0.78rem;
   border-color: var(--warning-border);
