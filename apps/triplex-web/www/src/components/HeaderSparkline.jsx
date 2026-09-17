@@ -74,8 +74,9 @@ export default function HeaderSparkline({ distribution, columnName, onBinClick, 
         ctx.fillRect(barX, HEIGHT - h, w, h);
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeRange is
-    // derived from dragRange, listed separately here only for clarity.
+    // activeRange is derived from dragRange, so dragRange alone covers it --
+    // listed separately below only for clarity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [distribution, hovered, dragRange, subsetCounts]);
 
   const rangeSummary = () => {
@@ -148,7 +149,10 @@ export default function HeaderSparkline({ distribution, columnName, onBinClick, 
           }}
         >
           <strong>{info.title}</strong>
-          <span>{info.detail}{onBinClick && !activeRange ? " — click or drag to filter" : ""}</span>
+          <span>
+            {info.detail}
+            {onBinClick && !activeRange ? " — click or drag to filter" : ""}
+          </span>
         </div>
       )}
     </div>

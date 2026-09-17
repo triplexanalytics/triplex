@@ -30,6 +30,12 @@ self.onmessage = async (event) => {
         profileJson: result.profile_json,
         tableArrow: result.table_arrow,
       },
+      // @ts-expect-error -- the (message, transferList) worker overload of
+      // postMessage isn't visible here: DOM and WebWorker lib types can't
+      // both be loaded in one tsconfig (they define conflicting globals),
+      // and this app's other files need DOM. TS instead resolves this to
+      // Window.postMessage's (message, targetOrigin, transfer?) overload,
+      // which doesn't accept an array as the 2nd argument.
       [result.table_arrow.buffer],
     );
   } catch (err) {

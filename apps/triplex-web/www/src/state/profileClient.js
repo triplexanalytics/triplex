@@ -20,9 +20,17 @@ function cellToString(value) {
  * `"9.5"`, not the source text `"9.50"`) — Arrow stores it as a real
  * `Float64`/`Int64`, not the original string, same tradeoff the Parquet
  * conversion path already makes and documents. */
-function sampleFromArrowTable(table) {
+export function sampleFromArrowTable(table) {
   const headers = table.schema.fields.map((f) => f.name);
   const columns = headers.map((name) => table.getChild(name));
+  // useColumnRisk, useDiversityMatrix, useRowFilter, and
+  // useColumnSubsetDistributions each read the same quasi-identifier
+  // columns independently, around the same triggers (file load, a row
+  // removal) -- without this, every one of them rebuilt its own full
+  // O(rows) Float64Array from the Arrow column from scratch. Cached per
+  // colIndex, for this sample's lifetime only (a new upload makes a new
+  // `sample`, so there's nothing to invalidate by hand).
+  const numericColumnCache = new Map();
   return {
     headers,
     rowCount: table.numRows,
@@ -35,13 +43,20 @@ function sampleFromArrowTable(table) {
     // directly, not a JSON string, so callers that already know a column
     // is numeric (every current one pre-filters to integer-inferred
     // columns) should read it this way, not through getCell + reparse.
+    // Returns the cached array itself, not a copy -- callers must treat it
+    // as read-only and must never hand its `.buffer` to a worker's
+    // postMessage transfer list (that would detach it out from under every
+    // other reader); build a fresh copy first if a call site needs either.
     getNumericColumn(colIndex) {
+      const cached = numericColumnCache.get(colIndex);
+      if (cached) return cached;
       const col = columns[colIndex];
       const out = new Float64Array(table.numRows);
       for (let row = 0; row < table.numRows; row++) {
         const v = col?.get(row);
         out[row] = v === null || v === undefined ? NaN : Number(v);
       }
+      numericColumnCache.set(colIndex, out);
       return out;
     },
   };

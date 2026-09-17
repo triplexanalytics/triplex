@@ -59,13 +59,15 @@ export default function TableTab({
 
   const isCategoricalByName = useMemo(() => {
     const map = {};
-    for (const col of profile?.columns ?? []) map[col.name] = col.distribution?.kind === "categorical";
+    for (const col of profile?.columns ?? [])
+      map[col.name] = col.distribution?.kind === "categorical";
     return map;
   }, [profile]);
 
   const isLikelyIdentifierByName = useMemo(() => {
     const map = {};
-    for (const col of profile?.columns ?? []) map[col.name] = col.semantic_type === "likely_identifier";
+    for (const col of profile?.columns ?? [])
+      map[col.name] = col.semantic_type === "likely_identifier";
     return map;
   }, [profile]);
 
@@ -206,7 +208,9 @@ export default function TableTab({
     // needing to branch on inferred_type here.
     const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
     const sign = sort.direction === "asc" ? 1 : -1;
-    indices.sort((a, b) => sign * collator.compare(sample.getCell(a, colIndex), sample.getCell(b, colIndex)));
+    indices.sort(
+      (a, b) => sign * collator.compare(sample.getCell(a, colIndex), sample.getCell(b, colIndex)),
+    );
     return indices;
   }, [sample, sort, visibleRowIndices]);
 
@@ -362,7 +366,13 @@ export default function TableTab({
         key={gridKey}
         columns={columns}
         rows={sortedRowIndices.length}
+        // @ts-expect-error -- glide-data-grid's GridCell/CustomRenderer
+        // types are discriminated unions keyed on a type-predicate
+        // (`cell is X`), which plain JS has no JSDoc syntax to express;
+        // these two callbacks are correct at runtime (kind/data always
+        // agree), just outside what checkJs can verify.
         getCellContent={getCellContent}
+        // @ts-expect-error -- see getCellContent above.
         customRenderers={customRenderers}
         onHeaderClicked={onHeaderClicked}
         drawHeader={drawHeader}
@@ -464,7 +474,8 @@ export default function TableTab({
           )}
           {removedRowIndices?.size > 0 && (
             <div className="banner banner-warning">
-              {removedRowIndices.size} row{removedRowIndices.size === 1 ? "" : "s"} removed from output.
+              {removedRowIndices.size} row{removedRowIndices.size === 1 ? "" : "s"} removed from
+              output.
               <button type="button" onClick={onRestoreRemovedRows}>
                 Restore
               </button>

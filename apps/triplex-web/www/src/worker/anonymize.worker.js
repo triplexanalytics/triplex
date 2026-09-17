@@ -37,7 +37,11 @@ self.onmessage = async (event) => {
         report_json: output.report_json,
       };
     } else if (type === "checkPatternConformance") {
-      result = wasm.check_pattern_conformance(payload.bytes, payload.extension, payload.contractYaml);
+      result = wasm.check_pattern_conformance(
+        payload.bytes,
+        payload.extension,
+        payload.contractYaml,
+      );
     } else if (type === "convertBytes") {
       result = wasm.convert_bytes(payload.bytes, payload.fromExtension, payload.toExtension);
     } else {

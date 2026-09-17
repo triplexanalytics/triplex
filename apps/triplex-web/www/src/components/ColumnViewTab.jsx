@@ -66,7 +66,9 @@ export default function ColumnViewTab({
           col={col}
           risk={{
             value: riskByName[col.name],
-            loading: riskLoading && (col.inferred_type === "integer" || col.distribution?.kind === "categorical"),
+            loading:
+              riskLoading &&
+              (col.inferred_type === "integer" || col.distribution?.kind === "categorical"),
           }}
           selected={col.name === selectedColumn}
           onSelect={() => onSelectColumn(col.name)}

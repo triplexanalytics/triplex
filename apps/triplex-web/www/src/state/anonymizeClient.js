@@ -12,7 +12,13 @@ const client = createWorkerRequestClient(
  * `removedRowIndices` — "remove these rows from the output") defaults to
  * none excluded. */
 export function runAnonymize(bytes, extension, recipeYaml, saltsJson, excludedRowIndices) {
-  return client.request("anonymize", { bytes, extension, recipeYaml, saltsJson, excludedRowIndices });
+  return client.request("anonymize", {
+    bytes,
+    extension,
+    recipeYaml,
+    saltsJson,
+    excludedRowIndices,
+  });
 }
 
 /** Resolves to the `ValidationReport` JSON string. */

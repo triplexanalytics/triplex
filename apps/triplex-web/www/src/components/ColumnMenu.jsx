@@ -1,4 +1,9 @@
-import { IMPUTATION_OPTIONS, METHOD_INFO, METHOD_META, METHOD_META_FALLBACK } from "./ColumnMenu.const";
+import {
+  IMPUTATION_OPTIONS,
+  METHOD_INFO,
+  METHOD_META,
+  METHOD_META_FALLBACK,
+} from "./ColumnMenu.const";
 import InfoTrigger from "./InfoTrigger";
 
 // "Read more" is inert until the glossary page (see task) exists to link to.
@@ -90,9 +95,8 @@ export default function ColumnMenu({
               onChange={(e) => onSaltChange(e.target.value)}
             />
             <p className="field-hint">
-              Shared across every column: the same source value must map to the same token
-              wherever it recurs for joins to still work; a different salt per column would break
-              that.
+              Shared across every column: the same source value must map to the same token wherever
+              it recurs for joins to still work; a different salt per column would break that.
             </p>
           </div>
           <button

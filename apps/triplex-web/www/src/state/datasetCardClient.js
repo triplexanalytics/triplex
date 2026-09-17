@@ -13,8 +13,8 @@ const client = createWorkerRequestClient(
 /** `columns`: `[{ name, kind: "numeric" | "string", values }]`, `values` a typed
  * `Float64Array` for `"numeric"` or a plain string array for `"string"`.
  * Resolves to `{ [name]: RiskAssessment }`. */
-export function scoreColumnRisk(columns, bucketWidth) {
-  return client.request("columnRisk", { columns, bucketWidth });
+export function scoreColumnRisk(columns, bucketWidth, transfer) {
+  return client.request("columnRisk", { columns, bucketWidth }, transfer);
 }
 
 /** `rows`: `[{ name, kind: "numeric" | "string", values }]`, same `values`
@@ -33,6 +33,6 @@ export function scoreColumnRisk(columns, bucketWidth) {
  * from whichever technique `rowRiskModel` names ("suda" or "ebm"
  *  — default "suda" if omitted) — `null` when there are no
  * quasi-identifier columns or more than `score_row_risk` accepts. */
-export function scoreDiversityMatrix(rows, cols, bucketWidth, rowRiskModel) {
-  return client.request("diversityMatrix", { rows, cols, bucketWidth, rowRiskModel });
+export function scoreDiversityMatrix(rows, cols, bucketWidth, rowRiskModel, transfer) {
+  return client.request("diversityMatrix", { rows, cols, bucketWidth, rowRiskModel }, transfer);
 }

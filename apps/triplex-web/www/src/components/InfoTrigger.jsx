@@ -16,7 +16,7 @@ import { Info } from "lucide-react";
  * tooltip from spilling off the left edge of the viewport for a trigger
  * that sits near it (there's no scroll-aware clamping here, so a fixed
  * anchor per known usage is the tradeoff instead of measuring at runtime). */
-export default function InfoTrigger({ tooltip, children, wide = false, align = "center" }) {
+export default function InfoTrigger({ tooltip, children = null, wide = false, align = "center" }) {
   return (
     <span className={`info-trigger-glyph${wide ? " info-trigger-wide" : ""}`} tabIndex={0}>
       {children ?? <Info size={14} strokeWidth={2} aria-hidden="true" />}

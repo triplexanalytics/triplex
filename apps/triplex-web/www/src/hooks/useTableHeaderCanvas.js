@@ -83,10 +83,22 @@ export function useTableHeaderCanvas({
       // selected (data-grid-render.header.js), so every text/icon color
       // below has to switch to accentFg or it's the normal dark-on-light
       // palette rendered dark-on-navy instead.
-      const nameColor = isSelected ? (theme?.accentFg ?? "#ffffff") : (theme?.textDark ?? "#1a1d24");
-      const faintColor = isSelected ? (theme?.accentFg ?? "#ffffff") : (theme?.textLight ?? "#8890a0"); // --text-faint: the type icon only
-      const mutedColor = isSelected ? (theme?.accentFg ?? "#ffffff") : (theme?.textMedium ?? "#5b6270"); // --text-muted: every stat's label AND value
-      const iconTheme = isSelected ? { ...theme, textLight: theme?.accentFg ?? "#ffffff", accentColor: theme?.accentFg ?? "#ffffff" } : theme;
+      const nameColor = isSelected
+        ? (theme?.accentFg ?? "#ffffff")
+        : (theme?.textDark ?? "#1a1d24");
+      const faintColor = isSelected
+        ? (theme?.accentFg ?? "#ffffff")
+        : (theme?.textLight ?? "#8890a0"); // --text-faint: the type icon only
+      const mutedColor = isSelected
+        ? (theme?.accentFg ?? "#ffffff")
+        : (theme?.textMedium ?? "#5b6270"); // --text-muted: every stat's label AND value
+      const iconTheme = isSelected
+        ? {
+            ...theme,
+            textLight: theme?.accentFg ?? "#ffffff",
+            accentColor: theme?.accentFg ?? "#ffffff",
+          }
+        : theme;
 
       ctx.textBaseline = "middle";
 
@@ -157,7 +169,14 @@ export function useTableHeaderCanvas({
 
         const iconNode = TYPE_ICON_NODES[colType];
         if (iconNode) {
-          drawIconNode(ctx, iconNode, textX, typeRowCenterY - TYPE_ICON_SIZE / 2, TYPE_ICON_SIZE, faintColor);
+          drawIconNode(
+            ctx,
+            iconNode,
+            textX,
+            typeRowCenterY - TYPE_ICON_SIZE / 2,
+            TYPE_ICON_SIZE,
+            faintColor,
+          );
           textX += TYPE_ICON_SIZE + 6;
         }
         ctx.fillText(colType, textX, typeRowCenterY + 1);

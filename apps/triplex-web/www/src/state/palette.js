@@ -120,7 +120,8 @@ function lerpRgb(a, b, t) {
   return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 }
 
-function rgbToCss([r, g, b]) {
+function rgbToCss(rgb) {
+  const [r, g, b] = rgb;
   return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
 }
 

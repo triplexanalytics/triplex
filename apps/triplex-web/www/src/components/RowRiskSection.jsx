@@ -24,7 +24,14 @@ const MODEL_LABEL = { suda: "SUDA", ebm: "EBM" };
  * not the candidate sensitive column's value, since both techniques score
  * off the quasi-identifier columns alone, so those are what explain *why*
  * the row stood out. */
-export default function RowRiskSection({ raw, loading, quasiColumns, sample, model, onModelChange }) {
+export default function RowRiskSection({
+  raw,
+  loading,
+  quasiColumns,
+  sample,
+  model,
+  onModelChange,
+}) {
   const ranked = useMemo(() => {
     if (!raw?.rowRisk) return null;
     return raw.rowRisk
@@ -65,8 +72,8 @@ export default function RowRiskSection({ raw, loading, quasiColumns, sample, mod
         <p className="row-risk-empty">Scoring rows…</p>
       ) : !raw.rowRisk ? (
         <p className="row-risk-empty">
-          Not shown for more than 10 quasi-identifier columns at once (cost grows exponentially
-          with column count for SUDA) — this file has {quasiColumns.length}.
+          Not shown for more than 10 quasi-identifier columns at once (cost grows exponentially with
+          column count for SUDA) — this file has {quasiColumns.length}.
         </p>
       ) : ranked.length === 0 ? (
         <p className="row-risk-empty">
@@ -95,7 +102,11 @@ export default function RowRiskSection({ raw, loading, quasiColumns, sample, mod
                 <td>
                   <span
                     className="row-risk-swatch"
-                    style={{ background: readRiskColorStops().riskColor(Math.min(1, score / ranked[0].score)) }}
+                    style={{
+                      background: readRiskColorStops().riskColor(
+                        Math.min(1, score / ranked[0].score),
+                      ),
+                    }}
                   />
                   {score.toFixed(1)}
                 </td>

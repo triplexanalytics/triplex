@@ -51,7 +51,9 @@ function diversityMatrix(rows, cols, bucketWidth, rowRiskModel) {
       // calls now return [l, t, beta, delta].
       const [l, t, beta, delta] =
         row.kind === "string"
-          ? JSON.parse(wasm.score_column_pair_risk_string(JSON.stringify(row.values), colsJson[j], 0))
+          ? JSON.parse(
+              wasm.score_column_pair_risk_string(JSON.stringify(row.values), colsJson[j], 0),
+            )
           : JSON.parse(wasm.score_column_pair_risk(row.values, colsJson[j], bucketWidth));
       // Each model's own worst-scoring quasi-identifier bucket -- same
       // "which group" pairing jointKMatrix does for combined k-anonymity,
@@ -59,7 +61,9 @@ function diversityMatrix(rows, cols, bucketWidth, rowRiskModel) {
       // group instead of just showing its severity.
       const [lWorst, tWorst, betaWorst, deltaWorst] =
         row.kind === "string"
-          ? JSON.parse(wasm.worst_group_column_pair_risk_string(JSON.stringify(row.values), colsJson[j], 0))
+          ? JSON.parse(
+              wasm.worst_group_column_pair_risk_string(JSON.stringify(row.values), colsJson[j], 0),
+            )
           : JSON.parse(wasm.worst_group_column_pair_risk(row.values, colsJson[j], bucketWidth));
       l.worstGroup = lWorst ?? null;
       t.worstGroup = tWorst ?? null;
@@ -148,7 +152,12 @@ self.onmessage = async (event) => {
     if (type === "columnRisk") {
       result = columnRisk(payload.columns, payload.bucketWidth);
     } else if (type === "diversityMatrix") {
-      result = diversityMatrix(payload.rows, payload.cols, payload.bucketWidth, payload.rowRiskModel);
+      result = diversityMatrix(
+        payload.rows,
+        payload.cols,
+        payload.bucketWidth,
+        payload.rowRiskModel,
+      );
     } else {
       return;
     }

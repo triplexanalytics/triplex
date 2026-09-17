@@ -47,16 +47,22 @@ export function useColumnRisk(sample, profile, removedRowIndices) {
     const colIndex = {};
     sample.headers.forEach((name, i) => (colIndex[name] = i));
     const includedRows = removedRowIndices?.size
-      ? Array.from({ length: sample.rowCount }, (_, i) => i).filter((i) => !removedRowIndices.has(i))
+      ? Array.from({ length: sample.rowCount }, (_, i) => i).filter(
+          (i) => !removedRowIndices.has(i),
+        )
       : null;
+    // Buffers of arrays built fresh just below (the includedRows-filtered
+    // copy) -- safe to transfer, since nothing else holds a reference to
+    // them. Never the plain `values` passthrough: that's sample's own
+    // cached array, shared with every other hook reading this column.
+    const transfer = [];
     const columns = riskableCols.map((c) => {
       if (c.inferred_type === "integer") {
         const values = sample.getNumericColumn(colIndex[c.name]);
-        return {
-          name: c.name,
-          kind: "numeric",
-          values: includedRows ? Float64Array.from(includedRows, (row) => values[row]) : values,
-        };
+        if (!includedRows) return { name: c.name, kind: "numeric", values };
+        const owned = Float64Array.from(includedRows, (row) => values[row]);
+        transfer.push(owned.buffer);
+        return { name: c.name, kind: "numeric", values: owned };
       }
       return {
         name: c.name,
@@ -66,7 +72,7 @@ export function useColumnRisk(sample, profile, removedRowIndices) {
         ),
       };
     });
-    scoreColumnRisk(columns, RISK_BUCKET_WIDTH)
+    scoreColumnRisk(columns, RISK_BUCKET_WIDTH, transfer)
       .then((result) => {
         if (generation.current !== myGeneration) return; // superseded by a newer upload
         setRiskByName(result);

@@ -33,11 +33,16 @@ export function createWorkerRequestClient(workerFactory) {
     return worker;
   }
 
-  function request(type, payload) {
+  // `transfer`, if given, is a list of ArrayBuffers inside `payload` a
+  // caller knows it owns exclusively (built fresh for this one call, not
+  // shared/cached elsewhere) -- moved into the worker instead of
+  // structured-cloned. Omit it for anything a caller still needs after the
+  // call, or anything it doesn't have sole ownership of.
+  function request(type, payload, transfer) {
     const requestId = nextRequestId++;
     return new Promise((resolve, reject) => {
       pending.set(requestId, { resolve, reject });
-      getWorker().postMessage({ type, requestId, ...payload });
+      getWorker().postMessage({ type, requestId, ...payload }, transfer ?? []);
     });
   }
 

@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { truncateToWidth } from "../utils";
 import { oceanDriftAlpha, readRiskColorStops } from "../state/palette";
-import { CELL_SIZE, CELL_GAP, ROW_LABEL_WIDTH, COL_LABEL_HEIGHT, computeMatrixSize } from "../state/matrixLayout";
+import {
+  CELL_SIZE,
+  CELL_GAP,
+  ROW_LABEL_WIDTH,
+  COL_LABEL_HEIGHT,
+  computeMatrixSize,
+} from "../state/matrixLayout";
 import { NO_DATA_COLOR } from "./RiskMatrix.const";
 import InfoTrigger from "./InfoTrigger";
 
@@ -81,8 +87,11 @@ export default function RiskMatrix({
     ctx.textBaseline = "middle";
 
     const { riskColor, hexStops } = readRiskColorStops("matrix");
-    const textColor = getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() || "#5b6270";
-    const borderColor = getComputedStyle(document.documentElement).getPropertyValue("--border").trim() || "#e1e4e9";
+    const textColor =
+      getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() ||
+      "#5b6270";
+    const borderColor =
+      getComputedStyle(document.documentElement).getPropertyValue("--border").trim() || "#e1e4e9";
 
     // Column labels, rotated -45deg, anchored just above the grid.
     cols.forEach((col, j) => {
@@ -138,7 +147,7 @@ export default function RiskMatrix({
     ctx.fillText(legendLowLabel, legendX, legendY + 22);
     ctx.textAlign = "right";
     ctx.fillText(legendHighLabel, legendX + legendWidth, legendY + 22);
-  }, [rows, cols, cellAt, width, height, legendLowLabel, legendHighLabel]);
+  }, [rows, cols, cellAt, width, height, legendWidth, legendLowLabel, legendHighLabel]);
 
   // Cross-component hover reports (a sibling matrix, or now the table
   // header) get dropped if called synchronously from this canvas's native-
@@ -161,8 +170,10 @@ export default function RiskMatrix({
     // Hovering a label alone (not a cell) highlights just that row/col —
     // x < ROW_LABEL_WIDTH puts col negative, y < COL_LABEL_HEIGHT puts row
     // negative, so these never overlap with `overCell` or each other.
-    const overRowLabel = !overCell && x >= 0 && x < ROW_LABEL_WIDTH && row >= 0 && row < rows.length;
-    const overColLabel = !overCell && y >= 0 && y < COL_LABEL_HEIGHT && col >= 0 && col < cols.length;
+    const overRowLabel =
+      !overCell && x >= 0 && x < ROW_LABEL_WIDTH && row >= 0 && row < rows.length;
+    const overColLabel =
+      !overCell && y >= 0 && y < COL_LABEL_HEIGHT && col >= 0 && col < cols.length;
 
     if (overCell) {
       // Reported even for a cell with nothing to show (`cellAt` -> null):

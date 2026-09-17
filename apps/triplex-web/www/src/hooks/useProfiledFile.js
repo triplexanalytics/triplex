@@ -68,7 +68,9 @@ export function useProfiledFile(wasm) {
       timingLog(`[main] file.arrayBuffer(): ${(t1 - t0).toFixed(1)}ms for ${buf.length} bytes`);
       const { sample: readSample, profile: readProfile } = await profileFile(buf, ext);
       const t2 = performance.now();
-      timingLog(`[main] profileFile round trip (postMessage + worker + parse): ${(t2 - t1).toFixed(1)}ms`);
+      timingLog(
+        `[main] profileFile round trip (postMessage + worker + parse): ${(t2 - t1).toFixed(1)}ms`,
+      );
       setSample(readSample);
       setProfile(readProfile);
       setContract(buildContractFromProfile(readProfile));

@@ -173,7 +173,10 @@ export default function ColumnCard({
         {col.distribution?.kind === "categorical" && (
           <>
             <dt>
-              <InfoTrigger align="left" tooltip={distinctCountExplanation(col.distribution.cardinality)}>
+              <InfoTrigger
+                align="left"
+                tooltip={distinctCountExplanation(col.distribution.cardinality)}
+              >
                 Distinct
               </InfoTrigger>
             </dt>

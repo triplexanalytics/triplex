@@ -42,7 +42,11 @@ export default function App() {
   const columnRisk = useColumnRisk(file.sample, file.profile, file.removedRowIndices);
   const diversityMatrix = useDiversityMatrix(file.sample, file.profile, file.removedRowIndices);
   const rowFilter = useRowFilter(wasm, file.sample, file.profile);
-  const columnSubsets = useColumnSubsetDistributions(file.sample, file.profile, rowFilter.filteredRowIndices);
+  const columnSubsets = useColumnSubsetDistributions(
+    file.sample,
+    file.profile,
+    rowFilter.filteredRowIndices,
+  );
   const history = useHistory();
   const [selectedColumn, setSelectedColumn] = useState(null);
   // { rowName, colName } | null — the one shared hover state behind every

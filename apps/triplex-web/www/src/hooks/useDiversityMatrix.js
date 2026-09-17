@@ -27,7 +27,9 @@ const RISK_BUCKET_WIDTH = 10;
  * what's actually left, not the original upload. */
 export function useDiversityMatrix(sample, profile, removedRowIndices) {
   const quasiColumns =
-    profile?.columns.filter((c) => c.inferred_type === "integer" || c.distribution?.kind === "categorical") ?? [];
+    profile?.columns.filter(
+      (c) => c.inferred_type === "integer" || c.distribution?.kind === "categorical",
+    ) ?? [];
   const allColumns = profile?.columns ?? [];
 
   const [raw, setRaw] = useState(null); // { lDiversity, tCloseness, betaLikeness, deltaDisclosure, jointK, rowRisk } | null
@@ -54,19 +56,24 @@ export function useDiversityMatrix(sample, profile, removedRowIndices) {
     const colIndex = {};
     sample.headers.forEach((name, i) => (colIndex[name] = i));
     const includedRows = removedRowIndices?.size
-      ? Array.from({ length: sample.rowCount }, (_, i) => i).filter((i) => !removedRowIndices.has(i))
+      ? Array.from({ length: sample.rowCount }, (_, i) => i).filter(
+          (i) => !removedRowIndices.has(i),
+        )
       : Array.from({ length: sample.rowCount }, (_, i) => i);
     // rows (quasi-identifier): an integer column's wasm call takes a typed
     // array; a categorical/string column stays stringified cells, same as
     // cols (candidate sensitive attribute, which can be any column type).
+    // transfer collects only the includedRows-filtered copies built fresh
+    // below -- never the unfiltered passthrough, which is sample's own
+    // cached array shared with useColumnRisk and every other reader.
+    const transfer = [];
     const rows = quasiColumns.map((c) => {
       if (c.inferred_type === "integer") {
         const values = sample.getNumericColumn(colIndex[c.name]);
-        return {
-          name: c.name,
-          kind: "numeric",
-          values: removedRowIndices?.size ? Float64Array.from(includedRows, (row) => values[row]) : values,
-        };
+        if (!removedRowIndices?.size) return { name: c.name, kind: "numeric", values };
+        const owned = Float64Array.from(includedRows, (row) => values[row]);
+        transfer.push(owned.buffer);
+        return { name: c.name, kind: "numeric", values: owned };
       }
       return {
         name: c.name,
@@ -78,7 +85,7 @@ export function useDiversityMatrix(sample, profile, removedRowIndices) {
       name: c.name,
       values: includedRows.map((row) => sample.getCell(row, colIndex[c.name])),
     }));
-    scoreDiversityMatrix(rows, cols, RISK_BUCKET_WIDTH, rowRiskModel)
+    scoreDiversityMatrix(rows, cols, RISK_BUCKET_WIDTH, rowRiskModel, transfer)
       .then((result) => {
         if (generation.current !== myGeneration) return; // superseded by a newer upload
         setRaw(result);

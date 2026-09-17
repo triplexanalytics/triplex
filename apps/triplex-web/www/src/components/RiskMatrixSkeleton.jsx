@@ -1,4 +1,10 @@
-import { CELL_SIZE, CELL_GAP, ROW_LABEL_WIDTH, COL_LABEL_HEIGHT, computeMatrixSize } from "../state/matrixLayout";
+import {
+  CELL_SIZE,
+  CELL_GAP,
+  ROW_LABEL_WIDTH,
+  COL_LABEL_HEIGHT,
+  computeMatrixSize,
+} from "../state/matrixLayout";
 
 /** Placeholder shown in place of a `RiskMatrix` while its scores are still
  * being computed in the worker — sized via the same `computeMatrixSize`

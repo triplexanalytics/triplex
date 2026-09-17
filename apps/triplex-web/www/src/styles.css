@@ -71,9 +71,15 @@
   --table-border: rgba(15, 76, 129, 0.16);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-html, body, #root { height: 100%; }
+html,
+body,
+#root {
+  height: 100%;
+}
 
 body {
   margin: 0;
@@ -94,7 +100,10 @@ button {
   padding: 0.4rem 0.8rem;
 }
 
-button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 button.primary {
   background: var(--accent);
@@ -102,7 +111,9 @@ button.primary {
   color: var(--accent-text);
 }
 
-button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
 
 button.danger {
   background: var(--surface);
@@ -113,13 +124,22 @@ button.danger {
   gap: 0.35rem;
 }
 
-button.danger:hover:not(:disabled) { background: var(--error-bg); }
+button.danger:hover:not(:disabled) {
+  background: var(--error-bg);
+}
 
-button.full-width { width: 100%; justify-content: center; }
+button.full-width {
+  width: 100%;
+  justify-content: center;
+}
 
 /* === App shell, navbar, tier picker === */
 
-.app-shell { display: flex; flex-direction: column; height: 100%; }
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
 
 .navbar {
   display: flex;
@@ -132,13 +152,23 @@ button.full-width { width: 100%; justify-content: center; }
   flex-wrap: wrap;
 }
 
-.navbar .brand { font-weight: 650; margin-right: 0.5rem; }
+.navbar .brand {
+  font-weight: 650;
+  margin-right: 0.5rem;
+}
 
-.navbar .spacer { flex: 1; }
+.navbar .spacer {
+  flex: 1;
+}
 
-.navbar .file-shape { color: var(--text-faint); white-space: nowrap; }
+.navbar .file-shape {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
 
-.download-menu { position: relative; }
+.download-menu {
+  position: relative;
+}
 
 .download-menu > summary {
   list-style: none;
@@ -151,10 +181,16 @@ button.full-width { width: 100%; justify-content: center; }
   padding: 0.4rem 0.8rem;
 }
 
-.download-menu > summary::-webkit-details-marker { display: none; }
-.download-menu > summary::marker { content: ""; }
+.download-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.download-menu > summary::marker {
+  content: "";
+}
 
-.download-menu > summary:hover { background: var(--accent-hover); }
+.download-menu > summary:hover {
+  background: var(--accent-hover);
+}
 
 .download-menu ul {
   position: absolute;
@@ -182,7 +218,9 @@ button.full-width { width: 100%; justify-content: center; }
   border-radius: 4px;
 }
 
-.download-menu li button:hover { background: var(--surface-alt); }
+.download-menu li button:hover {
+  background: var(--surface-alt);
+}
 
 .navbar .license-placeholder {
   font-size: 0.78rem;
@@ -192,7 +230,10 @@ button.full-width { width: 100%; justify-content: center; }
   padding: 0.15rem 0.5rem;
 }
 
-.tier-picker { display: flex; gap: 0.4rem; }
+.tier-picker {
+  display: flex;
+  gap: 0.4rem;
+}
 
 .tier-option {
   display: flex;
@@ -203,9 +244,23 @@ button.full-width { width: 100%; justify-content: center; }
   min-width: 9rem;
 }
 
-.tier-head { display: flex; align-items: center; justify-content: flex-start; gap: 0.4rem; width: 100%; }
-.tier-option .tier-label { font-weight: 600; font-size: 0.82rem; }
-.tier-option .tier-caption { font-size: 0.7rem; color: var(--text-muted); white-space: normal; text-align: left; }
+.tier-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+}
+.tier-option .tier-label {
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.tier-option .tier-caption {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: normal;
+  text-align: left;
+}
 
 .tier-reversibility {
   display: flex;
@@ -238,17 +293,30 @@ button.full-width { width: 100%; justify-content: center; }
      is a longer, more gradual stretch of it than the full change
      compressed into exactly one button's height -- without stretching so
      far the second color barely shows at all. */
-  background-size: auto, 100% 180%;
+  background-size:
+    auto,
+    100% 180%;
   animation: tier-gradient-shift 6s ease infinite;
 }
 
 @keyframes tier-gradient-shift {
-  0%, 100% { background-position: 0% 0%, 0% 0%; }
-  50% { background-position: 0% 0%, 0% 100%; }
+  0%,
+  100% {
+    background-position:
+      0% 0%,
+      0% 0%;
+  }
+  50% {
+    background-position:
+      0% 0%,
+      0% 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tier-option.active { animation: none; }
+  .tier-option.active {
+    animation: none;
+  }
 }
 
 /* One base hue (--accent) at three intensities, not three different colors
@@ -256,15 +324,28 @@ button.full-width { width: 100%; justify-content: center; }
    mapping-key reversal is a "mild" lock, Tier 3's irreversible synthesis is
    the "strong" one. Shared by the lock icon (via currentColor) and the
    reversibility text. */
-.strength-1 { color: color-mix(in srgb, var(--accent) 40%, var(--text-faint)); }
-.strength-2 { color: color-mix(in srgb, var(--accent) 70%, var(--text-faint)); }
-.strength-3 { color: var(--accent); }
+.strength-1 {
+  color: color-mix(in srgb, var(--accent) 40%, var(--text-faint));
+}
+.strength-2 {
+  color: color-mix(in srgb, var(--accent) 70%, var(--text-faint));
+}
+.strength-3 {
+  color: var(--accent);
+}
 
-.lock-icon { flex: none; }
+.lock-icon {
+  flex: none;
+}
 
 /* === Main content layout === */
 
-.main-content { position: relative; flex: 1; overflow: auto; padding: 1rem; }
+.main-content {
+  position: relative;
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+}
 
 /* === Analysis overlay: slide panel docked on top of the Table view === */
 
@@ -300,8 +381,13 @@ button.full-width { width: 100%; justify-content: center; }
   font-size: 0.78rem;
   font-weight: 600;
 }
-.analysis-overlay-rail-btn:last-child { border-bottom: none; }
-.analysis-overlay-rail-btn:hover { color: var(--text); background: var(--border); }
+.analysis-overlay-rail-btn:last-child {
+  border-bottom: none;
+}
+.analysis-overlay-rail-btn:hover {
+  color: var(--text);
+  background: var(--border);
+}
 
 .analysis-overlay.expanded {
   width: min(640px, calc(100% - 1rem));
@@ -314,7 +400,10 @@ button.full-width { width: 100%; justify-content: center; }
   flex: none;
 }
 
-.analysis-overlay-tabs { display: flex; flex: 1; }
+.analysis-overlay-tabs {
+  display: flex;
+  flex: 1;
+}
 
 .analysis-overlay-tab-btn {
   border: none;
@@ -324,7 +413,11 @@ button.full-width { width: 100%; justify-content: center; }
   padding: 0.6rem 0.9rem;
   color: var(--text-muted);
 }
-.analysis-overlay-tab-btn.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.analysis-overlay-tab-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
 
 .analysis-overlay-collapse-btn {
   flex: none;
@@ -335,13 +428,24 @@ button.full-width { width: 100%; justify-content: center; }
   display: flex;
   align-items: center;
 }
-.analysis-overlay-collapse-btn:hover { color: var(--text); }
+.analysis-overlay-collapse-btn:hover {
+  color: var(--text);
+}
 
-.analysis-overlay-body { flex: 1; overflow: auto; padding: 1rem; }
+.analysis-overlay-body {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+}
 
 /* === History tab === */
 
-.history-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.82rem; }
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.82rem;
+}
 
 .history-table th {
   text-align: left;
@@ -359,12 +463,24 @@ button.full-width { width: 100%; justify-content: center; }
   white-space: nowrap;
 }
 
-.history-table tbody tr:hover { background: var(--border); }
+.history-table tbody tr:hover {
+  background: var(--border);
+}
 
-.history-col-time { width: 17%; color: var(--text-muted); }
-.history-col-op { width: 36%; }
-.history-col-count { width: 24%; color: var(--text-muted); }
-.history-col-column { width: 19%; }
+.history-col-time {
+  width: 17%;
+  color: var(--text-muted);
+}
+.history-col-op {
+  width: 36%;
+}
+.history-col-count {
+  width: 24%;
+  color: var(--text-muted);
+}
+.history-col-column {
+  width: 19%;
+}
 .history-col-undo {
   width: 2.2rem;
   text-align: right;
@@ -383,12 +499,18 @@ button.full-width { width: 100%; justify-content: center; }
   background: none;
   color: var(--accent);
 }
-.history-undo-btn:hover { background: var(--accent); color: var(--accent-text); }
+.history-undo-btn:hover {
+  background: var(--accent);
+  color: var(--accent-text);
+}
 
 /* Breathing room between the grid's own content/scrollbars and the rest of
    the page — Glide renders its scrollbars flush against its container's
    edge otherwise. */
-.table-grid-wrap { padding: 0 8px 8px 0; overflow: hidden; }
+.table-grid-wrap {
+  padding: 0 8px 8px 0;
+  overflow: hidden;
+}
 
 /* A card-originated header highlight — see TableTab.jsx's getBounds() note.
    Sits on top of the grid's own canvas, so it needs its own tint (not a
@@ -427,9 +549,19 @@ button.full-width { width: 100%; justify-content: center; }
   cursor: pointer;
 }
 
-.dropzone p { margin: 0; }
-.dropzone .hint { font-size: 0.78rem; color: var(--text-faint); max-width: 40ch; }
-.dropzone .hint code { background: var(--surface-alt); border-radius: 4px; padding: 0.05em 0.35em; }
+.dropzone p {
+  margin: 0;
+}
+.dropzone .hint {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  max-width: 40ch;
+}
+.dropzone .hint code {
+  background: var(--surface-alt);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
 
 .dropzone.dragging {
   border-color: var(--accent);
@@ -451,9 +583,22 @@ button.full-width { width: 100%; justify-content: center; }
   margin-bottom: 0.75rem;
 }
 
-.banner-error { background: var(--error-bg); border: 1px solid var(--error-border); color: var(--error-text); }
-.banner-warning { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); }
-.banner-success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); margin: 0; }
+.banner-error {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--error-text);
+}
+.banner-warning {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--warning-text);
+}
+.banner-success {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success-text);
+  margin: 0;
+}
 
 /* Wraps the row-filter banner and the rows-removed banner, stacked -- both
    independent (a filter can be active, rows can be removed, both, or
@@ -488,7 +633,13 @@ button.full-width { width: 100%; justify-content: center; }
   background: none;
 }
 
-.field label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.2rem; }
+.field label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
 .field input[type="text"],
 .field input[type="password"] {
   width: 100%;
@@ -500,7 +651,11 @@ button.full-width { width: 100%; justify-content: center; }
   color: var(--text);
 }
 
-.field-hint { font-size: 0.72rem; color: var(--text-faint); margin: 0.3rem 0 0; }
+.field-hint {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  margin: 0.3rem 0 0;
+}
 
 /* === Tooltips: header hover, histogram bins, InfoTrigger === */
 
@@ -517,7 +672,11 @@ button.full-width { width: 100%; justify-content: center; }
   white-space: nowrap;
 }
 
-.header-tooltip em { font-style: italic; opacity: 0.85; margin-left: 0.15rem; }
+.header-tooltip em {
+  font-style: italic;
+  opacity: 0.85;
+  margin-left: 0.15rem;
+}
 
 .bin-tooltip {
   z-index: 50;
@@ -535,13 +694,20 @@ button.full-width { width: 100%; justify-content: center; }
   margin-top: -8px;
 }
 
-.bin-tooltip strong { font-size: 0.8rem; }
-.bin-tooltip span { opacity: 0.75; }
+.bin-tooltip strong {
+  font-size: 0.8rem;
+}
+.bin-tooltip span {
+  opacity: 0.75;
+}
 
 /* Existing bin/header tooltips are always short labels, so nowrap suits
    them; a matrix cell's tooltip carries a full sentence and needs to wrap
    to a bounded width instead of stretching across the viewport. */
-.bin-tooltip.wrap { white-space: normal; max-width: 260px; }
+.bin-tooltip.wrap {
+  white-space: normal;
+  max-width: 260px;
+}
 
 .bin-tooltip::after {
   content: "";
@@ -633,8 +799,13 @@ button.full-width { width: 100%; justify-content: center; }
   z-index: 50;
 }
 
-.info-trigger-tooltip-center { left: 50%; transform: translateX(-50%); }
-.info-trigger-tooltip-left { left: 0; }
+.info-trigger-tooltip-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.info-trigger-tooltip-left {
+  left: 0;
+}
 
 .info-trigger-tooltip-left .info-trigger-tooltip-box::after {
   left: 12px;
@@ -657,7 +828,9 @@ button.full-width { width: 100%; justify-content: center; }
   line-height: 1.5;
   padding: 0.65rem 0.8rem;
   border-radius: 8px;
-  box-shadow: var(--shadow), 0 6px 16px rgba(0, 0, 0, 0.18);
+  box-shadow:
+    var(--shadow),
+    0 6px 16px rgba(0, 0, 0, 0.18);
 }
 
 /* Small pointer back to the trigger, same language as .bin-tooltip's. */
@@ -687,7 +860,9 @@ button.full-width { width: 100%; justify-content: center; }
   opacity: 0.85;
 }
 
-.info-trigger-readmore:hover { opacity: 1; }
+.info-trigger-readmore:hover {
+  opacity: 1;
+}
 
 /* === Column view: card grid, per-card risk bar === */
 
@@ -708,13 +883,17 @@ button.full-width { width: 100%; justify-content: center; }
   cursor: pointer;
 }
 
-.column-card.selected { border-color: var(--accent); }
+.column-card.selected {
+  border-color: var(--accent);
+}
 
 /* Table<->card cross-highlight (hovering a table header, or this card,
    highlights the other) — a background wash, not a border, so it reads
    distinctly from .selected's click-driven border and the two combine
    cleanly if a card is both at once. */
-.column-card.highlighted { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.column-card.highlighted {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
 
 /* "Delete from output" (see ColumnMenu's method grid): the column stays in
    the working view -- unlike .selected/.highlighted this isn't a hover or
@@ -727,11 +906,29 @@ button.full-width { width: 100%; justify-content: center; }
    over the canvas's own rendered pixels same as any other descendant, so
    this grays the bars out too without HeaderSparkline needing to know
    anything about this state. */
-.column-card.muted { filter: grayscale(1); opacity: 0.6; }
+.column-card.muted {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
 
-.column-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4rem; }
-.column-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; min-width: 0; }
-.column-card h3 { margin: 0 0 0.35rem; font-size: 0.92rem; min-width: 0; }
+.column-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.column-card-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.column-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
+  min-width: 0;
+}
 
 /* Same menu-icon affordance as the Table tab's header (see drawMenuIcon in
    utils.jsx) -- a plain icon-only button, no border/fill of its own, that
@@ -746,7 +943,9 @@ button.full-width { width: 100%; justify-content: center; }
   display: flex;
   align-items: center;
 }
-.column-card-menu-btn:hover { color: var(--text); }
+.column-card-menu-btn:hover {
+  color: var(--text);
+}
 
 /* Shows once a real anonymization method (not "drop", which mutes the
    whole card instead -- see .column-card.muted) is applied, so that's
@@ -770,7 +969,10 @@ button.full-width { width: 100%; justify-content: center; }
   border: 1px solid color-mix(in srgb, var(--method-color) 35%, var(--border));
   color: var(--text);
 }
-.column-card-method-pill svg:first-child { color: var(--method-color); flex: none; }
+.column-card-method-pill svg:first-child {
+  color: var(--method-color);
+  flex: none;
+}
 
 .column-card-method-pill button {
   display: inline-flex;
@@ -782,17 +984,43 @@ button.full-width { width: 100%; justify-content: center; }
   color: var(--text-faint);
   cursor: pointer;
 }
-.column-card-method-pill button:hover { color: var(--text); }
+.column-card-method-pill button:hover {
+  color: var(--text);
+}
 
-.column-card dl { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--text-muted); }
-.column-card dl dt { font-weight: 500; }
-.column-card dl dd { margin: 0; min-width: 0; }
+.column-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.5rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.column-card dl dt {
+  font-weight: 500;
+}
+.column-card dl dd {
+  margin: 0;
+  min-width: 0;
+}
 
-.type-with-icon { display: inline-flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
-.type-with-icon svg { color: var(--text-faint); flex-shrink: 0; }
+.type-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.type-with-icon svg {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
 
-.conformance-ok { color: var(--success-text); }
-.conformance-bad { color: var(--error-text); }
+.conformance-ok {
+  color: var(--success-text);
+}
+.conformance-bad {
+  color: var(--error-text);
+}
 
 .declare-string-action {
   margin-left: 0.4rem;
@@ -803,9 +1031,16 @@ button.full-width { width: 100%; justify-content: center; }
   background: none;
   color: var(--accent);
 }
-.declare-string-action:hover { background: var(--accent); color: var(--accent-text); }
+.declare-string-action:hover {
+  background: var(--accent);
+  color: var(--accent-text);
+}
 
-.declare-string-done { margin-left: 0.4rem; font-size: 0.72rem; color: var(--success-text); }
+.declare-string-done {
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--success-text);
+}
 
 .risk-bar-track {
   width: 100%;
@@ -816,9 +1051,15 @@ button.full-width { width: 100%; justify-content: center; }
   margin-bottom: 0.2rem;
 }
 
-.risk-bar-fill { height: 100%; border-radius: 3px; }
+.risk-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
 
-.risk-bar-label { font-size: 0.72rem; color: var(--text-muted); }
+.risk-bar-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
 
 /* === Diversity check: section, risk-matrix heatmap === */
 
@@ -831,24 +1072,54 @@ button.full-width { width: 100%; justify-content: center; }
   padding: 0.9rem 1rem;
 }
 
-.diversity-check-section h3 { margin: 0 0 0.35rem; font-size: 0.92rem; }
+.diversity-check-section h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
+}
 
-.diversity-check-intro { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 0.6rem; max-width: 640px; }
+.diversity-check-intro {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0 0 0.6rem;
+  max-width: 640px;
+}
 
-.risk-matrix-pair { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.risk-matrix-pair {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
 
-.risk-matrix { position: relative; }
+.risk-matrix {
+  position: relative;
+}
 
-.risk-matrix h4 { margin: 0 0 0.3rem; font-size: 0.8rem; color: var(--text-muted); }
+.risk-matrix h4 {
+  margin: 0 0 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 
-.risk-matrix canvas { cursor: default; }
+.risk-matrix canvas {
+  cursor: default;
+}
 
 /* === Row risk (SUDA / EBM) === */
 
-.row-risk-section { margin-top: 1.1rem; }
+.row-risk-section {
+  margin-top: 1.1rem;
+}
 
-.row-risk-header { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-.row-risk-header h3 { margin: 0; }
+.row-risk-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.row-risk-header h3 {
+  margin: 0;
+}
 
 .row-risk-model-select {
   font: inherit;
@@ -860,9 +1131,16 @@ button.full-width { width: 100%; justify-content: center; }
   color: var(--text);
 }
 
-.row-risk-empty { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+.row-risk-empty {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+}
 
-.row-risk-table { border-collapse: collapse; font-size: 0.8rem; }
+.row-risk-table {
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
 
 .row-risk-table th {
   text-align: left;
@@ -886,8 +1164,12 @@ button.full-width { width: 100%; justify-content: center; }
   margin-right: 0.4rem;
 }
 
-.risk-matrix-canvas-stack { position: relative; }
-.risk-matrix-clickable { cursor: pointer; }
+.risk-matrix-canvas-stack {
+  position: relative;
+}
+.risk-matrix-clickable {
+  cursor: pointer;
+}
 
 /* Layered on top of the main heatmap canvas — see RiskMatrix.jsx's doc
    comment for why the hovered cell's value fades in via this layer's own
@@ -901,7 +1183,9 @@ button.full-width { width: 100%; justify-content: center; }
   transition: opacity 120ms ease-out;
 }
 
-.risk-matrix-hover-value.visible { opacity: 1; }
+.risk-matrix-hover-value.visible {
+  opacity: 1;
+}
 
 /* === Loading: full-panel overlay, spinner, skeletons === */
 
@@ -917,7 +1201,11 @@ button.full-width { width: 100%; justify-content: center; }
   background: var(--bg);
 }
 
-.loading-overlay p { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+.loading-overlay p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
 
 .spinner {
   width: 28px;
@@ -929,12 +1217,19 @@ button.full-width { width: 100%; justify-content: center; }
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .skeleton-block {
@@ -949,11 +1244,24 @@ button.full-width { width: 100%; justify-content: center; }
    spinner alone can get lost against a much larger block at normal page
    viewing scale (confirmed the spinner itself renders fine; it was just
    easy to overlook, not actually missing). */
-.skeleton-block-center { display: flex; align-items: center; justify-content: center; }
+.skeleton-block-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-.skeleton-block-loading { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+.skeleton-block-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
 
-.skeleton-block-loading p { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+.skeleton-block-loading p {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+}
 
 .risk-matrix-skeleton {
   position: relative;
@@ -962,7 +1270,9 @@ button.full-width { width: 100%; justify-content: center; }
   border: 1px solid var(--border);
 }
 
-.risk-matrix-skeleton-cell { position: absolute; }
+.risk-matrix-skeleton-cell {
+  position: absolute;
+}
 
 .risk-matrix-skeleton .skeleton-block-loading {
   position: absolute;
@@ -1012,8 +1322,12 @@ button.full-width { width: 100%; justify-content: center; }
   border-bottom: 1px solid var(--border);
 }
 
-.column-menu-section { margin-bottom: 0.75rem; }
-.column-menu-section:last-child { margin-bottom: 0; }
+.column-menu-section {
+  margin-bottom: 0.75rem;
+}
+.column-menu-section:last-child {
+  margin-bottom: 0;
+}
 
 .column-menu-section-title {
   display: flex;
@@ -1073,10 +1387,15 @@ button.full-width { width: 100%; justify-content: center; }
   background: color-mix(in srgb, var(--method-color) 7%, var(--surface-alt));
   color: var(--text);
   cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease,
+    border-color 0.1s ease;
 }
 
-.method-card svg { color: var(--method-color); }
+.method-card svg {
+  color: var(--method-color);
+}
 
 .method-card:hover {
   transform: translateY(-1px);
@@ -1106,10 +1425,18 @@ button.full-width { width: 100%; justify-content: center; }
   right: 0.4rem;
 }
 
-.method-card-pseudonymize { --method-color: var(--method-pseudonymize); }
-.method-card-encrypt { --method-color: var(--method-encrypt); }
-.method-card-generalize { --method-color: var(--method-generalize); }
-.method-card-mask { --method-color: var(--method-mask); }
+.method-card-pseudonymize {
+  --method-color: var(--method-pseudonymize);
+}
+.method-card-encrypt {
+  --method-color: var(--method-encrypt);
+}
+.method-card-generalize {
+  --method-color: var(--method-generalize);
+}
+.method-card-mask {
+  --method-color: var(--method-mask);
+}
 /* --accent is a dark, low-lightness navy -- the base .method-card formula's
    7% idle mix reads as barely-there gray for a hue this dark (blue reads
    "grayer" than a warm hue like orange at the same low mix, even at equal
@@ -1123,7 +1450,9 @@ button.full-width { width: 100%; justify-content: center; }
   background: color-mix(in srgb, var(--method-color) 18%, var(--surface-alt));
   border-color: color-mix(in srgb, var(--method-color) 35%, var(--border));
 }
-.method-card-drop { --method-color: var(--method-drop); }
+.method-card-drop {
+  --method-color: var(--method-drop);
+}
 /* Stronger than the generic 7%/12% every other card gets: this one isn't
    just a different-colored technique, it's the only destructive action in
    the grid, and it reads more like the app's own error banners (full
@@ -1138,7 +1467,9 @@ button.full-width { width: 100%; justify-content: center; }
 .method-card-drop.selected {
   background: color-mix(in srgb, var(--method-drop) 22%, var(--surface-alt));
 }
-.method-card-default { --method-color: var(--method-default); }
+.method-card-default {
+  --method-color: var(--method-default);
+}
 
 .column-menu select {
   width: 100%;

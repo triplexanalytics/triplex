@@ -208,7 +208,9 @@ export default function DiversityCheckSection({
     return (
       <div className="diversity-check-section">
         <h3>Diversity check</h3>
-        <p className="banner banner-error">Couldn't score this file's diversity/row risk: {error}</p>
+        <p className="banner banner-error">
+          Couldn't score this file's diversity/row risk: {error}
+        </p>
       </div>
     );
   }
@@ -221,22 +223,42 @@ export default function DiversityCheckSection({
     <div className="diversity-check-section">
       <h3>Diversity check</h3>
       <p className="diversity-check-intro">
-        k-anonymity (above) only says how big each generalized group is. These say whether
-        everyone in that group also shares the same sensitive value: one row per
-        quasi-identifier column, one column per candidate sensitive column.
+        k-anonymity (above) only says how big each generalized group is. These say whether everyone
+        in that group also shares the same sensitive value: one row per quasi-identifier column, one
+        column per candidate sensitive column.
         {showJointK &&
-          " Combined k-anonymity (right) scores every quasi-identifier column against every other one, together instead of alone — the dataset-level verdict."}
-        {" "}Hover a cell for the pair it scores.
+          " Combined k-anonymity (right) scores every quasi-identifier column against every other one, together instead of alone — the dataset-level verdict."}{" "}
+        Hover a cell for the pair it scores.
       </p>
       <div className="risk-matrix-pair">
         {loading || !raw ? (
           <>
-            <RiskMatrixSkeleton title="l-diversity" rowCount={rowNames.length} colCount={colNames.length} />
-            <RiskMatrixSkeleton title="t-closeness" rowCount={rowNames.length} colCount={colNames.length} />
-            <RiskMatrixSkeleton title="β-likeness" rowCount={rowNames.length} colCount={colNames.length} />
-            <RiskMatrixSkeleton title="δ-disclosure" rowCount={rowNames.length} colCount={colNames.length} />
+            <RiskMatrixSkeleton
+              title="l-diversity"
+              rowCount={rowNames.length}
+              colCount={colNames.length}
+            />
+            <RiskMatrixSkeleton
+              title="t-closeness"
+              rowCount={rowNames.length}
+              colCount={colNames.length}
+            />
+            <RiskMatrixSkeleton
+              title="β-likeness"
+              rowCount={rowNames.length}
+              colCount={colNames.length}
+            />
+            <RiskMatrixSkeleton
+              title="δ-disclosure"
+              rowCount={rowNames.length}
+              colCount={colNames.length}
+            />
             {showJointK && (
-              <RiskMatrixSkeleton title="combined k-anonymity" rowCount={rowNames.length} colCount={rowNames.length} />
+              <RiskMatrixSkeleton
+                title="combined k-anonymity"
+                rowCount={rowNames.length}
+                colCount={rowNames.length}
+              />
             )}
           </>
         ) : (
@@ -252,7 +274,9 @@ export default function DiversityCheckSection({
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
               onHoverChange={onHoverNamesChange}
-              onCellClick={onJointKCellClick ? makeSingleColumnCellClickHandler(lDiversityCellAt) : undefined}
+              onCellClick={
+                onJointKCellClick ? makeSingleColumnCellClickHandler(lDiversityCellAt) : undefined
+              }
             />
             <RiskMatrix
               title="t-closeness"
@@ -265,7 +289,9 @@ export default function DiversityCheckSection({
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
               onHoverChange={onHoverNamesChange}
-              onCellClick={onJointKCellClick ? makeSingleColumnCellClickHandler(tClosenessCellAt) : undefined}
+              onCellClick={
+                onJointKCellClick ? makeSingleColumnCellClickHandler(tClosenessCellAt) : undefined
+              }
             />
             <RiskMatrix
               title="β-likeness"
@@ -278,7 +304,9 @@ export default function DiversityCheckSection({
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
               onHoverChange={onHoverNamesChange}
-              onCellClick={onJointKCellClick ? makeSingleColumnCellClickHandler(betaLikenessCellAt) : undefined}
+              onCellClick={
+                onJointKCellClick ? makeSingleColumnCellClickHandler(betaLikenessCellAt) : undefined
+              }
             />
             <RiskMatrix
               title="δ-disclosure"
@@ -291,7 +319,11 @@ export default function DiversityCheckSection({
               highlightRowName={hoverNames?.rowName}
               highlightColName={hoverNames?.colName}
               onHoverChange={onHoverNamesChange}
-              onCellClick={onJointKCellClick ? makeSingleColumnCellClickHandler(deltaDisclosureCellAt) : undefined}
+              onCellClick={
+                onJointKCellClick
+                  ? makeSingleColumnCellClickHandler(deltaDisclosureCellAt)
+                  : undefined
+              }
             />
             {showJointK && (
               <RiskMatrix
