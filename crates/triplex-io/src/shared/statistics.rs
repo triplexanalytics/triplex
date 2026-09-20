@@ -1,10 +1,10 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Format-agnostic per-column statistics: how much of a column is missing,
 /// and its numeric range/mean where that's meaningful. Shared by every
 /// ingestion format so schemacast's job is just interpreting these plus
 /// inferring a type, not recomputing them per format.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ColumnStatistics {
     pub null_percentage: f64,
     /// `None` for a column with no parseable numbers at all (e.g. a genuine

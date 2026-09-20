@@ -298,11 +298,45 @@ fn mask_rows(
     (triplex_io::Sample { headers, rows }, mapping_entries)
 }
 
+const PROFILE_SAMPLE_ROWS: usize = 1000;
+
+/// Writes the `baseline.profile.json` artifact the design notes
+/// the design notes describes Anonymizer as auto-minting: the masked
+/// output's own schema (re-inferred from what was actually written, not the
+/// input) plus whatever risk assessment this run computed.
+/// `triplex-driftguard`'s `DriftProfile` is the intended consumer -- this
+/// crate has no dependency on it and constructs the same JSON shape by
+/// convention, not a shared Rust type, so DriftGuard's tier-independence
+/// doesn't require a dependency back onto Anonymizer.
+fn mint_profile(
+    output_path: &Path,
+    risk_assessment: Option<RiskAssessment>,
+    profile_out_path: &Path,
+) -> Result<()> {
+    #[derive(serde::Serialize)]
+    struct Profile {
+        schema: triplex_schemacast::SchemaContract,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        risk_assessment: Option<RiskAssessment>,
+    }
+    let schema = triplex_schemacast::infer_schema_from_path(output_path, PROFILE_SAMPLE_ROWS)?;
+    let json = serde_json::to_vec_pretty(&Profile {
+        schema,
+        risk_assessment,
+    })
+    .map_err(|e| Error::Validation(format!("could not serialize drift profile: {e}")))?;
+    std::fs::write(profile_out_path, json)?;
+    Ok(())
+}
+
 /// Reads `input_path` (`.csv` or `.parquet`), excludes `excluded_row_indices`
 /// (see `exclude_rows`), masks every column the recipe declares, writes the
 /// masked dataset to `output_path` as CSV, and writes a separate reversible
 /// mapping to `mapping_out_path` — plaintext CSV, or an AES-256-GCM-encrypted
-/// JSON envelope if `mapping_passphrase` is given.
+/// JSON envelope if `mapping_passphrase` is given. `profile_out_path`, if
+/// given, also mints a `DriftProfile`-shaped JSON file for `triplex
+/// driftguard --baseline-profile` to consume later — optional and additive,
+/// so every existing call site is unaffected by omitting it.
 pub fn anonymize_file(
     input_path: &Path,
     recipe: &AnonymizeRecipe,
@@ -310,6 +344,7 @@ pub fn anonymize_file(
     mapping_out_path: &Path,
     mapping_passphrase: Option<&str>,
     excluded_row_indices: &HashSet<usize>,
+    profile_out_path: Option<&Path>,
 ) -> Result<AnonymizeReport> {
     let sample = read_rows(input_path)?;
     let (sample, rows_excluded) = exclude_rows(sample, excluded_row_indices);
@@ -333,6 +368,10 @@ pub fn anonymize_file(
             std::fs::write(mapping_out_path, json)?;
         }
         None => std::fs::write(mapping_out_path, mapping_bytes)?,
+    }
+
+    if let Some(profile_path) = profile_out_path {
+        mint_profile(output_path, risk_assessment, profile_path)?;
     }
 
     Ok(AnonymizeReport {
@@ -731,6 +770,7 @@ mod tests {
             &mapping_out,
             None,
             &HashSet::new(),
+            None,
         )
         .expect("anonymize_file should succeed");
         let via_path = triplex_io::read_csv_full(&output).unwrap();
@@ -787,6 +827,7 @@ mod tests {
             &mapping_out,
             None,
             &HashSet::new(),
+            None,
         )
         .expect("anonymize should succeed");
 
@@ -828,6 +869,7 @@ mod tests {
             &mapping_out,
             None,
             &excluded,
+            None,
         )
         .expect("anonymize should succeed");
 
@@ -856,6 +898,7 @@ mod tests {
             &mapping_out,
             None,
             &HashSet::new(),
+            None,
         )
         .expect("anonymize should succeed on parquet input");
 
@@ -881,6 +924,7 @@ mod tests {
             &mapping_out,
             None,
             &HashSet::new(),
+            None,
         )
         .expect("anonymize should succeed");
 
@@ -911,6 +955,7 @@ mod tests {
             &mapping_out,
             None,
             &HashSet::new(),
+            None,
         );
         assert!(result.is_err());
     }
@@ -929,6 +974,7 @@ mod tests {
             &mapping_out,
             None,
             &HashSet::new(),
+            None,
         );
         assert!(result.is_err());
     }
@@ -947,6 +993,7 @@ mod tests {
             &mapping_out,
             Some("a strong passphrase"),
             &HashSet::new(),
+            None,
         )
         .expect("anonymize should succeed");
 
@@ -975,6 +1022,7 @@ mod tests {
             &mapping_out,
             Some("a strong passphrase"),
             &HashSet::new(),
+            None,
         )
         .expect("anonymize should succeed");
 
@@ -1005,6 +1053,7 @@ mod tests {
             &mapping_out,
             Some("correct passphrase"),
             &HashSet::new(),
+            None,
         )
         .expect("anonymize should succeed");
 
@@ -1030,6 +1079,7 @@ mod tests {
             &mapping_out,
             None,
             &HashSet::new(),
+            None,
         )
         .expect("anonymize should succeed");
 

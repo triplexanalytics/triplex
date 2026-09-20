@@ -1,0 +1,15 @@
+[package]
+name = "triplex-driftguard"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+triplex-core = { workspace = true }
+triplex-schemacast = { workspace = true }
+triplex-datasetcard = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+triplex-io = { workspace = true }

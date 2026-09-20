@@ -1325,6 +1325,7 @@ dependencies = [
  "triplex-core",
  "triplex-datasetcard",
  "triplex-io",
+ "triplex-schemacast",
 ]
 
 [[package]]
@@ -1333,6 +1334,7 @@ version = "0.3.0"
 dependencies = [
  "serde_json",
  "triplex-anonymizer",
+ "triplex-driftguard",
  "triplex-schemacast",
 ]
 
@@ -1347,6 +1349,18 @@ dependencies = [
  "serde",
  "serde_json",
  "triplex-core",
+]
+
+[[package]]
+name = "triplex-driftguard"
+version = "0.3.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "triplex-core",
+ "triplex-datasetcard",
+ "triplex-io",
+ "triplex-schemacast",
 ]
 
 [[package]]

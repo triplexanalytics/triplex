@@ -11,4 +11,5 @@ path = "src/main.rs"
 [dependencies]
 triplex-schemacast = { workspace = true }
 triplex-anonymizer = { workspace = true }
+triplex-driftguard = { workspace = true }
 serde_json = { workspace = true }

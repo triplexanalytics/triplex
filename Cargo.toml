@@ -6,6 +6,7 @@ members = [
     "crates/triplex-schemacast",
     "crates/triplex-anonymizer",
     "crates/triplex-datasetcard",
+    "crates/triplex-driftguard",
     "apps/triplex-cli",
     "apps/triplex-web",
     "apps/triplex-mcp",
@@ -28,6 +29,7 @@ triplex-io = { path = "crates/triplex-io" }
 triplex-schemacast = { path = "crates/triplex-schemacast" }
 triplex-anonymizer = { path = "crates/triplex-anonymizer" }
 triplex-datasetcard = { path = "crates/triplex-datasetcard" }
+triplex-driftguard = { path = "crates/triplex-driftguard" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml_ng = "0.10.0"

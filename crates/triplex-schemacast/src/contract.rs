@@ -60,10 +60,29 @@ impl DeclaredColumn {
     }
 }
 
+/// Optional DriftGuard threshold overrides, layered onto the same
+/// `.triplex.yaml` contract a dataset already declares its schema in --
+/// the design notes's "Configuration:
+/// version-controlled `.triplex.yaml` only" rule means DriftGuard gets no
+/// config format of its own. Unset fields fall back to
+/// `triplex_driftguard::DriftThresholds::default()`; schemacast only parses
+/// this block, it has no opinion on what the values mean.
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct DeclaredDriftGuardThresholds {
+    #[serde(default)]
+    pub max_null_percentage_delta: Option<f64>,
+    #[serde(default)]
+    pub max_mean_relative_delta: Option<f64>,
+    #[serde(default)]
+    pub max_type_consistency_delta: Option<f64>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeclaredContract {
     pub version: u32,
     pub columns: Vec<DeclaredColumn>,
+    #[serde(default)]
+    pub driftguard: Option<DeclaredDriftGuardThresholds>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -158,6 +177,7 @@ pub fn to_declared_contract(inferred: &SchemaContract) -> DeclaredContract {
                 pattern: None,
             })
             .collect(),
+        driftguard: None,
     }
 }
 
@@ -512,6 +532,7 @@ mod tests {
         DeclaredContract {
             version: 1,
             columns,
+            driftguard: None,
         }
     }
 

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Arbitrary implementation defaults, not a product decision — tune
 /// freely if the browser table's sparklines need a different resolution.
@@ -26,14 +26,14 @@ pub enum ValueKind {
     Categorical,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct HistogramBin {
     pub lower: f64,
     pub upper: f64,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CategoryCount {
     pub value: String,
     pub count: usize,
@@ -48,7 +48,7 @@ pub struct CategoryCount {
 /// memory. Format-agnostic like `ColumnStatistics`, so this is shared by the
 /// CLI backend and any WASM/browser frontend built on `triplex-io`, not a
 /// frontend-only computation.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ColumnDistribution {
     Numeric {

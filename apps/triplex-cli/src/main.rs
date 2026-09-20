@@ -6,14 +6,16 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.";
+const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.";
 
 /// Exit codes per the design notes: 0 success, 1
-/// non-blocking warning (no coercion modes exist yet, so unused today), 2
-/// critical gate failure (a contract breach), 127 runtime/config error (bad
-/// file, bad usage — anything that isn't a data problem).
+/// non-blocking warning (`driftguard` statistical drift with no schema
+/// regression), 2 critical gate failure (a contract breach, or a
+/// `driftguard` schema regression), 127 runtime/config error (bad file, bad
+/// usage — anything that isn't a data problem).
 const EXIT_RUNTIME_CONFIG_ERROR: u8 = 127;
 const EXIT_CONTRACT_BREACH: u8 = 2;
+const EXIT_NON_BLOCKING_WARNING: u8 = 1;
 
 fn flag_value(args: &[String], flag: &str) -> Option<String> {
     args.iter()
@@ -81,6 +83,67 @@ fn parse_excluded_rows(
             })
         })
         .collect()
+}
+
+/// Resolves an optional `--flag <f64>`-style threshold override as `None`
+/// when the flag wasn't given -- for `driftguard`, where an unset CLI flag
+/// should fall through to a `--config` value before this crate's own
+/// built-in default (see `DriftThresholds::with_overrides`).
+fn optional_f64_flag_no_default(
+    args: &[String],
+    flag: &str,
+) -> std::result::Result<Option<f64>, ExitCode> {
+    match flag_value(args, flag) {
+        Some(value) => value.parse::<f64>().map(Some).map_err(|_| {
+            eprintln!("error: {flag} expects a number, got {value:?}");
+            ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+        }),
+        None => Ok(None),
+    }
+}
+
+/// Resolves one `driftguard` side (baseline or candidate) from exactly one
+/// of a raw data file (`--baseline`/`--candidate`, re-inferred fresh) or an
+/// already-minted `DriftProfile` JSON (`--baseline-profile`/
+/// `--candidate-profile`, e.g. from `triplex anonymize --profile-out`) --
+/// the latter also carries a `RiskAssessment` a bare data file can't
+/// provide (see `triplex_driftguard::DriftProfile`'s doc comment for why).
+fn load_driftguard_side(
+    side: &str,
+    file_path: Option<&str>,
+    profile_path: Option<&str>,
+    sample_rows: usize,
+) -> std::result::Result<
+    (
+        triplex_schemacast::SchemaContract,
+        Option<triplex_driftguard::RiskAssessment>,
+    ),
+    ExitCode,
+> {
+    match (file_path, profile_path) {
+        (Some(_), Some(_)) => {
+            eprintln!("error: --{side} and --{side}-profile are mutually exclusive");
+            Err(ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR))
+        }
+        (Some(path), None) => {
+            triplex_schemacast::infer_schema_from_path(&PathBuf::from(path), sample_rows)
+                .map(|schema| (schema, None))
+                .map_err(|e| {
+                    eprintln!("error: {e}");
+                    ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+                })
+        }
+        (None, Some(path)) => triplex_driftguard::load_profile(&PathBuf::from(path))
+            .map(|profile| (profile.schema, profile.risk_assessment))
+            .map_err(|e| {
+                eprintln!("error: {e}");
+                ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+            }),
+        (None, None) => {
+            eprintln!("error: need one of --{side} or --{side}-profile");
+            Err(ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR))
+        }
+    }
 }
 
 fn main() -> ExitCode {
@@ -239,6 +302,8 @@ fn main() -> ExitCode {
                 }
             };
 
+            let profile_out = flag_value(&args, "--profile-out").map(PathBuf::from);
+
             match triplex_anonymizer::anonymize_file(
                 &PathBuf::from(input),
                 &recipe,
@@ -246,6 +311,7 @@ fn main() -> ExitCode {
                 &PathBuf::from(mapping_out),
                 passphrase.as_deref(),
                 &excluded_rows,
+                profile_out.as_deref(),
             ) {
                 Ok(report) => {
                     eprintln!("warning: {}", report.warning);
@@ -288,6 +354,132 @@ fn main() -> ExitCode {
                     eprintln!("error: {e}");
                     ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
                 }
+            }
+        }
+        Some("driftguard") => {
+            let Some(out_dir) = flag_value(&args, "--out-dir") else {
+                return usage_error();
+            };
+
+            // Config-file thresholds (a `.triplex.yaml` contract's optional
+            // `driftguard:` block) are the middle layer between this crate's
+            // built-in defaults and an explicit `--max-*` flag, which always
+            // wins when given.
+            let declared_thresholds = match flag_value(&args, "--config") {
+                Some(path) => match triplex_schemacast::load_contract(&PathBuf::from(path)) {
+                    Ok(contract) => contract.driftguard,
+                    Err(e) => {
+                        eprintln!("error: {e}");
+                        return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                    }
+                },
+                None => None,
+            };
+            let config_value =
+                |field: fn(&triplex_schemacast::DeclaredDriftGuardThresholds) -> Option<f64>| {
+                    declared_thresholds.as_ref().and_then(field)
+                };
+
+            let max_null_percentage_delta =
+                match optional_f64_flag_no_default(&args, "--max-null-percentage-delta") {
+                    Ok(v) => v.or_else(|| config_value(|d| d.max_null_percentage_delta)),
+                    Err(code) => return code,
+                };
+            let max_mean_relative_delta =
+                match optional_f64_flag_no_default(&args, "--max-mean-relative-delta") {
+                    Ok(v) => v.or_else(|| config_value(|d| d.max_mean_relative_delta)),
+                    Err(code) => return code,
+                };
+            let max_type_consistency_delta =
+                match optional_f64_flag_no_default(&args, "--max-type-consistency-delta") {
+                    Ok(v) => v.or_else(|| config_value(|d| d.max_type_consistency_delta)),
+                    Err(code) => return code,
+                };
+            let thresholds = triplex_driftguard::DriftThresholds::with_overrides(
+                max_null_percentage_delta,
+                max_mean_relative_delta,
+                max_type_consistency_delta,
+            );
+
+            let baseline_label = flag_value(&args, "--baseline")
+                .or_else(|| flag_value(&args, "--baseline-profile"))
+                .unwrap_or_default();
+            let candidate_label = flag_value(&args, "--candidate")
+                .or_else(|| flag_value(&args, "--candidate-profile"))
+                .unwrap_or_default();
+
+            let (baseline_schema, baseline_risk) = match load_driftguard_side(
+                "baseline",
+                flag_value(&args, "--baseline").as_deref(),
+                flag_value(&args, "--baseline-profile").as_deref(),
+                SAMPLE_ROWS,
+            ) {
+                Ok(v) => v,
+                Err(code) => return code,
+            };
+            let (candidate_schema, candidate_risk) = match load_driftguard_side(
+                "candidate",
+                flag_value(&args, "--candidate").as_deref(),
+                flag_value(&args, "--candidate-profile").as_deref(),
+                SAMPLE_ROWS,
+            ) {
+                Ok(v) => v,
+                Err(code) => return code,
+            };
+
+            let report = triplex_driftguard::compare_with_risk(
+                &baseline_schema,
+                baseline_risk.as_ref(),
+                &candidate_schema,
+                candidate_risk.as_ref(),
+                &thresholds,
+            );
+
+            let out_dir = PathBuf::from(&out_dir);
+            if let Err(e) = std::fs::create_dir_all(&out_dir) {
+                eprintln!("error: could not create --out-dir {out_dir:?}: {e}");
+                return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+            }
+
+            let audit_json = serde_json::to_string_pretty(&report).unwrap();
+            let html = triplex_driftguard::render_html(&report, &baseline_label, &candidate_label);
+            // `reproduce.py` re-derives stats from the raw files themselves
+            // (see its module doc) -- meaningless when a side came from a
+            // `--*-profile` JSON instead of a data file, since there is no
+            // raw file for Polars to read.
+            let used_a_profile = flag_value(&args, "--baseline-profile").is_some()
+                || flag_value(&args, "--candidate-profile").is_some();
+            let script = if used_a_profile {
+                "# reproduce.py is not generated for a --baseline-profile/--candidate-profile \
+                 run: there is no raw data file left to independently re-derive stats from. \
+                 See audit.json/report.html for the full finding set.\n"
+                    .to_string()
+            } else {
+                triplex_driftguard::render_python_script(
+                    &baseline_label,
+                    &candidate_label,
+                    &thresholds,
+                )
+            };
+
+            for (name, contents) in [
+                ("audit.json", audit_json.as_str()),
+                ("report.html", html.as_str()),
+                ("reproduce.py", script.as_str()),
+            ] {
+                if let Err(e) = std::fs::write(out_dir.join(name), contents) {
+                    eprintln!("error: could not write {name} into {out_dir:?}: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            }
+
+            println!("{audit_json}");
+            if report.has_regression {
+                ExitCode::from(EXIT_CONTRACT_BREACH)
+            } else if report.has_drift {
+                ExitCode::from(EXIT_NON_BLOCKING_WARNING)
+            } else {
+                ExitCode::SUCCESS
             }
         }
         _ => usage_error(),

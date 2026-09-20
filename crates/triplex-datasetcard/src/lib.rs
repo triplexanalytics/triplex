@@ -80,7 +80,7 @@ pub enum RiskModel {
     KMap,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "model", content = "value", rename_all = "snake_case")]
 pub enum RiskAssessment {
     KAnonymity(usize),

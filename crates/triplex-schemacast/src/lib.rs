@@ -6,10 +6,10 @@ mod contract;
 mod convert;
 mod semantic;
 pub use contract::{
-    check_patterns, check_patterns_bytes, check_patterns_path, parse_contract,
+    check_patterns, check_patterns_bytes, check_patterns_path, load_contract, parse_contract,
     to_declared_contract, validate, validate_csv_with_delimiter, validate_path,
-    verify_contract_well_formed, DeclaredColumn, DeclaredContract, ValidationError,
-    ValidationReport,
+    verify_contract_well_formed, DeclaredColumn, DeclaredContract, DeclaredDriftGuardThresholds,
+    ValidationError, ValidationReport,
 };
 pub use convert::{
     convert_bytes, convert_file, convert_file_with_delimiters, read_full_bytes, ConvertReport,
@@ -32,7 +32,7 @@ pub enum ColumnType {
     String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ColumnSchema {
     pub name: String,
     pub inferred_type: ColumnType,
@@ -56,7 +56,7 @@ pub struct ColumnSchema {
     pub distribution: Option<triplex_io::ColumnDistribution>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SchemaContract {
     pub version: String,
     pub columns: Vec<ColumnSchema>,

@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 triplex-core = { workspace = true }
 triplex-io = { workspace = true }
+triplex-schemacast = { workspace = true }
 triplex-datasetcard = { workspace = true }
 serde = { workspace = true }
 serde_yaml_ng = { workspace = true }
