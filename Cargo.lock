@@ -1335,6 +1335,7 @@ dependencies = [
  "serde_json",
  "triplex-anonymizer",
  "triplex-driftguard",
+ "triplex-modelcard",
  "triplex-schemacast",
 ]
 
@@ -1387,6 +1388,17 @@ dependencies = [
  "serde_json",
  "tokio",
  "triplex-anonymizer",
+ "triplex-schemacast",
+]
+
+[[package]]
+name = "triplex-modelcard"
+version = "0.3.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "triplex-core",
+ "triplex-io",
  "triplex-schemacast",
 ]
 

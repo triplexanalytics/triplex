@@ -9,7 +9,8 @@ pub use contract::{
     check_patterns, check_patterns_bytes, check_patterns_path, load_contract, parse_contract,
     to_declared_contract, validate, validate_csv_with_delimiter, validate_path,
     verify_contract_well_formed, DeclaredColumn, DeclaredContract, DeclaredDriftGuardThresholds,
-    ValidationError, ValidationReport,
+    DeclaredFairnessThresholds, DeclaredModelCard, DeclaredModelMetadata, DeclaredSynthesize,
+    DeclaredSynthesizeColumn, DeclaredSynthesizeKind, ValidationError, ValidationReport,
 };
 pub use convert::{
     convert_bytes, convert_file, convert_file_with_delimiters, read_full_bytes, ConvertReport,
@@ -316,6 +317,24 @@ mod tests {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures")
             .join(name)
+    }
+
+    #[test]
+    fn three_decimal_probabilities_infer_as_float_with_the_right_statistics() {
+        // 0.639 used to normalize to 639, then fail the leading-zero check and infer as String.
+        let sample = Sample {
+            headers: vec!["score".into()],
+            rows: ["0.639", "0.5", "0.641", "0.001"]
+                .iter()
+                .map(|v| vec![v.to_string()])
+                .collect(),
+        };
+        let column = &infer_schema(&sample).columns[0];
+        assert_eq!(column.inferred_type, ColumnType::Float);
+        assert_eq!(column.statistics.max_value, Some(0.641));
+        assert_eq!(column.statistics.min_value, Some(0.001));
+        let mean = column.statistics.mean_value.unwrap();
+        assert!((mean - 0.44525).abs() < 1e-12, "mean {mean}");
     }
 
     #[test]

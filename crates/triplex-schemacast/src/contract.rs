@@ -77,12 +77,111 @@ pub struct DeclaredDriftGuardThresholds {
     pub max_type_consistency_delta: Option<f64>,
 }
 
+/// Optional fairness thresholds for `triplex-modelcard`. Ratio metrics take a minimum, difference
+/// metrics a maximum. Unset fields fall back to that crate's defaults (or, for the parity
+/// difference, to "report only"); schemacast only parses them.
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct DeclaredFairnessThresholds {
+    #[serde(default)]
+    pub disparate_impact_min: Option<f64>,
+    #[serde(default)]
+    pub equalized_odds_min: Option<f64>,
+    #[serde(default)]
+    pub demographic_parity_difference_max: Option<f64>,
+}
+
+/// Model metadata declared by the user. ModelCard never loads a model, so none of this is
+/// inspected: it is carried into the card verbatim.
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct DeclaredModelMetadata {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub framework: Option<String>,
+    #[serde(default)]
+    pub intended_use: Option<String>,
+    #[serde(default)]
+    pub training_data: Option<String>,
+}
+
+/// The `modelcard:` block of a `.triplex.yaml`: which columns of an
+/// evaluation file hold the true label, the model's prediction and optional score, how to slice
+/// it, and which attribute to check for fairness. Parsing only; `triplex-modelcard` owns the
+/// defaults and the meaning.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DeclaredModelCard {
+    pub target_column: String,
+    pub prediction_column: String,
+    #[serde(default)]
+    pub score_column: Option<String>,
+    #[serde(default)]
+    pub positive_label: Option<String>,
+    #[serde(default)]
+    pub slice_by: Vec<String>,
+    #[serde(default)]
+    pub protected_attribute: Option<String>,
+    #[serde(default)]
+    pub thresholds: DeclaredFairnessThresholds,
+    #[serde(default)]
+    pub min_slice_size: Option<usize>,
+    #[serde(default)]
+    pub max_groups_per_column: Option<usize>,
+    #[serde(default)]
+    pub model: DeclaredModelMetadata,
+}
+
+/// One column of a `synthesize:` block: its public domain. Numeric columns declare bounds,
+/// categorical columns declare their values. Never read from the data (bounds derived from the
+/// data would themselves leak).
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DeclaredSynthesizeColumn {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub kind: DeclaredSynthesizeKind,
+    #[serde(default)]
+    pub min: Option<f64>,
+    #[serde(default)]
+    pub max: Option<f64>,
+    #[serde(default)]
+    pub integer: bool,
+    #[serde(default)]
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeclaredSynthesizeKind {
+    Numeric,
+    Categorical,
+}
+
+/// The `synthesize:` block of a `.triplex.yaml`: the differential-privacy settings for
+/// `triplex synthesize`. `epsilon` has no default. Parsing only;
+/// `triplex-anonymizer` owns the meaning.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DeclaredSynthesize {
+    #[serde(default)]
+    pub epsilon: Option<f64>,
+    #[serde(default)]
+    pub marginal_share: Option<f64>,
+    #[serde(default)]
+    pub bins: Option<usize>,
+    #[serde(default)]
+    pub columns: Vec<DeclaredSynthesizeColumn>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeclaredContract {
     pub version: u32,
     pub columns: Vec<DeclaredColumn>,
     #[serde(default)]
     pub driftguard: Option<DeclaredDriftGuardThresholds>,
+    #[serde(default)]
+    pub modelcard: Option<DeclaredModelCard>,
+    #[serde(default)]
+    pub synthesize: Option<DeclaredSynthesize>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -178,6 +277,8 @@ pub fn to_declared_contract(inferred: &SchemaContract) -> DeclaredContract {
             })
             .collect(),
         driftguard: None,
+        modelcard: None,
+        synthesize: None,
     }
 }
 
@@ -533,6 +634,8 @@ mod tests {
             version: 1,
             columns,
             driftguard: None,
+            modelcard: None,
+            synthesize: None,
         }
     }
 

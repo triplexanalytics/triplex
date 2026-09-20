@@ -1,0 +1,15 @@
+version: 1
+columns: []
+modelcard:
+  target_column: label
+  prediction_column: prediction
+  score_column: score
+  positive_label: "1"
+  slice_by: [region, tier]
+  protected_attribute: region
+  min_slice_size: 30
+  model:
+    name: synthetic-demo
+    version: "0.1"
+    framework: scikit-learn (declared, never loaded)
+    intended_use: Evaluation fixture only, not a real model.

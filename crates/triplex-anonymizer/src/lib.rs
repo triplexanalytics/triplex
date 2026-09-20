@@ -11,6 +11,7 @@ mod mapping;
 mod mechanism;
 mod partial_mask;
 mod recipe;
+pub mod synthesize;
 mod tokenize;
 
 pub use bucket::{bucket_numeric, bucket_value, generalize_string_prefix};

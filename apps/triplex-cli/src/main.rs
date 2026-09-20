@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.";
+const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n  triplex modelcard --config <path.triplex.yaml> --input <path> --out-dir <dir>\n  triplex synthesize --input <path> --output <path.csv> --report-dir <dir> [--rows <n>] [--seed <n>] [--min-category-count <n>] [--config <path.triplex.yaml> [--with-nonprivate-diagnostics]]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.\ntriplex modelcard reads the `modelcard:` block of --config (target_column, prediction_column, optional score_column, slice_by, protected_attribute, thresholds), evaluates every row of --input, writes model_card.json, report.html and reproduce.py into --out-dir, and exits 0 (pass), 1 (warning: a suppressed or undefined slice) or 2 (a fairness threshold breach). The card is a documentation aid, not a compliance claim.\ntriplex synthesize fits a Gaussian copula to --input (.csv or .parquet) and writes a synthetic CSV to --output, plus synthesis_report.json, report.html, reproduce.py and drift_check.json (a DriftGuard diff of the synthetic file against the original, on the synthesized columns) into --report-dir. Identifier-like columns are dropped, not synthesized. The output carries NO formal privacy guarantee; the report measures fidelity and leakage but certifies nothing.\ntriplex synthesize --config switches to differentially private mode: the `synthesize:` block of the config declares a required `epsilon` (no default) and each column's public bounds or category values; the fitted parameters are epsilon-DP for replacing one record with the row count public, using operating-system randomness for the noise (--seed only seeds sampling). It writes dp_report.json and report.html. The report holds no real-data figures unless --with-nonprivate-diagnostics is given, which adds them (and drift_check.json) under a warning that they are outside the guarantee.";
 
 /// Exit codes per the design notes: 0 success, 1
 /// non-blocking warning (`driftguard` statistical drift with no schema
@@ -144,6 +144,97 @@ fn load_driftguard_side(
             Err(ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR))
         }
     }
+}
+
+/// `triplex synthesize --config`: the differentially private path.
+fn run_synthesize_dp(
+    args: &[String],
+    config_path: &std::path::Path,
+    input: &std::path::Path,
+    output: &std::path::Path,
+    report_dir: &std::path::Path,
+    rows: Option<usize>,
+    seed: u64,
+) -> ExitCode {
+    let fail = |e: &dyn std::fmt::Display| {
+        eprintln!("error: {e}");
+        ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+    };
+    let contract = match triplex_schemacast::load_contract(config_path) {
+        Ok(c) => c,
+        Err(e) => return fail(&e),
+    };
+    let Some(declared) = contract.synthesize.as_ref() else {
+        return fail(&"the config has no `synthesize:` block");
+    };
+    let config =
+        match triplex_anonymizer::synthesize::dp::config_from_declared(declared, rows, seed) {
+            Ok(c) => c,
+            Err(e) => return fail(&e),
+        };
+    if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            return fail(&format!("could not create {parent:?}: {e}"));
+        }
+    }
+    let with_diagnostics = args.iter().any(|a| a == "--with-nonprivate-diagnostics");
+    let report = match triplex_anonymizer::synthesize::dp::synthesize_dp_file(
+        input,
+        output,
+        &config,
+        with_diagnostics,
+        &mut triplex_anonymizer::synthesize::dp::OsNoise,
+    ) {
+        Ok(r) => r,
+        Err(e) => return fail(&e),
+    };
+    if let Err(e) = std::fs::create_dir_all(report_dir) {
+        return fail(&format!(
+            "could not create --report-dir {report_dir:?}: {e}"
+        ));
+    }
+    let report_json = serde_json::to_string_pretty(&report).unwrap();
+    let mut files = vec![
+        ("dp_report.json", report_json.clone()),
+        (
+            "report.html",
+            triplex_anonymizer::synthesize::dp::render_html(&report),
+        ),
+    ];
+    if with_diagnostics {
+        // A DriftGuard diff reads the original data, so it is a non-private diagnostic too.
+        let infer =
+            |p: &std::path::Path| triplex_schemacast::infer_schema_from_path(p, SAMPLE_ROWS);
+        if let (Ok(mut baseline), Ok(synthetic)) = (infer(input), infer(output)) {
+            baseline
+                .columns
+                .retain(|c| report.columns.contains(&c.name));
+            let drift = triplex_driftguard::compare_contracts(
+                &baseline,
+                &synthetic,
+                &triplex_driftguard::DriftThresholds::default(),
+            );
+            files.push((
+                "drift_check.json",
+                serde_json::to_string_pretty(&drift).unwrap(),
+            ));
+        }
+        eprintln!(
+            "warning: {}",
+            triplex_anonymizer::synthesize::dp::DIAGNOSTICS_WARNING
+        );
+    }
+    for (name, contents) in files {
+        if let Err(e) = std::fs::write(report_dir.join(name), contents) {
+            return fail(&format!("could not write {name} into {report_dir:?}: {e}"));
+        }
+    }
+    eprintln!(
+        "note: epsilon-DP synthesis (epsilon {}, spent {:.6}); the guarantee covers the fitted parameters, with the row count, column list and bounds treated as public",
+        report.privacy.epsilon_total, report.privacy.epsilon_spent
+    );
+    println!("{report_json}");
+    ExitCode::SUCCESS
 }
 
 fn main() -> ExitCode {
@@ -355,6 +446,181 @@ fn main() -> ExitCode {
                     ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
                 }
             }
+        }
+        Some("synthesize") => {
+            let (Some(input), Some(output), Some(report_dir)) = (
+                flag_value(&args, "--input"),
+                flag_value(&args, "--output"),
+                flag_value(&args, "--report-dir"),
+            ) else {
+                return usage_error();
+            };
+            let parse_u64 = |flag: &str| -> std::result::Result<Option<u64>, ExitCode> {
+                match flag_value(&args, flag) {
+                    Some(v) => v.parse::<u64>().map(Some).map_err(|_| {
+                        eprintln!("error: {flag} expects a whole number, got {v:?}");
+                        ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+                    }),
+                    None => Ok(None),
+                }
+            };
+            let mut config = triplex_anonymizer::synthesize::SynthesizeConfig::default();
+            match parse_u64("--rows") {
+                Ok(v) => config.rows = v.map(|v| v as usize),
+                Err(code) => return code,
+            }
+            match parse_u64("--seed") {
+                Ok(v) => config.seed = v.unwrap_or(config.seed),
+                Err(code) => return code,
+            }
+            match parse_u64("--min-category-count") {
+                Ok(v) => {
+                    config.min_category_count = v.map_or(config.min_category_count, |v| v as usize)
+                }
+                Err(code) => return code,
+            }
+            let (input, output, report_dir) = (
+                PathBuf::from(input),
+                PathBuf::from(output),
+                PathBuf::from(report_dir),
+            );
+            if let Some(config_path) = flag_value(&args, "--config") {
+                return run_synthesize_dp(
+                    &args,
+                    &PathBuf::from(config_path),
+                    &input,
+                    &output,
+                    &report_dir,
+                    config.rows,
+                    config.seed,
+                );
+            }
+            if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("error: could not create {parent:?}: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            }
+            let report =
+                match triplex_anonymizer::synthesize::synthesize_file(&input, &output, &config) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("error: {e}");
+                        return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                    }
+                };
+            // DriftGuard diff of the synthetic file against the original, restricted to the
+            // columns that were synthesized (dropped identifiers would read as removed columns).
+            let infer =
+                |path: &PathBuf| triplex_schemacast::infer_schema_from_path(path, SAMPLE_ROWS);
+            let (mut baseline, synthetic) = match (infer(&input), infer(&output)) {
+                (Ok(b), Ok(s)) => (b, s),
+                (Err(e), _) | (_, Err(e)) => {
+                    eprintln!("error: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            };
+            baseline
+                .columns
+                .retain(|c| report.columns_synthesized.contains(&c.name));
+            let drift = triplex_driftguard::compare_contracts(
+                &baseline,
+                &synthetic,
+                &triplex_driftguard::DriftThresholds::default(),
+            );
+            if let Err(e) = std::fs::create_dir_all(&report_dir) {
+                eprintln!("error: could not create --report-dir {report_dir:?}: {e}");
+                return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+            }
+            let report_json = serde_json::to_string_pretty(&report).unwrap();
+            let files = [
+                ("synthesis_report.json", report_json.clone()),
+                (
+                    "report.html",
+                    triplex_anonymizer::synthesize::render_html(&report),
+                ),
+                (
+                    "reproduce.py",
+                    triplex_anonymizer::synthesize::render_python_script(
+                        &input.to_string_lossy(),
+                        &output.to_string_lossy(),
+                        config.min_category_count,
+                    ),
+                ),
+                (
+                    "drift_check.json",
+                    serde_json::to_string_pretty(&drift).unwrap(),
+                ),
+            ];
+            for (name, contents) in files {
+                if let Err(e) = std::fs::write(report_dir.join(name), contents) {
+                    eprintln!("error: could not write {name} into {report_dir:?}: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            }
+            eprintln!("note: {}", report.privacy_statement);
+            eprintln!(
+                "drift check (synthetic vs original, synthesized columns): {} finding(s), {}",
+                drift.findings.len(),
+                if drift.has_regression {
+                    "regression"
+                } else {
+                    "no regression"
+                }
+            );
+            println!("{report_json}");
+            ExitCode::SUCCESS
+        }
+        Some("modelcard") => {
+            let (Some(config_path), Some(input), Some(out_dir)) = (
+                flag_value(&args, "--config"),
+                flag_value(&args, "--input"),
+                flag_value(&args, "--out-dir"),
+            ) else {
+                return usage_error();
+            };
+            let contract = match triplex_schemacast::load_contract(&PathBuf::from(&config_path)) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            };
+            let config = match triplex_modelcard::config_from_contract(&contract) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            };
+            let report = match triplex_modelcard::evaluate_path(&PathBuf::from(&input), config) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            };
+            let out_dir = PathBuf::from(&out_dir);
+            if let Err(e) = std::fs::create_dir_all(&out_dir) {
+                eprintln!("error: could not create --out-dir {out_dir:?}: {e}");
+                return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+            }
+            let card_json = serde_json::to_string_pretty(&report).unwrap();
+            for (name, contents) in [
+                ("model_card.json", card_json.clone()),
+                ("report.html", triplex_modelcard::render_html(&report)),
+                (
+                    "reproduce.py",
+                    triplex_modelcard::render_python_script(&input, config),
+                ),
+            ] {
+                if let Err(e) = std::fs::write(out_dir.join(name), contents) {
+                    eprintln!("error: could not write {name} into {out_dir:?}: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            }
+            println!("{card_json}");
+            ExitCode::from(report.status.exit_code())
         }
         Some("driftguard") => {
             let Some(out_dir) = flag_value(&args, "--out-dir") else {

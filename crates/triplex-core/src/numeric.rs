@@ -34,6 +34,20 @@ fn normalize_trailing_sign(v: &str) -> Cow<'_, str> {
 /// ambiguous (`"1,234"` could be `1234` or a 3-decimal-currency `1.234`),
 /// resolved toward the far more common case. A single `.` is already a
 /// valid decimal point unless it has that same 3-digit shape.
+///
+/// That 3-digit shape only reads as thousands grouping when what precedes
+/// the separator can be a thousands head: 1 to 3 digits, not starting with
+/// `0` (`can_head_a_thousands_group`). `"0.639"`, `"0,639"` and `"1234.567"`
+/// therefore stay decimals; a probability like `0.639` is not 639. What stays
+/// ambiguous, and cannot be settled one value at a time, is a head that does
+/// qualify: `"1.234"` and `"12.500"` still read as 1234 and 12500.
+fn can_head_a_thousands_group(head: &str) -> bool {
+    let digits = head.strip_prefix(['-', '+']).unwrap_or(head);
+    (1..=3).contains(&digits.len())
+        && digits.bytes().all(|b| b.is_ascii_digit())
+        && !digits.starts_with('0')
+}
+
 fn normalize_separators(s: &str) -> String {
     let comma_count = s.matches(',').count();
     let dot_count = s.matches('.').count();
@@ -61,7 +75,7 @@ fn normalize_separators(s: &str) -> String {
         None => return s.to_string(),
     };
     let trailing_digits = s.len() - idx - 1;
-    if trailing_digits == 3 {
+    if trailing_digits == 3 && can_head_a_thousands_group(&s[..idx]) {
         return s.chars().filter(|&c| c != sep).collect();
     }
     if sep == ',' {
@@ -132,6 +146,25 @@ mod tests {
         assert_eq!(normalize_numeric_string("1,234"), "1234");
         assert_eq!(normalize_numeric_string("1,234,567"), "1234567");
         assert_eq!(normalize_numeric_string("12,345.67"), "12345.67");
+    }
+
+    #[test]
+    fn a_zero_or_over_long_head_is_a_decimal_not_a_thousands_group() {
+        // a probability or a small amount with three decimals must not become 639
+        assert_eq!(normalize_numeric_string("0.639"), "0.639");
+        assert_eq!(normalize_numeric_string("0.001"), "0.001");
+        assert_eq!(normalize_numeric_string("-0.639"), "-0.639");
+        assert_eq!(normalize_numeric_string("0,639"), "0.639");
+        assert_eq!(normalize_numeric_string("1234.567"), "1234.567");
+        assert_eq!(normalize_numeric_string("1234,567"), "1234.567");
+    }
+
+    #[test]
+    fn a_head_that_can_be_a_thousands_group_still_reads_as_one() {
+        // genuinely ambiguous and unchanged: resolved toward thousands grouping
+        assert_eq!(normalize_numeric_string("1.234"), "1234");
+        assert_eq!(normalize_numeric_string("12.500"), "12500");
+        assert_eq!(normalize_numeric_string("999,999"), "999999");
     }
 
     #[test]
