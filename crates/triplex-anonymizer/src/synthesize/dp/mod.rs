@@ -15,11 +15,13 @@ mod histogram;
 mod kendall;
 mod noise;
 mod report_html;
+mod suggest;
 
 pub use accountant::{Accountant, Spend};
 pub use histogram::{Domain, OTHER_CATEGORY};
 pub use noise::{effective_epsilon, InsecureSeededNoise, NoiseSource, OsNoise};
 pub use report_html::render_html;
+pub use suggest::{suggest_domains, SuggestedColumn, SuggestedDomain};
 
 use super::copula::{repair_and_factor, ColumnData};
 use super::metrics::{self, Fidelity, Leakage};
@@ -62,6 +64,9 @@ pub struct DpConfig {
     pub rows: Option<usize>,
     /// Seeds the sampling step only (post-processing). Noise never uses it.
     pub sampling_seed: u64,
+    /// 0-based input rows the user removed; dropped before anything is counted. The row count the
+    /// guarantee treats as public is the count after this exclusion.
+    pub exclude_rows: std::collections::HashSet<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -95,6 +100,7 @@ pub struct DpReport {
     pub sampling_seed: u64,
     /// Public by assumption.
     pub rows_in: usize,
+    pub rows_excluded: usize,
     pub rows_out: usize,
     pub columns: Vec<String>,
     /// 0 when the noisy correlation matrix needed no repair.
@@ -290,6 +296,14 @@ pub fn synthesize_dp(
     config: &DpConfig,
     noise: &mut dyn NoiseSource,
 ) -> Result<DpResult> {
+    let filtered;
+    let (sample, rows_excluded) = if config.exclude_rows.is_empty() {
+        (sample, 0)
+    } else {
+        let (kept, removed) = super::without_rows(sample, &config.exclude_rows);
+        filtered = kept;
+        (&filtered, removed)
+    };
     validate(sample, config)?;
     let n = sample.rows.len();
     let k = config.columns.len();
@@ -386,6 +400,7 @@ pub fn synthesize_dp(
         method: "gaussian_copula_dp",
         sampling_seed: config.sampling_seed,
         rows_in: n,
+        rows_excluded,
         rows_out,
         columns: names.clone(),
         correlation_shrinkage: shrinkage,
@@ -480,6 +495,28 @@ impl DpReport {
     }
 }
 
+/// Byte-slice counterpart to [`synthesize_dp_file`], for a caller with no filesystem (the
+/// browser). Returns the synthetic table as CSV bytes and the report; with `with_diagnostics` the
+/// report also carries the non-private diagnostics.
+pub fn synthesize_dp_bytes(
+    bytes: &[u8],
+    extension: &str,
+    config: &DpConfig,
+    with_diagnostics: bool,
+    noise: &mut dyn NoiseSource,
+) -> Result<(Vec<u8>, DpReport)> {
+    let real = triplex_schemacast::read_full_bytes(bytes, extension)?;
+    let result = synthesize_dp(&real, config, noise)?;
+    let csv = triplex_io::write_csv_bytes(&result.sample.headers, &result.sample.rows)?;
+    let report = if with_diagnostics {
+        let diagnostics = nonprivate_diagnostics(&real, &result.sample, config)?;
+        result.report.with_diagnostics(diagnostics)
+    } else {
+        result.report
+    };
+    Ok((csv, report))
+}
+
 /// Builds a [`DpConfig`] from a `synthesize:` block. The budget is required (no default) and every
 /// column must declare its public domain.
 pub fn config_from_declared(
@@ -519,6 +556,7 @@ pub fn config_from_declared(
         columns,
         rows,
         sampling_seed,
+        exclude_rows: std::collections::HashSet::new(),
     })
 }
 

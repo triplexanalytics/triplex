@@ -49,6 +49,10 @@ pub struct SynthesizeConfig {
     pub rows: Option<usize>,
     pub seed: u64,
     pub min_category_count: usize,
+    /// Columns the user removed from the output: never synthesized, listed as dropped.
+    pub exclude_columns: Vec<String>,
+    /// 0-based input rows the user removed: dropped before anything is fitted or measured.
+    pub exclude_rows: std::collections::HashSet<usize>,
 }
 
 impl Default for SynthesizeConfig {
@@ -57,6 +61,8 @@ impl Default for SynthesizeConfig {
             rows: None,
             seed: 42,
             min_category_count: 5,
+            exclude_columns: Vec::new(),
+            exclude_rows: std::collections::HashSet::new(),
         }
     }
 }
@@ -80,6 +86,8 @@ pub struct SynthesisReport {
     pub method: &'static str,
     pub seed: u64,
     pub rows_in: usize,
+    /// Input rows removed before fitting (`SynthesizeConfig::exclude_rows`).
+    pub rows_excluded: usize,
     pub rows_out: usize,
     pub columns_synthesized: Vec<String>,
     pub columns_dropped: Vec<DroppedColumn>,
@@ -148,8 +156,39 @@ fn observed_decimals(values: &[&str]) -> Option<usize> {
     (most <= 10).then_some(most)
 }
 
+/// A copy of `sample` without the given 0-based rows, and how many rows were actually removed
+/// (an out-of-range index removes nothing).
+pub(crate) fn without_rows(
+    sample: &Sample,
+    excluded: &std::collections::HashSet<usize>,
+) -> (Sample, usize) {
+    let rows: Vec<Vec<String>> = sample
+        .rows
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !excluded.contains(i))
+        .map(|(_, row)| row.clone())
+        .collect();
+    let removed = sample.rows.len() - rows.len();
+    (
+        Sample {
+            headers: sample.headers.clone(),
+            rows,
+        },
+        removed,
+    )
+}
+
 /// Synthesizes a table shaped like `sample`. See the module docs for what is and is not kept.
 pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<SynthesisResult> {
+    let filtered;
+    let (sample, rows_excluded) = if config.exclude_rows.is_empty() {
+        (sample, 0)
+    } else {
+        let (kept, removed) = without_rows(sample, &config.exclude_rows);
+        filtered = kept;
+        (&filtered, removed)
+    };
     let n = sample.rows.len();
     if n < MIN_ROWS {
         return Err(Error::Validation(format!(
@@ -170,6 +209,10 @@ pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<Synthesi
                 reason,
             })
         };
+        if config.exclude_columns.contains(&column.name) {
+            drop("removed from the output by the user".into());
+            continue;
+        }
         if non_null.is_empty() {
             drop("every value is empty".into());
             continue;
@@ -319,6 +362,7 @@ pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<Synthesi
         method: "gaussian_copula",
         seed: config.seed,
         rows_in: n,
+        rows_excluded,
         rows_out,
         columns_synthesized: names.clone(),
         columns_dropped: dropped,
@@ -350,4 +394,18 @@ pub fn synthesize_file(
     let result = synthesize(&sample, config)?;
     triplex_io::write_csv(output_path, &result.sample.headers, &result.sample.rows)?;
     Ok(result.report)
+}
+
+/// Byte-slice counterpart to [`synthesize_file`], for a caller with no filesystem (the browser):
+/// reads `.csv`, `.tsv` or `.jsonl` bytes, synthesizes, and returns the synthetic table as CSV
+/// bytes together with the report.
+pub fn synthesize_bytes(
+    bytes: &[u8],
+    extension: &str,
+    config: &SynthesizeConfig,
+) -> Result<(Vec<u8>, SynthesisReport)> {
+    let sample = triplex_schemacast::read_full_bytes(bytes, extension)?;
+    let result = synthesize(&sample, config)?;
+    let csv = triplex_io::write_csv_bytes(&result.sample.headers, &result.sample.rows)?;
+    Ok((csv, result.report))
 }

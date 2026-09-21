@@ -158,6 +158,98 @@ pub fn anonymize(
     })
 }
 
+/// Tier 2's result: the synthetic table as downloadable CSV bytes plus the run report as JSON.
+#[wasm_bindgen(getter_with_clone)]
+pub struct SynthesizeOutput {
+    pub synthetic_csv: Vec<u8>,
+    pub report_json: String,
+}
+
+/// Tier 2 synthesis (non-private): fits a seeded Gaussian copula to an uploaded
+/// file (`.csv`, `.tsv` or `.jsonl`) and returns synthetic CSV bytes plus the fidelity and leakage
+/// report. `rows` of 0 means as many rows as the input. The output carries **no formal privacy
+/// guarantee**; see `triplex_anonymizer::synthesize`. `excluded_row_indices` (0-based) and
+/// `excluded_columns_json` (a JSON array of column names) carry what the user removed from the
+/// output in the page, so synthesis honors it like `anonymize` does.
+#[wasm_bindgen]
+pub fn synthesize(
+    bytes: &[u8],
+    extension: &str,
+    seed: u32,
+    rows: u32,
+    min_category_count: u32,
+    excluded_row_indices: &[u32],
+    excluded_columns_json: &str,
+) -> Result<SynthesizeOutput, JsValue> {
+    let exclude_columns: Vec<String> =
+        serde_json::from_str(excluded_columns_json).map_err(to_js_err)?;
+    let config = triplex_anonymizer::synthesize::SynthesizeConfig {
+        rows: (rows > 0).then_some(rows as usize),
+        seed: u64::from(seed),
+        min_category_count: min_category_count as usize,
+        exclude_columns,
+        exclude_rows: excluded_row_indices.iter().map(|&i| i as usize).collect(),
+    };
+    let (synthetic_csv, report) =
+        triplex_anonymizer::synthesize::synthesize_bytes(bytes, extension, &config)
+            .map_err(to_js_err)?;
+    let report_json = serde_json::to_string(&report).map_err(to_js_err)?;
+    Ok(SynthesizeOutput {
+        synthetic_csv,
+        report_json,
+    })
+}
+
+/// Tier 2 synthesis with epsilon-differential privacy. `config_json` is the
+/// JSON form of a `.triplex.yaml` `synthesize:` block: a required `epsilon` (no default) and each
+/// column's PUBLIC domain (`min`/`max` or category `values`). `seed` only seeds the sampling step;
+/// the noise always comes from the browser's secure random source. `with_diagnostics` adds
+/// real-data figures that are outside the guarantee. `excluded_row_indices` are rows the user
+/// removed in the page; the row count the guarantee treats as public is the count after that.
+#[wasm_bindgen]
+pub fn synthesize_dp(
+    bytes: &[u8],
+    extension: &str,
+    config_json: &str,
+    seed: u32,
+    rows: u32,
+    with_diagnostics: bool,
+    excluded_row_indices: &[u32],
+) -> Result<SynthesizeOutput, JsValue> {
+    let declared: triplex_schemacast::DeclaredSynthesize =
+        serde_json::from_str(config_json).map_err(to_js_err)?;
+    let mut config = triplex_anonymizer::synthesize::dp::config_from_declared(
+        &declared,
+        (rows > 0).then_some(rows as usize),
+        u64::from(seed),
+    )
+    .map_err(to_js_err)?;
+    config.exclude_rows = excluded_row_indices.iter().map(|&i| i as usize).collect();
+    let (synthetic_csv, report) = triplex_anonymizer::synthesize::dp::synthesize_dp_bytes(
+        bytes,
+        extension,
+        &config,
+        with_diagnostics,
+        &mut triplex_anonymizer::synthesize::dp::OsNoise,
+    )
+    .map_err(to_js_err)?;
+    let report_json = serde_json::to_string(&report).map_err(to_js_err)?;
+    Ok(SynthesizeOutput {
+        synthetic_csv,
+        report_json,
+    })
+}
+
+/// A JSON array of per-column domain suggestions for prefilling a DP config. **Read from the data,
+/// so NOT public bounds**: a UI must make the user confirm they are public knowledge before a DP
+/// run. See `triplex_anonymizer::synthesize::dp::suggest_domains`.
+#[wasm_bindgen]
+pub fn suggest_synthesis_domains(bytes: &[u8], extension: &str) -> Result<String, JsValue> {
+    let sample = triplex_schemacast::read_full_bytes(bytes, extension).map_err(to_js_err)?;
+    let suggestions = triplex_anonymizer::synthesize::dp::suggest_domains(&sample);
+    serde_json::to_string(&suggestions).map_err(to_js_err)
+}
+
 /// Action 3: checks whether `bytes` (typically Action 2's masked output)
 /// still conforms to every `pattern` declared in `contract_yaml` — the
 /// original contract, from Action 1 or hand-authored. Returns the

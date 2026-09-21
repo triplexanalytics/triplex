@@ -107,6 +107,7 @@ fn config(epsilon: f64) -> DpConfig {
         columns: columns(),
         rows: None,
         sampling_seed: 1,
+        exclude_rows: Default::default(),
     }
 }
 
@@ -215,6 +216,7 @@ fn many_rows_with_two_numeric_columns_are_refused_but_one_numeric_column_is_fine
         columns: cols,
         rows: Some(10),
         sampling_seed: 1,
+        exclude_rows: Default::default(),
     };
     assert!(synthesize_dp(
         &big,
@@ -290,6 +292,7 @@ fn with_no_numeric_pair_the_marginals_receive_the_whole_budget() {
         columns: columns()[2..].to_vec(),
         rows: None,
         sampling_seed: 1,
+        exclude_rows: Default::default(),
     };
     let r = synthesize_dp(&real, &cfg, &mut InsecureSeededNoise::new(1)).unwrap();
     assert!(r
@@ -524,6 +527,7 @@ fn distinguisher_accuracy(epsilon: f64, trials: u64) -> f64 {
         }],
         rows: Some(20_000),
         sampling_seed: 1,
+        exclude_rows: Default::default(),
     };
     let share = |d: &Sample, seed: u64| {
         let r = synthesize_dp(d, &cfg, &mut InsecureSeededNoise::new(seed)).unwrap();
@@ -637,6 +641,7 @@ fn several_pairs_share_the_correlation_budget_equally() {
         columns: three_numeric(),
         rows: Some(10),
         sampling_seed: 1,
+        exclude_rows: Default::default(),
     };
     let r = synthesize_dp(&real, &cfg, &mut InsecureSeededNoise::new(1)).unwrap();
     let kendall: Vec<f64> = r
@@ -710,10 +715,51 @@ fn diagnostics_map_undeclared_real_categories_to_other_like_the_mechanism_does()
         }],
         rows: None,
         sampling_seed: 1,
+        exclude_rows: Default::default(),
     };
     let r = synthesize_dp(&real, &cfg, &mut InsecureSeededNoise::new(1)).unwrap();
     assert!(column(&r, "k").contains(&"(other)"));
     let d = nonprivate_diagnostics(&real, &r.sample, &cfg).unwrap();
     let tv = d.fidelity.columns[0].total_variation.unwrap();
     assert!(tv < 0.05, "total variation {tv}");
+}
+
+// ---- rows the user removed ---------------------------------------------------------------------
+
+#[test]
+fn excluded_rows_shrink_the_public_row_count_and_the_kendall_sensitivity() {
+    let mut cfg = config(2.0);
+    cfg.exclude_rows = (0..100).collect();
+    let r = synthesize_dp(&table(400), &cfg, &mut InsecureSeededNoise::new(1)).unwrap();
+    assert_eq!(
+        (
+            r.report.rows_in,
+            r.report.rows_excluded,
+            r.sample.rows.len()
+        ),
+        (300, 100, 300)
+    );
+    let k = r
+        .report
+        .privacy
+        .ledger
+        .iter()
+        .find(|s| s.mechanism.starts_with("kendall:"))
+        .unwrap();
+    assert_eq!(
+        k.sensitivity,
+        2 * (300 - 1),
+        "sensitivity is computed for the rows that remain"
+    );
+}
+
+#[test]
+fn out_of_range_excluded_rows_change_nothing_in_a_dp_release() {
+    let mut cfg = config(1.0);
+    cfg.exclude_rows = [50_000usize].into_iter().collect();
+    let with = synthesize_dp(&table(200), &cfg, &mut InsecureSeededNoise::new(4)).unwrap();
+    let without =
+        synthesize_dp(&table(200), &config(1.0), &mut InsecureSeededNoise::new(4)).unwrap();
+    assert_eq!(with.sample.rows, without.sample.rows);
+    assert_eq!(with.report.rows_excluded, 0);
 }

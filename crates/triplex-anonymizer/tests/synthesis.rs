@@ -635,3 +635,82 @@ fn the_report_lists_its_limitations() {
         "no placeholder entries"
     );
 }
+
+// ---- rows and columns the user removed from the output ----------------------------------------
+
+#[test]
+fn excluded_columns_are_never_synthesized_and_are_listed_with_a_reason() {
+    let config = SynthesizeConfig {
+        exclude_columns: vec!["income".into(), "age".into()],
+        ..Default::default()
+    };
+    let r = run(300, &config);
+    assert!(
+        !r.sample.headers.contains(&"income".to_string())
+            && !r.sample.headers.contains(&"age".to_string())
+    );
+    let entry = r
+        .report
+        .columns_dropped
+        .iter()
+        .find(|d| d.column == "income")
+        .unwrap();
+    assert_eq!(entry.reason, "removed from the output by the user");
+    assert!(r.report.columns_synthesized.contains(&"plan".to_string()));
+}
+
+#[test]
+fn excluded_rows_never_enter_the_fit_and_are_counted() {
+    // "vip" appears only in the first two rows; with a minimum count of 1 it is reproduced unless
+    // those rows are removed first.
+    let sample = table(500);
+    let rows_with_vip: std::collections::HashSet<usize> = [0usize, 1].into_iter().collect();
+    let base = SynthesizeConfig {
+        min_category_count: 1,
+        rows: Some(20_000),
+        ..Default::default()
+    };
+    let kept = synthesize(&sample, &base).unwrap();
+    assert!(
+        column(&kept, "plan").contains(&"vip"),
+        "the control: vip is reproduced when its rows stay"
+    );
+    let config = SynthesizeConfig {
+        exclude_rows: rows_with_vip,
+        ..base
+    };
+    let r = synthesize(&sample, &config).unwrap();
+    assert!(
+        !column(&r, "plan").contains(&"vip"),
+        "removed rows must not influence the output"
+    );
+    assert_eq!((r.report.rows_in, r.report.rows_excluded), (498, 2));
+}
+
+#[test]
+fn the_default_output_size_follows_the_rows_that_remain() {
+    let excluded: std::collections::HashSet<usize> = (0..50).collect();
+    let r = synthesize(
+        &table(300),
+        &SynthesizeConfig {
+            exclude_rows: excluded,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(r.sample.rows.len(), 250);
+}
+
+#[test]
+fn out_of_range_excluded_rows_remove_nothing() {
+    let excluded: std::collections::HashSet<usize> = [10_000usize, 99_999].into_iter().collect();
+    let r = synthesize(
+        &table(300),
+        &SynthesizeConfig {
+            exclude_rows: excluded,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!((r.report.rows_in, r.report.rows_excluded), (300, 0));
+}
