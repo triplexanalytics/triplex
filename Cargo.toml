@@ -14,7 +14,10 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+# Placeholder, not the version. The version of every package is its latest
+# git tag (`workspace-v*`, `web-v*`, `site-v*`), set by CI on merge to main:
+# the design notes.
+version = "0.0.0"
 edition = "2021"
 license = "Apache-2.0"
 
