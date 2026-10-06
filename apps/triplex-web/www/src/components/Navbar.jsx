@@ -39,6 +39,9 @@ export default function Navbar({
   return (
     <div className="navbar">
       <span className="brand">Triplex</span>
+      {import.meta.env.VITE_APP_VERSION && (
+        <span className="version">v{import.meta.env.VITE_APP_VERSION}</span>
+      )}
       {/* Hidden and driven by our own `fileName` state, not the browser's
           native file-input label -- a file loaded via Dropzone (drag or its
           own click-to-browse) never touches this input, so the native label
