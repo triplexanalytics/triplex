@@ -201,8 +201,9 @@ pub fn synthesize(
 }
 
 /// Tier 2 synthesis with a discrete Bayesian network, no privacy guarantee:
-/// keeps categorical dependencies the copula loses. `structure` is `"chow_liu"` (a tree) or
-/// `"k_parent"` (up to `max_parents`, 1 to 3, parents per column); `bins` is the number of
+/// keeps categorical dependencies the copula loses. `structure` is `"chow_liu"` (a tree),
+/// `"k_parent"` (up to `max_parents`, 1 to 3, parents per column) or `"independent"` (no parents:
+/// the independent-marginals baseline); `bins` is the number of
 /// equal-width bins per numeric column. The other arguments are as for [`synthesize`].
 #[wasm_bindgen]
 #[allow(clippy::too_many_arguments)]
@@ -222,9 +223,10 @@ pub fn synthesize_bayes(
     let structure = match structure {
         "chow_liu" => StructureKind::ChowLiu,
         "k_parent" => StructureKind::KParent,
+        "independent" => StructureKind::Independent,
         other => {
             return Err(to_js_err(format!(
-                "structure must be \"chow_liu\" or \"k_parent\", got \"{other}\""
+                "structure must be \"chow_liu\", \"k_parent\" or \"independent\", got \"{other}\""
             )))
         }
     };
@@ -276,7 +278,7 @@ pub fn synthesize_dp(
     let (synthetic_csv, report) =
         if triplex_anonymizer::synthesize::bayesnet::dp::is_bayes(&declared) {
             // `method: bayesian_network`, with `structure`, `max_parents` and
-            // `structure_share`; the same budget and public domains as the copula.
+            // `structure_share`, or `method: independent_marginals` with none of them; the same budget and public domains as the copula.
             let mut config = triplex_anonymizer::synthesize::bayesnet::dp::config_from_declared(
                 &declared,
                 rows,

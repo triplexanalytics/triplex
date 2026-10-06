@@ -168,7 +168,8 @@ pub struct DeclaredSynthesize {
     pub marginal_share: Option<f64>,
     #[serde(default)]
     pub bins: Option<usize>,
-    /// `gaussian_copula` (the default) or `bayesian_network`.
+    /// `gaussian_copula` (the default), `bayesian_network` or
+    /// `independent_marginals`.
     #[serde(default)]
     pub method: Option<String>,
     /// For `bayesian_network`: `chow_liu` (the default) or `k_parent`.

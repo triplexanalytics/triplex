@@ -5,6 +5,9 @@
 //! * k-parent network (PrivBayes-style): columns are taken in order and each picks up to
 //!   `max_parents` parents among the columns before it.
 //!
+//! * Independent (slice T2.4, the baseline): no column has a parent, so nothing is learned and no
+//!   budget is spent on structure.
+//!
 //! Without a privacy guarantee each choice is the exact best score (mutual information). Under
 //! differential privacy each choice is *report-noisy-max*: discrete Laplace noise on the integer
 //! scaled [`r_score`], calibrated to twice the score sensitivity, then the arg-max. Which
@@ -31,6 +34,8 @@ pub enum StructureKind {
     ChowLiu,
     /// Each column has up to `max_parents` parents among the columns before it.
     KParent,
+    /// No parents at all: every column is drawn from its own marginal (independent marginals).
+    Independent,
 }
 
 impl StructureKind {
@@ -38,6 +43,7 @@ impl StructureKind {
         match self {
             StructureKind::ChowLiu => "chow_liu",
             StructureKind::KParent => "k_parent",
+            StructureKind::Independent => "independent",
         }
     }
 }
@@ -178,6 +184,7 @@ pub(crate) fn planned_steps(
 ) -> Result<usize> {
     let c = enc.columns();
     match kind {
+        StructureKind::Independent => Ok(0),
         StructureKind::KParent => {
             let mut steps = 0;
             for i in 1..c {
@@ -228,6 +235,7 @@ pub(crate) fn learn(
     let mut order = Vec::with_capacity(c);
     let n = enc.rows;
     match kind {
+        StructureKind::Independent => order.extend(0..c),
         StructureKind::KParent => {
             order.push(0);
             #[allow(clippy::needless_range_loop)] // `i` is a column index, not just a position

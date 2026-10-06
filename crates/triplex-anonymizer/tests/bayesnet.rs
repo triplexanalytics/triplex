@@ -527,3 +527,99 @@ fn dp_validation_errors_are_clear() {
         (40, 60)
     );
 }
+
+// ---- slice T2.4: independent marginals, the baseline
+
+/// Share of rows with each plan, in `PLANS` order.
+fn plan_shares(sample: &Sample) -> Vec<f64> {
+    PLANS
+        .iter()
+        .map(|p| {
+            sample.rows.iter().filter(|r| r[0] == *p).count() as f64 / sample.rows.len() as f64
+        })
+        .collect()
+}
+
+fn assert_marginal_kept_and_dependency_lost(real: &Sample, synthetic: &Sample) {
+    for (a, b) in plan_shares(real).iter().zip(plan_shares(synthetic)) {
+        assert!((a - b).abs() < 0.03, "plan share {a} became {b}");
+    }
+    // Independent draws agree about 37% of the time (the product of the marginals), against
+    // about 92% in the data.
+    assert!(agreement(real) > 0.9);
+    assert!(
+        agreement(synthetic) < 0.45,
+        "the dependency should be gone: {}",
+        agreement(synthetic)
+    );
+}
+
+#[test]
+fn independent_marginals_keep_each_column_and_lose_the_dependency() {
+    let real = plan_region(4000);
+    let result = synthesize_bayes(
+        &real,
+        &BayesConfig {
+            base: base(1),
+            structure: StructureKind::Independent,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(result.report.method, "independent_marginals");
+    assert_marginal_kept_and_dependency_lost(&real, &result.sample);
+    let network = result.report.network.as_ref().unwrap();
+    assert_eq!(network.structure, "independent");
+    assert!(network.nodes.iter().all(|n| n.parents.is_empty()));
+    assert!(result.report.limitations[0].contains("no dependency between columns is kept"));
+}
+
+#[test]
+fn dp_independent_marginals_spend_the_whole_budget_on_one_histogram_per_column() {
+    let real = plan_region(6000);
+    let mut noise = InsecureSeededNoise::new(31);
+    // structure_share is set but must be ignored: there is no structure to choose
+    let config = bn_dp(4.0, StructureKind::Independent, 2, 1, dp_columns(true));
+    let result = synthesize_bayes_dp(&real, &config, &mut noise).unwrap();
+    assert_eq!(result.report.method, "independent_marginals_dp");
+    assert_marginal_kept_and_dependency_lost(&real, &result.sample);
+
+    let p = &result.report.privacy;
+    assert_eq!(p.ledger.len(), 4, "{:?}", p.ledger);
+    for spend in &p.ledger {
+        assert!(spend.mechanism.starts_with("table:"), "{}", spend.mechanism);
+        assert!((spend.epsilon_allotted - 1.0).abs() < 1e-12);
+        assert!(spend.epsilon_used <= spend.epsilon_allotted);
+    }
+    assert!((p.epsilon_spent - 4.0).abs() < 1e-5, "{}", p.epsilon_spent);
+    assert!(p.correlation_mechanism.starts_with("none"));
+    assert!(p.statement.contains("modelled independently"));
+    let network = result.report.network.as_ref().unwrap();
+    assert!(network.nodes.iter().all(|n| n.parents.is_empty()));
+}
+
+#[test]
+fn the_independent_marginals_config_block_takes_no_structure_settings() {
+    use triplex_anonymizer::synthesize::bayesnet::dp::{config_from_declared, is_bayes};
+    let block = |extra: &str| -> triplex_schemacast::DeclaredSynthesize {
+        serde_json::from_str(&format!(
+            r#"{{"epsilon": 1.0, "method": "independent_marginals"{extra},
+                "columns": [{{"name": "plan", "type": "categorical", "values": ["free", "pro"]}}]}}"#
+        ))
+        .unwrap()
+    };
+    let plain = block("");
+    assert!(is_bayes(&plain));
+    assert_eq!(
+        config_from_declared(&plain, None, 1).unwrap().structure,
+        StructureKind::Independent
+    );
+    for extra in [
+        r#", "structure": "chow_liu""#,
+        r#", "max_parents": 2"#,
+        r#", "structure_share": 0.3"#,
+    ] {
+        let error = config_from_declared(&block(extra), None, 1).unwrap_err();
+        assert!(error.to_string().contains("has no structure"), "{error}");
+    }
+}

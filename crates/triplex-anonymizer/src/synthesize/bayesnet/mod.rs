@@ -5,7 +5,9 @@
 //!
 //! Unlike the Gaussian copula this keeps *categorical* dependencies, and with up to `k` parents it
 //! keeps some multi-column structure. Two structures are offered ([`StructureKind`]): a Chow-Liu
-//! tree and a k-parent network. [`synthesize_bayes`] makes no privacy claim; [`dp::synthesize_bayes_dp`]
+//! tree and a k-parent network. A third kind, [`StructureKind::Independent`], is slice T2.4's
+//! independent-marginals baseline: the same model with no parents, so every
+//! dependency between columns is lost. [`synthesize_bayes`] makes no privacy claim; [`dp::synthesize_bayes_dp`]
 //! is the differentially private variant (structure chosen by report-noisy-max, tables by noisy
 //! counts).
 
@@ -134,6 +136,7 @@ pub(crate) fn network_report(
         max_parents: match kind {
             StructureKind::ChowLiu => 1,
             StructureKind::KParent => max_parents,
+            StructureKind::Independent => 0,
         },
         bins,
         nodes: network
@@ -221,9 +224,15 @@ pub(crate) fn cells_to_values(
         .collect()
 }
 
-pub(crate) fn limitations() -> Vec<&'static str> {
+pub(crate) const INDEPENDENT_LIMITATION: &str = "Every column is drawn on its own: no dependency between columns is kept. This is a baseline to compare the other methods against, not a realistic table.";
+
+pub(crate) fn limitations(kind: StructureKind) -> Vec<&'static str> {
     vec![
-        "Dependencies are kept only between a column and its chosen parents; any dependency the network structure does not contain is lost.",
+        if kind == StructureKind::Independent {
+            INDEPENDENT_LIMITATION
+        } else {
+            "Dependencies are kept only between a column and its chosen parents; any dependency the network structure does not contain is lost."
+        },
         "Numbers are binned (equal width), so the shape inside a bin is uniform and values are not reproduced exactly.",
         "Nulls are an ordinary value of each column, so missingness follows the same dependencies.",
         "Identifier-like columns and dates are dropped, not synthesized.",
@@ -304,6 +313,7 @@ pub fn synthesize_bayes(sample: &Sample, config: &BayesConfig) -> Result<Synthes
         method: match config.structure {
             StructureKind::ChowLiu => "bayesian_network_chow_liu",
             StructureKind::KParent => "bayesian_network_k_parent",
+            StructureKind::Independent => "independent_marginals",
         },
         seed: config.base.seed,
         rows_in: n,
@@ -316,7 +326,7 @@ pub fn synthesize_bayes(sample: &Sample, config: &BayesConfig) -> Result<Synthes
         fidelity: metrics::fidelity(&names, &merged, &synthetic),
         leakage: metrics::leakage(&originals, &synthetic),
         privacy_statement: PRIVACY_STATEMENT,
-        limitations: limitations(),
+        limitations: limitations(config.structure),
         warnings: dropped_warnings(&dropped),
         network: Some(network_report(
             &names,

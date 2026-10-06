@@ -11,6 +11,10 @@
 //! * the rest goes to the conditional tables, one noisy table per column, each with an equal share
 //!   (discrete Laplace noise on every cell, L1 sensitivity 2).
 //!
+//! With [`StructureKind::Independent`] (slice T2.4) there is no structure to
+//! choose: `structure_share` is ignored, the whole budget goes to one noisy histogram per column,
+//! and the ledger holds no structure entry.
+//!
 //! Sampling from the noisy tables is post-processing and costs nothing. Nothing else reads the
 //! data. `noise` must be [`OsNoise`](crate::synthesize::dp::OsNoise) for any real release.
 
@@ -36,6 +40,8 @@ one record, assuming the row count, column list and column domains are public. S
 is post-processing. Only this section carries the guarantee: anything computed from the original \
 data is outside it.";
 
+pub const MARGINALS_PRIVACY_STATEMENT: &str = "Each column's histogram (noisy counts) is epsilon-differentially private with respect to replacing one record, assuming the row count, column list and column domains are public. Columns are modelled independently, so nothing else is learned from the data. Sampling from the histograms is post-processing. Only this section carries the guarantee: anything computed from the original data is outside it.";
+
 #[derive(Debug, Clone)]
 pub struct BayesDpConfig {
     /// Budget, columns with their public domains, rows, sampling seed and removed rows. The
@@ -48,10 +54,19 @@ pub struct BayesDpConfig {
     pub structure_share: f64,
 }
 
-fn limitations() -> Vec<&'static str> {
+fn limitations(kind: StructureKind) -> Vec<&'static str> {
+    let independent = kind == StructureKind::Independent;
     vec![
-        "Dependencies are kept only between a column and its chosen parents; the structure is a noisy estimate and can pick a weaker edge than the best one.",
-        "Each table has one cell per (parent values, own value): with many cells or a small budget most of a table can be noise. A value whose total mass is indistinguishable from noise is dropped (post-processing), so rare values can disappear. See the warnings.",
+        if independent {
+            super::INDEPENDENT_LIMITATION
+        } else {
+            "Dependencies are kept only between a column and its chosen parents; the structure is a noisy estimate and can pick a weaker edge than the best one."
+        },
+        if independent {
+            "Each histogram has one cell per value: with many cells or a small budget most of it can be noise. A value whose total mass is indistinguishable from noise is dropped (post-processing), so rare values can disappear. See the warnings."
+        } else {
+            "Each table has one cell per (parent values, own value): with many cells or a small budget most of a table can be noise. A value whose total mass is indistinguishable from noise is dropped (post-processing), so rare values can disappear. See the warnings."
+        },
         "Numbers are binned equal-width over the declared bounds; the shape inside a bin is uniform.",
         "The number of rows, the column list and the bounds are assumed public.",
         "Nulls are an ordinary value of each column.",
@@ -151,6 +166,7 @@ pub fn synthesize_bayes_dp(
     };
 
     let used_table = effective_epsilon(per_table);
+    let independent = config.structure == StructureKind::Independent;
     let mut cpts = Vec::with_capacity(c);
     let mut warnings = Vec::new();
     for (i, name) in names.iter().enumerate() {
@@ -173,8 +189,9 @@ pub fn synthesize_bayes_dp(
         suppress_unsupported_cells(&mut noisy, table.configs, table.child_arity, noise_scale);
         if per_cell < noise_scale {
             warnings.push(format!(
-                "the table for \"{}\" has {cells} cells for {n} records (about {per_cell:.1} per cell) against noise of scale {noise_scale:.0} per cell; expect it to be mostly noise (use a larger epsilon, fewer bins or fewer parents)",
-                name
+                "the table for \"{}\" has {cells} cells for {n} records (about {per_cell:.1} per cell) against noise of scale {noise_scale:.0} per cell; expect it to be mostly noise (use a larger epsilon{})",
+                name,
+                if independent { " or fewer bins" } else { ", fewer bins or fewer parents" }
             ));
         }
         cpts.push(Cpt::from_counts(&noisy, table.configs, table.child_arity));
@@ -199,6 +216,7 @@ pub fn synthesize_bayes_dp(
         method: match config.structure {
             StructureKind::ChowLiu => "bayesian_network_chow_liu_dp",
             StructureKind::KParent => "bayesian_network_k_parent_dp",
+            StructureKind::Independent => "independent_marginals_dp",
         },
         sampling_seed: config.dp.sampling_seed,
         rows_in: n,
@@ -216,14 +234,21 @@ pub fn synthesize_bayes_dp(
             bounds_and_columns_public: true,
             marginal_mechanism:
                 "discrete Laplace noise on every cell of each column's table of counts given its parents, L1 sensitivity 2",
-            correlation_mechanism:
-                "dependency structure chosen by report-noisy-max (discrete Laplace noise) on the total-variation score R, sensitivity 3/n + 2/n^2",
+            correlation_mechanism: if independent {
+                "none: columns are modelled independently, no dependency is estimated and no budget is spent on one"
+            } else {
+                "dependency structure chosen by report-noisy-max (discrete Laplace noise) on the total-variation score R, sensitivity 3/n + 2/n^2"
+            },
             noise_source: "operating system secure random source",
             epsilon_rounding: "noise is calibrated to each epsilon rounded down to 6 decimals",
-            statement: BN_PRIVACY_STATEMENT,
+            statement: if independent {
+                MARGINALS_PRIVACY_STATEMENT
+            } else {
+                BN_PRIVACY_STATEMENT
+            },
             ledger: accountant.ledger().to_vec(),
         },
-        limitations: limitations(),
+        limitations: limitations(config.structure),
         warnings,
         nonprivate_diagnostics: None,
         network: Some(network_report(
@@ -274,9 +299,13 @@ pub fn synthesize_bayes_dp_bytes(
     Ok((csv, report))
 }
 
-/// True when a `synthesize:` block asks for the Bayesian-network method.
+/// True when a `synthesize:` block asks for a method this module runs: the Bayesian network, or
+/// independent marginals (the same model with no parents).
 pub fn is_bayes(declared: &triplex_schemacast::DeclaredSynthesize) -> bool {
-    declared.method.as_deref() == Some("bayesian_network")
+    matches!(
+        declared.method.as_deref(),
+        Some("bayesian_network" | "independent_marginals")
+    )
 }
 
 fn structure_from_name(name: Option<&str>) -> Result<StructureKind> {
@@ -289,23 +318,36 @@ fn structure_from_name(name: Option<&str>) -> Result<StructureKind> {
     }
 }
 
-/// Builds a [`BayesDpConfig`] from a `synthesize:` block with `method: bayesian_network`. The
-/// budget and every column's public domain are required, as for the copula.
+/// Builds a [`BayesDpConfig`] from a `synthesize:` block with `method: bayesian_network` or
+/// `method: independent_marginals` (which takes no `structure`, `max_parents` or
+/// `structure_share`). The budget and every column's public domain are required, as for the copula.
 pub fn config_from_declared(
     declared: &triplex_schemacast::DeclaredSynthesize,
     rows: Option<usize>,
     sampling_seed: u64,
 ) -> Result<BayesDpConfig> {
-    if let Some(method) = declared.method.as_deref() {
-        if method != "bayesian_network" {
+    let structure = match declared.method.as_deref() {
+        None | Some("bayesian_network") => structure_from_name(declared.structure.as_deref())?,
+        Some("independent_marginals") => {
+            if declared.structure.is_some()
+                || declared.max_parents.is_some()
+                || declared.structure_share.is_some()
+            {
+                return Err(Error::Validation(
+                    "method \"independent_marginals\" has no structure: remove structure, max_parents and structure_share".into(),
+                ));
+            }
+            StructureKind::Independent
+        }
+        Some(method) => {
             return Err(Error::Validation(format!(
                 "method \"{method}\" is not a Bayesian network"
-            )));
+            )))
         }
-    }
+    };
     Ok(BayesDpConfig {
         dp: crate::synthesize::dp::config_from_declared(declared, rows, sampling_seed)?,
-        structure: structure_from_name(declared.structure.as_deref())?,
+        structure,
         max_parents: declared.max_parents.unwrap_or(2),
         structure_share: declared.structure_share.unwrap_or(DEFAULT_STRUCTURE_SHARE),
     })
