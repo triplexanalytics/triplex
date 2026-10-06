@@ -2,15 +2,21 @@ import { lazy, Suspense, useState } from "react";
 import { ChevronsRight } from "lucide-react";
 import LoadingOverlay from "./LoadingOverlay";
 import HistoryTab from "./HistoryTab";
+import SynthesisReport from "./SynthesisReport";
 
 const ColumnViewTab = lazy(() => import("./ColumnViewTab"));
 const DiversityCheckSection = lazy(() => import("./DiversityCheckSection"));
 
-const OVERLAY_TABS = [
-  { id: "columns", label: "Columns" },
-  { id: "analysis", label: "Privacy Analysis" },
-  { id: "history", label: "History" },
-];
+// History is always last. The two analysis tabs describe whichever dataset is showing, and say so
+// in their label when it is not the original.
+function overlayTabs(synthetic) {
+  const suffix = synthetic ? " (Synthetic Data)" : "";
+  return [
+    { id: "columns", label: `Columns${suffix}` },
+    { id: "analysis", label: `Privacy Analysis${suffix}` },
+    { id: "history", label: "History" },
+  ];
+}
 
 /** Slide panel docked to the right edge of the Table view, drawn on top of
  * the grid rather than beside it — collapsed to a narrow always-visible
@@ -61,9 +67,23 @@ export default function AnalysisOverlay({
   columnSubsets,
   historyEntries,
   onUndoHistoryEntry,
+  synthesisResult,
+  readOnly,
+  association,
+  openRequest,
 }) {
+  const tabs = overlayTabs(!!readOnly);
   const [expanded, setExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState("columns");
+  // `openRequest` ({ tab, seq }) lets the Tier picker open a tab from outside: a new `seq` means
+  // "open this tab now". Adjusted during render (React's documented pattern for a prop change),
+  // not in an effect.
+  const [seenRequest, setSeenRequest] = useState(openRequest?.seq ?? 0);
+  if (openRequest && openRequest.seq !== seenRequest) {
+    setSeenRequest(openRequest.seq);
+    setInnerTab(openRequest.tab);
+    setExpanded(true);
+  }
 
   const openTab = (id) => {
     setInnerTab(id);
@@ -73,7 +93,7 @@ export default function AnalysisOverlay({
   if (!expanded) {
     return (
       <div className="analysis-overlay collapsed">
-        {OVERLAY_TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -91,7 +111,7 @@ export default function AnalysisOverlay({
     <div className="analysis-overlay expanded">
       <div className="analysis-overlay-header">
         <div className="analysis-overlay-tabs">
-          {OVERLAY_TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -139,7 +159,17 @@ export default function AnalysisOverlay({
               anonymizing={anonymizing}
               onBinClick={onJointKCellClick}
               columnSubsets={columnSubsets}
+              readOnly={readOnly}
+              association={association}
+              hoverNames={hoverNames}
+              onHoverNamesChange={onHoverNamesChange}
             />
+          )}
+          {innerTab === "analysis" && readOnly && synthesisResult && (
+            <SynthesisReport result={synthesisResult} />
+          )}
+          {innerTab === "analysis" && readOnly && (
+            <h4 className="synth-matrix-heading">Risk analysis of the synthetic table</h4>
           )}
           {innerTab === "analysis" && (
             <DiversityCheckSection

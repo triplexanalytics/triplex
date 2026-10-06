@@ -66,7 +66,12 @@ codecs (zstd/snap) need a C toolchain that `wasm32-unknown-unknown` doesn't
 have; see `crates/triplex-io/Cargo.toml` for the per-target dependency
 split that keeps native builds (the CLI) unaffected.
 
-Tier 1 ("Basic Anonymization") only — one algorithm per column, picked from
+Tier 1 ("Basic Anonymization") — one algorithm per column, picked from
 whatever `triplex-anonymizer::AnonymizeMethod::ALL` currently implements
-(just `token_hmac` today). Tier 2/3 are shown in the tier picker but
-disabled; see the design notes for what's deferred.
+(just `token_hmac` today). Tier 2 ("Synthetic Data Generation") opens a
+dialog (standard Gaussian copula, or differentially private with a
+user-declared epsilon and public bounds) and the result becomes a Synthetic
+tab beside Original; see
+the design notes. Tier 3 is shown in the tier
+picker but disabled; see the design notes for what's
+deferred.

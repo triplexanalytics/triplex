@@ -13,6 +13,14 @@ export default function Navbar({
   fileName,
   rowCount,
   columnCount,
+  activeTier,
+  onSelectTier,
+  tier2Enabled,
+  syntheticActive = false,
+  canCompare = false,
+  onCompare,
+  onDownloadSyntheticCsv,
+  onDownloadSyntheticReport,
 }) {
   // Native <details>/<summary> instead of a hand-rolled open/close state +
   // click-outside listener — the one thing it doesn't give for free is
@@ -50,34 +58,74 @@ export default function Navbar({
         {rowCount !== null &&
           ` (${rowCount.toLocaleString()} rows / ${columnCount.toLocaleString()} columns)`}
       </span>
-      <TierPicker />
+      <TierPicker activeTier={activeTier} onSelectTier={onSelectTier} tier2Enabled={tier2Enabled} />
       <div className="spacer" />
-      <button onClick={onDownloadContract} disabled={!canDownloadContract}>
-        Download contract
+      <button
+        type="button"
+        onClick={onCompare}
+        disabled={!canCompare}
+        title={canCompare ? undefined : "Generate synthetic data first (Tier 2 card)"}
+      >
+        Compare datasets
       </button>
-      <button onClick={onDownloadRecipe} disabled={!canDownloadRecipe}>
-        Download recipe
-      </button>
-      {canDownloadData ? (
+      {syntheticActive ? (
         <details className="download-menu" ref={detailsRef}>
-          <summary className="primary">Download data</summary>
+          <summary className="primary">Download synthetic data</summary>
           <ul>
             <li>
-              <button type="button" onClick={() => pick("")}>
-                Original format
+              <button
+                type="button"
+                onClick={() => {
+                  detailsRef.current.open = false;
+                  onDownloadSyntheticCsv();
+                }}
+              >
+                Synthetic data (.csv)
               </button>
             </li>
-            {DOWNLOAD_FORMATS.map((ext) => (
-              <li key={ext}>
-                <button type="button" onClick={() => pick(ext)}>
-                  .{ext}
-                </button>
-              </li>
-            ))}
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  detailsRef.current.open = false;
+                  onDownloadSyntheticReport();
+                }}
+              >
+                Synthesis report (.json)
+              </button>
+            </li>
           </ul>
         </details>
       ) : (
-        <button disabled>Download data</button>
+        <>
+          <button onClick={onDownloadContract} disabled={!canDownloadContract}>
+            Download contract
+          </button>
+          <button onClick={onDownloadRecipe} disabled={!canDownloadRecipe}>
+            Download recipe
+          </button>
+          {canDownloadData ? (
+            <details className="download-menu" ref={detailsRef}>
+              <summary className="primary">Download data</summary>
+              <ul>
+                <li>
+                  <button type="button" onClick={() => pick("")}>
+                    Original format
+                  </button>
+                </li>
+                {DOWNLOAD_FORMATS.map((ext) => (
+                  <li key={ext}>
+                    <button type="button" onClick={() => pick(ext)}>
+                      .{ext}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : (
+            <button disabled>Download data</button>
+          )}
+        </>
       )}
       {/* Unstyled placeholder only — no gating logic. */}
       <span className="license-placeholder">License: Pro</span>

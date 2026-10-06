@@ -64,9 +64,13 @@ export const HISTOGRAM_BASELINE_COLOR = "#d7dbe2";
 // --table-header-bg*/--accent/--table-border tokens styles.css defines (a
 // second copy of the same hex by necessity -- CSS custom properties can't
 // import a JS constant -- so keep them in sync by hand if either changes).
-export function readGlideHeaderTheme() {
+/** `dataset` ("original" | "synthetic" | "ai") picks the header background: the same tint as
+ * that dataset's tab (`--table-header-bg-<dataset>` etc. in styles.css), falling back to the
+ * base tokens. */
+export function readGlideHeaderTheme(dataset = "original") {
   const style = getComputedStyle(document.documentElement);
   const cssVar = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
+  const headerVar = (name, fallback) => cssVar(`${name}-${dataset}`, cssVar(name, fallback));
   // The exact three grayscale tokens ColumnCard's CSS already uses, read
   // live rather than duplicated as hex, so the canvas header's text
   // hierarchy matches the DOM card's pixel-for-pixel:
@@ -84,9 +88,9 @@ export function readGlideHeaderTheme() {
   const accentFg = cssVar("--accent-text", "#ffffff");
 
   return {
-    bgHeader: cssVar("--table-header-bg", OCEAN_DRIFT.background),
-    bgHeaderHasFocus: cssVar("--table-header-bg-focus", "#dcefff"),
-    bgHeaderHovered: cssVar("--table-header-bg-hover", "#e5f2ff"),
+    bgHeader: headerVar("--table-header-bg", OCEAN_DRIFT.background),
+    bgHeaderHasFocus: headerVar("--table-header-bg-focus", "#dcefff"),
+    bgHeaderHovered: headerVar("--table-header-bg-hover", "#e5f2ff"),
     bgCell: surface, // every other card/panel's own surface token, not a fixed white hex of its own
     bgCellMedium: surfaceAlt, // the risk bar's track — same gray ColumnCard's .risk-bar-track uses, not the header background (or an empty bar reads as "no bar")
     textDark: text,

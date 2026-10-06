@@ -54,6 +54,7 @@ export function useTableHeaderCanvas({
   isCategoricalByName,
   distributionByName,
   onColumnHover,
+  hideMenuIcon = false,
 }) {
   // Whether the last draw pass had to truncate each column's name — read by
   // the hover tooltip below to decide whether there's anything worth
@@ -132,7 +133,7 @@ export function useTableHeaderCanvas({
         sort?.column === column.id ? sort.direction : null,
         iconTheme,
       );
-      drawMenuIcon(ctx, rect.x + icon.x, rect.y + icon.y, icon.size, iconTheme);
+      if (!hideMenuIcon) drawMenuIcon(ctx, rect.x + icon.x, rect.y + icon.y, icon.size, iconTheme);
 
       // --- histogram row ---
       const bars = barsFor(distributionByName[column.id]);
@@ -211,7 +212,7 @@ export function useTableHeaderCanvas({
 
       return true;
     },
-    [distributionByName, typeByName, missingByName, isCategoricalByName, sort],
+    [distributionByName, typeByName, missingByName, isCategoricalByName, sort, hideMenuIcon],
   );
 
   // Same header hover callback drives two mutually-exclusive tooltips (the

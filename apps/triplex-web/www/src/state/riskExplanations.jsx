@@ -1,3 +1,5 @@
+import ReadMore from "../components/ReadMore";
+
 // Every plain-language explanation of a risk metric this app shows, in one
 // importable place — not scattered across the components that happen to
 // display them. Keeps the app-wide voice consistent (lead with what the
@@ -24,6 +26,7 @@ export function kAnonymityExplanation(value) {
   return (
     <>
       {general} {specific}
+      <ReadMore term="k-anonymity" />
     </>
   );
 }
@@ -31,8 +34,8 @@ export function kAnonymityExplanation(value) {
 // Lead with what the metric means in plain terms; the row/column asymmetry
 // is a secondary note at the end, not the headline (it's easy to mistake
 // for a bug once noticed, but it's not what a first-time reader needs to
-// understand first). "Read more" is inert until the glossary page exists,
-// same placeholder pattern as ColumnMenu's method info.
+// understand first). "Read more" opens the term's glossary page on the docs site
+// (ReadMore.jsx).
 export const L_DIVERSITY_INFO = (
   <>
     k-anonymity only guarantees a group of rows looks alike from the outside. l-diversity checks
@@ -42,7 +45,7 @@ export const L_DIVERSITY_INFO = (
     distinct values instead of secretly agreeing on one. A row here is the column being grouped; a
     column is the sensitive value checked inside each group, so a cell and its mirror image are not
     expected to match.
-    <span className="info-trigger-readmore">Read more…</span>
+    <ReadMore term="l-diversity" />
   </>
 );
 
@@ -55,7 +58,7 @@ export const T_CLOSENESS_INFO = (
     means every group's mix stays close to the overall dataset. As with l-diversity, a row is the
     column being grouped and a column is the sensitive value being checked, so a cell and its mirror
     image are not expected to match.
-    <span className="info-trigger-readmore">Read more…</span>
+    <ReadMore term="t-closeness" />
   </>
 );
 
@@ -72,6 +75,7 @@ export function distinctCountExplanation(_count) {
       <strong>fewer distinct values means bigger groups and a safer k-anonymity score</strong>,
       while a column that's close to one distinct value per row is close to unique per row (k=1)
       even before anonymizing it.
+      <ReadMore term="distinct-values" />
     </>
   );
 }
@@ -91,12 +95,12 @@ export function distinctCountExplanation(_count) {
 export const JOINT_K_INFO = (
   <>
     Two columns can each look safe scored alone (a ZIP code shared by thousands of people, a birth
-    year shared by millions) and still single out almost everyone once combined — this matrix scores
+    year shared by millions) and still single out almost everyone once combined. This matrix scores
     every pair of quasi-identifier columns <strong>together</strong> instead of one at a time.{" "}
     <strong>Higher is safer</strong>, same direction as k-anonymity itself. It supports the EDPB's{" "}
     <strong>No Record Isolation</strong> criterion for data to count as anonymous. Row and column
     are the same list of quasi-identifier columns, so a cell reads the same from either side.
-    <span className="info-trigger-readmore">Read more…</span>
+    <ReadMore term="combined-k-anonymity" />
   </>
 );
 
@@ -108,27 +112,27 @@ export const JOINT_K_INFO = (
 // (quasi-identifier column) / column (candidate sensitive column) shape.
 export const BETA_LIKENESS_INFO = (
   <>
-    t-closeness (left) reports one aggregate number for how different a group's whole mix looks.
-    β-likeness reports something sharper: the single biggest jump in belief an attacker gets about
-    any <strong>one</strong> sensitive value from being in that group (say, a group where a rare
+    t-closeness reports one aggregate number for how different a group's whole mix looks. β-likeness
+    reports something sharper: the single biggest jump in belief an attacker gets about any{" "}
+    <strong>one</strong> sensitive value from being in that group (say, a group where a rare
     diagnosis suddenly looks far more likely than in the dataset overall). It only counts a value
     looking <strong>more</strong> likely inside the group, not less. <strong>Lower is safer</strong>
     , same direction as t-closeness. A row here is the column being grouped; a column is the
     sensitive value checked inside each group, so a cell and its mirror image are not expected to
     match.
-    <span className="info-trigger-readmore">Read more…</span>
+    <ReadMore term="beta-likeness" />
   </>
 );
 
 export const DELTA_DISCLOSURE_INFO = (
   <>
     δ-disclosure is β-likeness's sibling: the same "single biggest belief jump" idea, but counting a
-    group making a value look <strong>less</strong> likely too, not just more — ruling something out
-    with confidence is also a leak, even though it never shows up in β-likeness.{" "}
+    group making a value look <strong>less</strong> likely too, not just more (ruling something out
+    with confidence is also a leak, even though it never shows up in β-likeness).{" "}
     <strong>Lower is safer</strong>, same direction as β-likeness and t-closeness. As with those, a
     row is the column being grouped and a column is the sensitive value being checked, so a cell and
     its mirror image are not expected to match.
-    <span className="info-trigger-readmore">Read more…</span>
+    <ReadMore term="delta-disclosure" />
   </>
 );
 
@@ -141,7 +145,7 @@ export function betaLikenessDetail(value) {
 export function deltaDisclosureDetail(value) {
   return value <= 0
     ? "no group's belief in any sensitive value shifts from the dataset overall, in either direction"
-    : "at least one group shifts belief in a sensitive value — up or down — from the dataset overall";
+    : "at least one group shifts belief in a sensitive value, up or down, from the dataset overall";
 }
 
 export function jointKDetail(value) {
@@ -175,11 +179,11 @@ export function rowRiskInfo(model) {
       <>
         Every score above is about a <strong>column</strong> or a pair of columns. This is about
         individual <strong>rows</strong>: an Explainable Boosting Machine (EBM) trained on the
-        quasi-identifier columns to predict how rare each row's combination of values is —{" "}
-        <strong>higher is riskier</strong>, and rows with a common, widely-shared combination score
+        quasi-identifier columns to predict how rare each row's combination of values.{" "}
+        <strong>Higher is riskier</strong>, and rows with a common, widely-shared combination score
         close to 0. Unlike SUDA's exact combinatorial search, this is a learned estimate, so it's
         not on the same numeric scale as SUDA's score.
-        <span className="info-trigger-readmore">Read more…</span>
+        <ReadMore term="ebm" />
       </>
     );
   }
@@ -187,13 +191,13 @@ export function rowRiskInfo(model) {
     <>
       Every score above is about a <strong>column</strong> or a pair of columns. This is about
       individual <strong>rows</strong>: for each row, SUDA finds the smallest combination of the
-      quasi-identifier columns whose values make that row unique in the dataset — a row unique on
+      quasi-identifier columns whose values make that row unique in the dataset. A row unique on
       just two columns is riskier than one that needs six columns to stand out, and a row with
       several different minimal combinations that single it out is riskier still.{" "}
       <strong>Lower is safer</strong>, and 0 means the row was never part of any minimal unique
       combination. DIS-SUDA turns each row's score into its share of the dataset's total disclosure
       risk, so the shares below add up to 100%.
-      <span className="info-trigger-readmore">Read more…</span>
+      <ReadMore term="suda" />
     </>
   );
 }

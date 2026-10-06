@@ -50,6 +50,7 @@ export default function ColumnCard({
   highlighted,
   onHoverChange,
   onOpenMenu,
+  readOnly,
   appliedMethod,
   onClearMethod,
   onBinClick,
@@ -141,6 +142,7 @@ export default function ColumnCard({
               <TypeIcon type={col.semantic_type} />
               {col.semantic_type}
               {col.semantic_type === "likely_identifier" &&
+                !readOnly &&
                 (declaredType === "string" ? (
                   <span className="declare-string-done">Declared as string</span>
                 ) : (
@@ -211,26 +213,28 @@ export default function ColumnCard({
           </>
         )}
       </dl>
-      <div className="field" onClick={(e) => e.stopPropagation()}>
-        <label>Pattern (regex)</label>
-        <input
-          type="text"
-          defaultValue={declaredPattern || ""}
-          onBlur={(e) => onCheckPattern(col.name, e.target.value)}
-        />
-        {anonymizeResult && checking && (
-          <div>
-            <span className="skeleton-line" />
-          </div>
-        )}
-        {anonymizeResult && !checking && check && (
-          <div className={patternError ? "conformance-bad" : "conformance-ok"}>
-            {patternError
-              ? `${patternError.non_conforming_count}/${patternError.checked_count} values no longer match`
-              : "Still conforms after anonymize"}
-          </div>
-        )}
-      </div>
+      {!readOnly && (
+        <div className="field" onClick={(e) => e.stopPropagation()}>
+          <label>Pattern (regex)</label>
+          <input
+            type="text"
+            defaultValue={declaredPattern || ""}
+            onBlur={(e) => onCheckPattern(col.name, e.target.value)}
+          />
+          {anonymizeResult && checking && (
+            <div>
+              <span className="skeleton-line" />
+            </div>
+          )}
+          {anonymizeResult && !checking && check && (
+            <div className={patternError ? "conformance-bad" : "conformance-ok"}>
+              {patternError
+                ? `${patternError.non_conforming_count}/${patternError.checked_count} values no longer match`
+                : "Still conforms after anonymize"}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

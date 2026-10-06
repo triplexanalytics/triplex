@@ -36,6 +36,9 @@ export default function TableTab({
   onRemoveFilteredOutRows,
   removedRowIndices,
   onRestoreRemovedRows,
+  readOnly = false,
+  dataset = "original",
+  onContentWidth,
 }) {
   const distributionByName = useMemo(() => {
     const map = {};
@@ -146,6 +149,10 @@ export default function TableTab({
   // own layout constants — generous enough to cover it.
   const GRID_CHROME_ALLOWANCE = 16;
   const gridContentWidth = columns.reduce((sum, c) => sum + c.width, 0) + GRID_CHROME_ALLOWANCE;
+  // Tell App.jsx, which sizes the dataset tabs' column to match so tabs and table share a left edge.
+  useEffect(() => {
+    onContentWidth?.(gridContentWidth);
+  }, [gridContentWidth, onContentWidth]);
 
   // A column with a method picked, once anonymize has actually run, renders
   // its cells blurred (native canvas ctx.filter, no library) — hovering a
@@ -267,7 +274,7 @@ export default function TableTab({
         event.localEventX <= icon.x + icon.size &&
         (event.localEventY ?? -1) >= icon.y &&
         event.localEventY <= icon.y + icon.size;
-      if (withinIcon) {
+      if (withinIcon && !readOnly) {
         setMenu({
           name: column.id,
           x: event.bounds.x + icon.x,
@@ -288,7 +295,7 @@ export default function TableTab({
         });
       }
     },
-    [columns],
+    [columns, readOnly],
   );
 
   const { drawHeader, onItemHovered, hoveredHeader, hoveredBin } = useTableHeaderCanvas({
@@ -299,9 +306,10 @@ export default function TableTab({
     isCategoricalByName,
     distributionByName,
     onColumnHover,
+    hideMenuIcon: readOnly,
   });
 
-  const glideTheme = readGlideHeaderTheme();
+  const glideTheme = readGlideHeaderTheme(dataset);
 
   // A ColumnCard- or RiskMatrix-originated highlight (AnalysisOverlay's
   // Columns/Analysis tabs) can't repaint Glide's header canvas the way a

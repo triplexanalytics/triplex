@@ -5,8 +5,10 @@ import {
   METHOD_META_FALLBACK,
 } from "./ColumnMenu.const";
 import InfoTrigger from "./InfoTrigger";
+import ReadMore from "./ReadMore";
+import { METHOD_GLOSSARY } from "../state/glossary";
 
-// "Read more" is inert until the glossary page (see task) exists to link to.
+// "Read more" opens the method's glossary page on the docs site (METHOD_GLOSSARY, ReadMore.jsx).
 
 /** Anchored dropdown opened from the small icon next to a column's name in
  * the Table tab's header — the per-column decisions (anonymization now,
@@ -76,7 +78,7 @@ export default function ColumnMenu({
                         tooltip={
                           <>
                             {METHOD_INFO[method]}
-                            <span className="info-trigger-readmore">Read more…</span>
+                            {METHOD_GLOSSARY[method] && <ReadMore term={METHOD_GLOSSARY[method]} />}
                           </>
                         }
                       />

@@ -24,6 +24,12 @@
   --accent: #0f4c81;
   --accent-hover: #0c3d67;
   --accent-text: #ffffff;
+  --ds-synthetic: #0e7c7b;
+  --ds-synthetic-tint: #e4f4f3;
+  --ds-compare: #475467;
+  --ds-compare-tint: #eef0f3;
+  --ds-ai: #6d3fc0;
+  --ds-ai-tint: #efe9fb;
   --success-bg: #ecfdf3;
   --success-border: #a7e8c4;
   --success-text: #0f7a44;
@@ -68,6 +74,18 @@
   --table-header-bg: #f0f9ff;
   --table-header-bg-hover: #e5f2ff;
   --table-header-bg-focus: #dcefff;
+  /* Per dataset (read by readGlideHeaderTheme): the table header is the same color as that
+     dataset's tab (.dataset-tab below), so tab and table read as one surface. Hover/focus are
+     slightly deeper steps of the same hue. */
+  --table-header-bg-original: #ffffff;
+  --table-header-bg-hover-original: #f1f3f6;
+  --table-header-bg-focus-original: #e6e9ee;
+  --table-header-bg-synthetic: var(--ds-synthetic-tint);
+  --table-header-bg-hover-synthetic: #d6eeec;
+  --table-header-bg-focus-synthetic: #c6e6e3;
+  --table-header-bg-ai: var(--ds-ai-tint);
+  --table-header-bg-hover-ai: #e3d9f7;
+  --table-header-bg-focus-ai: #d6c8f2;
   --table-border: rgba(15, 76, 129, 0.16);
 }
 
@@ -139,6 +157,22 @@ button.full-width {
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* The dataset being shown sets --ds-color / --ds-tint (navbar bar, dataset tabs, panel tabs).
+     Original is neutral white; synthetic and AI-generated each get their own hue so a glance
+     says which data you are looking at. Change the hues in the :root tokens below. */
+  --ds-color: var(--accent);
+  --ds-tint: var(--surface);
+  --ds-bar: var(--border);
+}
+.app-shell[data-dataset="synthetic"] {
+  --ds-color: var(--ds-synthetic);
+  --ds-tint: var(--ds-synthetic-tint);
+  --ds-bar: var(--ds-synthetic);
+}
+.app-shell[data-dataset="ai"] {
+  --ds-color: var(--ds-ai);
+  --ds-tint: var(--ds-ai-tint);
+  --ds-bar: var(--ds-ai);
 }
 
 .navbar {
@@ -147,7 +181,7 @@ button.full-width {
   gap: 1rem;
   padding: 0.6rem 1rem;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 3px solid var(--ds-bar);
   box-shadow: var(--shadow);
   flex-wrap: wrap;
 }
@@ -364,6 +398,10 @@ button.full-width {
   overflow: hidden;
 }
 
+.analysis-overlay {
+  border-left: 3px solid var(--ds-bar);
+}
+
 .analysis-overlay.collapsed {
   top: 1rem;
   width: 2.25rem;
@@ -397,6 +435,7 @@ button.full-width {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border);
+  background: var(--ds-tint);
   flex: none;
 }
 
@@ -415,7 +454,7 @@ button.full-width {
 }
 .analysis-overlay-tab-btn.active {
   color: var(--text);
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--ds-color);
   font-weight: 600;
 }
 
@@ -858,6 +897,11 @@ button.full-width {
   text-decoration: underline;
   text-underline-offset: 2px;
   opacity: 0.85;
+  color: inherit;
+  cursor: pointer;
+}
+.info-trigger-readmore:hover {
+  opacity: 1;
 }
 
 .info-trigger-readmore:hover {
@@ -1479,4 +1523,424 @@ button.full-width {
   border: 1px solid var(--border);
   background: var(--surface-alt);
   color: var(--text-muted);
+}
+
+/* === Synthesize tab (Tier 2) === */
+
+.synth-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.88rem;
+}
+.synth-intro {
+  margin: 0;
+  color: var(--text-muted);
+}
+.synth-hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+.synth-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+}
+.synth-modes legend {
+  padding: 0 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.synth-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+.synth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.synth-field-label {
+  font-weight: 600;
+}
+.synth-field input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.synth-field.has-error input {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+}
+.synth-advanced summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.synth-domain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.synth-domain-head h4,
+.synth-result h4 {
+  margin: 0.25rem 0;
+}
+.synth-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.synth-table th,
+.synth-table td {
+  text-align: left;
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.synth-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+.synth-domain-table input[type="text"],
+.synth-domain-table select {
+  width: 100%;
+  min-width: 4rem;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+}
+.synth-row-off {
+  opacity: 0.55;
+}
+.synth-note {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+}
+.synth-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--warning-text);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.synth-confirm {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+.synth-error {
+  margin: 0;
+  color: var(--error-text);
+  font-size: 0.8rem;
+}
+.synth-run {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+.synth-missing {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.synth-result {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.synth-result-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.synth-result-head h3 {
+  margin: 0;
+}
+.synth-spacer {
+  flex: 1;
+}
+.synth-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.synth-notes summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.synth-diagnostics {
+  border: 2px solid var(--error-border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+}
+
+/* === Dataset tabs (Original / Synthetic / AI-Generated) === */
+
+.dataset-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+.dataset-tab {
+  border: 1px solid var(--border);
+  border-top-width: 3px;
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--table-header-bg-original);
+  color: var(--text-muted);
+  padding: 0.4rem 1rem;
+}
+.dataset-tab[data-kind="synthetic"] {
+  background: var(--table-header-bg-synthetic);
+  border-top-color: var(--ds-synthetic);
+}
+.dataset-tab[data-kind="ai"] {
+  background: var(--table-header-bg-ai);
+  border-top-color: var(--ds-ai);
+}
+.dataset-tab[data-kind="original"] {
+  border-top-color: var(--border);
+}
+.dataset-tab.active {
+  color: var(--text);
+  font-weight: 650;
+}
+.dataset-tab.active[data-kind="original"] {
+  border-top-color: var(--accent);
+}
+.dataset-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* === Synthesize dialog === */
+
+.synth-dialog {
+  width: min(760px, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
+  padding: 0;
+  border: 1px solid var(--ds-synthetic);
+  border-top-width: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+.synth-dialog::backdrop {
+  background: rgba(16, 24, 40, 0.4);
+}
+.synth-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--ds-synthetic-tint);
+  border-bottom: 1px solid var(--border);
+}
+.synth-dialog-head h3 {
+  margin: 0;
+}
+.synth-dialog-body {
+  padding: 1rem;
+}
+
+.dataset-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* App.jsx sets max-width to the table's content width so the tabs and the table share one
+     left edge. */
+  margin: 0 auto;
+}
+.dataset-table {
+  flex: 1;
+  min-height: 0;
+}
+.synth-matrix-heading {
+  margin: 1.25rem 0 0.5rem;
+}
+
+/* === Compare view === */
+
+.compare-dialog {
+  width: min(1240px, 96vw);
+  height: 94vh;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 1px solid var(--ds-compare);
+  border-top-width: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+.compare-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.compare-dialog::backdrop {
+  background: rgba(16, 24, 40, 0.4);
+}
+.compare-dialog-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  background: var(--ds-compare-tint);
+  border-bottom: 1px solid var(--border);
+}
+.compare-dialog-head h3 {
+  margin: 0;
+}
+.compare-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.compare-view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 2rem 1.5rem;
+}
+
+/* InfoTrigger flips downward (data-dir="down") when there is no room above it. */
+.info-trigger-tooltip[data-dir="down"] {
+  bottom: auto;
+  top: 100%;
+  padding-bottom: 0;
+  padding-top: 8px;
+}
+.info-trigger-tooltip[data-dir="down"] .info-trigger-tooltip-box::after {
+  bottom: auto;
+  top: -4px;
+}
+.compare-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface);
+  padding: 0.5rem 0;
+}
+.compare-tabs {
+  flex: none;
+  display: flex;
+  gap: 0.25rem;
+  margin: 0 2rem;
+  padding-top: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.compare-tab {
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  padding: 0.5rem 0.9rem;
+  color: var(--text-muted);
+}
+.compare-tab.active {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--ds-compare);
+}
+.compare-pair {
+  display: grid;
+  /* A very wide matrix widens its column and the dialog scrolls sideways, instead of the column
+     clipping it (clipping would also cut off the info tooltips). */
+  grid-template-columns: repeat(2, minmax(min-content, var(--compare-col, 520px)));
+  justify-content: center;
+  gap: 1.5rem;
+  align-items: start;
+}
+.compare-side {
+  min-width: 0;
+}
+.compare-label {
+  padding: 0.35rem 0.75rem;
+  border-top: 3px solid var(--border);
+  font-weight: 650;
+  background: var(--table-header-bg-original);
+}
+.compare-label[data-kind="synthetic"] {
+  background: var(--table-header-bg-synthetic);
+  border-top-color: var(--ds-synthetic);
+}
+.compare-label[data-kind="ai"] {
+  background: var(--table-header-bg-ai);
+  border-top-color: var(--ds-ai);
+}
+.compare-section h3 {
+  margin: 1.25rem 0 0.25rem;
+}
+.compare-row {
+  /* Same width as the two card columns, so the change strip lines up with the pair above it. */
+  max-width: calc(2 * var(--compare-col, 520px) + 1.5rem);
+  margin: 0 auto 2em;
+}
+.compare-delta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-top: 0.3rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--surface-alt);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.compare-delta-bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 60px;
+  height: 6px;
+  margin-left: 0.4rem;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.compare-delta-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.compare-gap {
+  padding: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.compare-matrix-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+/* The matrix tabs draw ~350px matrices, so their two columns are narrower than the card columns
+   (the labels row shares the same variable, so it stays aligned). */
+.compare-view[data-tab="privacy"],
+.compare-view[data-tab="associations"] {
+  --compare-col: 420px;
+}
+.column-association {
+  margin-top: 1.5rem;
 }

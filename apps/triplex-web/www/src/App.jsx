@@ -1,14 +1,14 @@
-import { lazy, Suspense, useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useWasm } from "./hooks/useWasm";
 import { useProfiledFile } from "./hooks/useProfiledFile";
 import { useAnonymize } from "./hooks/useAnonymize";
-import { useColumnRisk } from "./hooks/useColumnRisk";
-import { useDiversityMatrix } from "./hooks/useDiversityMatrix";
-import { useRowFilter } from "./hooks/useRowFilter";
-import { useColumnSubsetDistributions } from "./hooks/useColumnSubsetDistributions";
+import { useDatasetAnalysis } from "./hooks/useDatasetAnalysis";
 import { useHistory } from "./hooks/useHistory";
+import { useSynthesize } from "./hooks/useSynthesize";
 import { withColumnType } from "./state/yamlBuilder";
 import Navbar from "./components/Navbar";
+import DatasetTabs from "./components/DatasetTabs";
+import SynthesizeDialog from "./components/SynthesizeDialog";
 import Dropzone from "./components/Dropzone";
 import LoadingOverlay from "./components/LoadingOverlay";
 
@@ -21,6 +21,14 @@ import LoadingOverlay from "./components/LoadingOverlay";
 // part of one large bundle up front.
 const TableTab = lazy(() => import("./components/TableTab"));
 const AnalysisOverlay = lazy(() => import("./components/AnalysisOverlay"));
+const CompareDialog = lazy(() => import("./components/CompareDialog"));
+
+// What the read-only synthetic view passes where the original view passes its anonymization state:
+// the synthetic table has no recipe, contract, pattern checks or removed rows of its own.
+const NO_ROWS = new Set();
+const NO_RECIPE = { columns: [] };
+const NO_PATTERN_CHECKS = {};
+const TIER_OF_DATASET = { original: 1, synthetic: 2 };
 
 /** Composition root only: wires the three hooks together and renders. Every
  * actual behavior (wasm lifecycle, file/contract/recipe state, the
@@ -39,15 +47,72 @@ export default function App() {
     setContract: file.setContract,
     removedRowIndices: file.removedRowIndices,
   });
-  const columnRisk = useColumnRisk(file.sample, file.profile, file.removedRowIndices);
-  const diversityMatrix = useDiversityMatrix(file.sample, file.profile, file.removedRowIndices);
-  const rowFilter = useRowFilter(wasm, file.sample, file.profile);
-  const columnSubsets = useColumnSubsetDistributions(
-    file.sample,
-    file.profile,
-    rowFilter.filteredRowIndices,
-  );
+  const original = useDatasetAnalysis(wasm, file.sample, file.profile, file.removedRowIndices);
+  // Idle until a synthesis run exists (all four hooks accept a null sample).
   const history = useHistory();
+  const synthesis = useSynthesize({
+    fileBytes: file.fileBytes,
+    extension: file.extension,
+    headers: file.sample?.headers,
+    totalRows: file.sample?.rowCount ?? 0,
+    removedRowIndices: file.removedRowIndices,
+    removedColumns: file.removedColumns,
+  });
+  const syntheticResult = synthesis.result;
+  const synthetic = useDatasetAnalysis(
+    wasm,
+    syntheticResult?.sample,
+    syntheticResult?.profile,
+    NO_ROWS,
+  );
+  // Which dataset the Table and the panel show. Synthetic (Tier 2) is read-only: no recipe,
+  // contract or row removal, and its analysis tabs describe the synthetic table.
+  const [activeDataset, setActiveDataset] = useState("original");
+  const showingSynthetic = activeDataset === "synthetic" && !!syntheticResult;
+  const shownKey = showingSynthetic ? "synthetic" : "original";
+  const [compareOpen, setCompareOpen] = useState(false);
+  const view = showingSynthetic ? synthetic : original;
+  const shown = showingSynthetic ? syntheticResult : file;
+  // The Compare view's two sides: the original (minus columns the user removed) and the synthetic
+  // table. A later AI-generated or uploaded dataset becomes another right-hand side here.
+  const compareLeft = useMemo(
+    () =>
+      file.sample && file.profile
+        ? {
+            label: "Original",
+            kind: "original",
+            sample: file.sample,
+            profile: {
+              ...file.profile,
+              columns: file.profile.columns.filter((c) => !file.removedColumns.has(c.name)),
+            },
+            analysis: original,
+            excluded: file.removedRowIndices,
+          }
+        : null,
+    [file.sample, file.profile, file.removedColumns, file.removedRowIndices, original],
+  );
+  const compareRight = useMemo(
+    () =>
+      syntheticResult
+        ? {
+            label: "Synthetic",
+            kind: "synthetic",
+            sample: syntheticResult.sample,
+            profile: syntheticResult.profile,
+            analysis: synthetic,
+            excluded: NO_ROWS,
+            droppedReasons: Object.fromEntries(
+              (syntheticResult.report.columns_dropped ?? []).map((d) => [d.column, d.reason]),
+            ),
+          }
+        : null,
+    [syntheticResult, synthetic],
+  );
+  const [synthDialogOpen, setSynthDialogOpen] = useState(false);
+  const [tableWidth, setTableWidth] = useState(null);
+  // `seq` makes a repeated request re-open a collapsed panel on the given tab.
+  const [overlayRequest, setOverlayRequest] = useState({ tab: "columns", seq: 0 });
   const [selectedColumn, setSelectedColumn] = useState(null);
   // { rowName, colName } | null — the one shared hover state behind every
   // cross-highlight in the app: RiskMatrix cells cross-highlight each other
@@ -77,6 +142,30 @@ export default function App() {
   const highlightColumnNames = hoverNames
     ? [...new Set([hoverNames.rowName, hoverNames.colName].filter(Boolean))]
     : [];
+  const selectDataset = (id) => {
+    setActiveDataset(id);
+    setSelectedColumn(null);
+    setHoverNames(null);
+  };
+  // Tier 1 shows the original; Tier 2 opens the synthesis dialog (also to re-run it).
+  const handleSelectTier = (tier) => {
+    if (tier === 1) selectDataset("original");
+    if (tier === 2) setSynthDialogOpen(true);
+  };
+  const handleSynthesisDone = () => {
+    setSynthDialogOpen(false);
+    selectDataset("synthetic");
+    setOverlayRequest((r) => ({ tab: "analysis", seq: r.seq + 1 }));
+    history.log(
+      "Generate synthetic data",
+      synthesis.mode === "dp" ? "DP" : "standard",
+      null,
+      () => {
+        synthesis.clearResult();
+        selectDataset("original");
+      },
+    );
+  };
   const handleColumnHover = useCallback((name) => {
     setHoverNames(name ? { rowName: name, colName: name } : null);
   }, []);
@@ -121,11 +210,11 @@ export default function App() {
   // "Remove visible rows": the rows the filter currently matches (what's
   // shown) are removed; everything else stays.
   const handleRemoveVisibleRows = () => {
-    if (!rowFilter.filteredRowIndices) return;
+    if (!original.rowFilter.filteredRowIndices) return;
     const prevRemoved = file.removedRowIndices;
-    const n = rowFilter.filteredRowIndices.size;
-    file.removeRows(rowFilter.filteredRowIndices);
-    rowFilter.setRowFilter(null);
+    const n = original.rowFilter.filteredRowIndices.size;
+    file.removeRows(original.rowFilter.filteredRowIndices);
+    original.rowFilter.setRowFilter(null);
     history.log("Remove visible rows", `${n} rows`, null, () =>
       file.setRemovedRowIndices(prevRemoved),
     );
@@ -136,22 +225,28 @@ export default function App() {
   // original row count, so a second removal on top of an earlier one only
   // ever shrinks the working set further.
   const handleRemoveFilteredOutRows = () => {
-    if (!rowFilter.filteredRowIndices || !file.sample) return;
+    if (!original.rowFilter.filteredRowIndices || !file.sample) return;
     const hidden = [];
     for (let i = 0; i < file.sample.rowCount; i++) {
-      if (!rowFilter.filteredRowIndices.has(i) && !file.removedRowIndices.has(i)) hidden.push(i);
+      if (!original.rowFilter.filteredRowIndices.has(i) && !file.removedRowIndices.has(i))
+        hidden.push(i);
     }
     const prevRemoved = file.removedRowIndices;
     file.removeRows(hidden);
-    rowFilter.setRowFilter(null);
+    original.rowFilter.setRowFilter(null);
     history.log("Remove filtered-out rows", `${hidden.length} rows`, null, () =>
       file.setRemovedRowIndices(prevRemoved),
     );
   };
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
-    rowFilter.setRowFilter(null);
+    setActiveDataset("original");
+    setSynthDialogOpen(false);
+    setCompareOpen(false);
+    original.rowFilter.setRowFilter(null);
+    synthetic.rowFilter.setRowFilter(null);
     anonymize.reset();
+    synthesis.reset();
     const loaded = await file.loadFile(uploaded);
     if (loaded) {
       history.log(
@@ -161,7 +256,9 @@ export default function App() {
         () => {
           file.reset();
           anonymize.reset();
-          rowFilter.setRowFilter(null);
+          synthesis.reset();
+          setActiveDataset("original");
+          original.rowFilter.setRowFilter(null);
           history.clear();
         },
       );
@@ -171,7 +268,7 @@ export default function App() {
   const error = file.error || anonymize.error;
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-dataset={shownKey}>
       <Navbar
         onFileSelected={handleFile}
         onDownloadContract={file.downloadContract}
@@ -183,6 +280,14 @@ export default function App() {
         fileName={file.fileName}
         rowCount={file.sample ? file.sample.rowCount - file.removedRowIndices.size : null}
         columnCount={file.sample ? file.sample.headers.length - file.removedColumns.size : null}
+        activeTier={TIER_OF_DATASET[shownKey]}
+        onSelectTier={handleSelectTier}
+        tier2Enabled={!!file.sample}
+        syntheticActive={showingSynthetic}
+        canCompare={!!syntheticResult}
+        onCompare={() => setCompareOpen(true)}
+        onDownloadSyntheticCsv={synthesis.downloadCsv}
+        onDownloadSyntheticReport={synthesis.downloadReport}
       />
       <main className="main-content">
         {error && <div className="banner banner-error">{error}</div>}
@@ -194,67 +299,106 @@ export default function App() {
         )}
         {file.sample && (
           <Suspense fallback={<LoadingOverlay label="Loading…" />}>
-            <TableTab
-              sample={file.sample}
-              profile={file.profile}
-              methods={methods}
-              recipe={file.recipe}
-              salt={file.salt}
-              onPickMethod={handlePickMethod}
-              removedColumns={file.removedColumns}
-              onSaltChange={file.setSalt}
-              onAnonymize={anonymize.run}
-              anonymizing={anonymize.anonymizing}
-              anonymizeResult={anonymize.anonymizeResult}
-              onColumnHover={handleColumnHover}
-              highlightColumnNames={highlightColumnNames}
-              contract={file.contract}
-              onDeclareAsString={declareAsString}
-              filteredRowIndices={rowFilter.filteredRowIndices}
-              onClearRowFilter={() => rowFilter.setRowFilter(null)}
-              onRemoveVisibleRows={handleRemoveVisibleRows}
-              onRemoveFilteredOutRows={handleRemoveFilteredOutRows}
-              removedRowIndices={file.removedRowIndices}
-              onRestoreRemovedRows={handleRestoreRemovedRows}
-            />
+            <div className="dataset-view" style={{ maxWidth: tableWidth ?? undefined }}>
+              <DatasetTabs
+                active={shownKey}
+                onSelect={selectDataset}
+                hasSynthetic={!!syntheticResult}
+              />
+              <div className="dataset-table">
+                <TableTab
+                  key={showingSynthetic ? "synthetic" : "original"}
+                  sample={shown.sample}
+                  profile={shown.profile}
+                  methods={methods}
+                  recipe={showingSynthetic ? NO_RECIPE : file.recipe}
+                  salt={file.salt}
+                  onPickMethod={handlePickMethod}
+                  removedColumns={showingSynthetic ? NO_ROWS : file.removedColumns}
+                  onSaltChange={file.setSalt}
+                  onAnonymize={anonymize.run}
+                  anonymizing={anonymize.anonymizing}
+                  anonymizeResult={showingSynthetic ? null : anonymize.anonymizeResult}
+                  onColumnHover={handleColumnHover}
+                  highlightColumnNames={highlightColumnNames}
+                  contract={showingSynthetic ? null : file.contract}
+                  onDeclareAsString={declareAsString}
+                  filteredRowIndices={view.rowFilter.filteredRowIndices}
+                  onClearRowFilter={() => view.rowFilter.setRowFilter(null)}
+                  onRemoveVisibleRows={showingSynthetic ? undefined : handleRemoveVisibleRows}
+                  onRemoveFilteredOutRows={
+                    showingSynthetic ? undefined : handleRemoveFilteredOutRows
+                  }
+                  removedRowIndices={showingSynthetic ? NO_ROWS : file.removedRowIndices}
+                  onRestoreRemovedRows={handleRestoreRemovedRows}
+                  readOnly={showingSynthetic}
+                  dataset={showingSynthetic ? "synthetic" : "original"}
+                  onContentWidth={setTableWidth}
+                />
+              </div>
+            </div>
             <AnalysisOverlay
-              columnProfile={file.profile}
+              columnProfile={shown.profile}
               selectedColumn={selectedColumn}
               onSelectColumn={setSelectedColumn}
-              contract={file.contract}
+              contract={showingSynthetic ? null : file.contract}
               onCheckPattern={anonymize.checkPattern}
-              patternChecks={anonymize.patternChecks}
-              checkingColumns={anonymize.checkingColumns}
-              anonymizeResult={anonymize.anonymizeResult}
-              riskByName={columnRisk.riskByName}
-              riskLoading={columnRisk.riskLoading}
+              patternChecks={showingSynthetic ? NO_PATTERN_CHECKS : anonymize.patternChecks}
+              checkingColumns={showingSynthetic ? NO_ROWS : anonymize.checkingColumns}
+              anonymizeResult={showingSynthetic ? null : anonymize.anonymizeResult}
+              riskByName={view.columnRisk.riskByName}
+              riskLoading={view.columnRisk.riskLoading}
               onDeclareAsString={declareAsString}
               highlightColumnNames={highlightColumnNames}
               onColumnHover={handleColumnHover}
-              diversityRaw={diversityMatrix.raw}
-              diversityLoading={diversityMatrix.loading}
-              diversityError={diversityMatrix.error}
-              quasiColumns={diversityMatrix.quasiColumns}
-              allColumns={diversityMatrix.allColumns}
+              diversityRaw={view.diversityMatrix.raw}
+              diversityLoading={view.diversityMatrix.loading}
+              diversityError={view.diversityMatrix.error}
+              quasiColumns={view.diversityMatrix.quasiColumns}
+              allColumns={view.diversityMatrix.allColumns}
               hoverNames={hoverNames}
               onHoverNamesChange={setHoverNames}
-              sample={file.sample}
-              rowRiskModel={diversityMatrix.rowRiskModel}
-              onRowRiskModelChange={diversityMatrix.setRowRiskModel}
-              onJointKCellClick={rowFilter.setRowFilter}
+              sample={shown.sample}
+              rowRiskModel={view.diversityMatrix.rowRiskModel}
+              onRowRiskModelChange={view.diversityMatrix.setRowRiskModel}
+              onJointKCellClick={view.rowFilter.setRowFilter}
               methods={methods}
-              recipe={file.recipe}
+              recipe={showingSynthetic ? NO_RECIPE : file.recipe}
               salt={file.salt}
               onPickMethod={handlePickMethod}
               onClearMethod={handleClearMethod}
               onSaltChange={file.setSalt}
               onAnonymize={anonymize.run}
               anonymizing={anonymize.anonymizing}
-              columnSubsets={columnSubsets}
+              columnSubsets={view.columnSubsets}
               historyEntries={history.entries}
               onUndoHistoryEntry={history.undo}
+              synthesisResult={showingSynthetic ? syntheticResult : null}
+              readOnly={showingSynthetic}
+              association={view.association}
+              openRequest={overlayRequest}
             />
           </Suspense>
+        )}
+        {compareOpen && compareLeft && compareRight && (
+          <Suspense fallback={null}>
+            <CompareDialog
+              left={compareLeft}
+              right={compareRight}
+              hoverNames={hoverNames}
+              onHoverNamesChange={setHoverNames}
+              onColumnHover={handleColumnHover}
+              onClose={() => setCompareOpen(false)}
+            />
+          </Suspense>
+        )}
+        {synthDialogOpen && (
+          <SynthesizeDialog
+            synthesis={synthesis}
+            fileName={file.fileName}
+            onClose={() => setSynthDialogOpen(false)}
+            onDone={handleSynthesisDone}
+          />
         )}
       </main>
     </div>
