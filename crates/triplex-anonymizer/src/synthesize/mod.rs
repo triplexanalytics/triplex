@@ -12,6 +12,7 @@
 //! An integer column with 20 or fewer distinct values (a code, a rating) is sampled from its
 //! empirical distribution without interpolation, so it never invents a value that did not occur.
 
+pub mod bayesnet;
 pub mod dp;
 
 mod copula;
@@ -99,6 +100,9 @@ pub struct SynthesisReport {
     pub privacy_statement: &'static str,
     pub limitations: Vec<&'static str>,
     pub warnings: Vec<String>,
+    /// The dependency structure, for the Bayesian-network methods.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<bayesnet::NetworkReport>,
 }
 
 pub struct SynthesisResult {
@@ -115,16 +119,16 @@ fn limitations() -> Vec<&'static str> {
     ]
 }
 
-struct Prepared {
-    name: String,
+pub(crate) struct Prepared {
+    pub(crate) name: String,
     /// Original real values (categories not merged), used for leakage.
-    original: ColumnData,
+    pub(crate) original: ColumnData,
     /// Real values after rare-category merging: what the model is fitted on.
-    merged: ColumnData,
-    integer: bool,
+    pub(crate) merged: ColumnData,
+    pub(crate) integer: bool,
     /// Decimal places seen in the real strings of a float column; synthetic values are rounded to
     /// this many so they do not carry precision the real data never had.
-    decimals: Option<usize>,
+    pub(crate) decimals: Option<usize>,
 }
 
 fn cell(sample: &Sample, row: usize, column: usize) -> Option<&str> {
@@ -179,8 +183,18 @@ pub(crate) fn without_rows(
     )
 }
 
-/// Synthesizes a table shaped like `sample`. See the module docs for what is and is not kept.
-pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<SynthesisResult> {
+/// The columns a synthesizer can model, after dropping identifiers, merging rare categories and
+/// removing the rows and columns the user excluded. Shared by every non-private model.
+pub(crate) struct Preparation {
+    pub(crate) prepared: Vec<Prepared>,
+    pub(crate) dropped: Vec<DroppedColumn>,
+    pub(crate) merged_report: Vec<MergedCategories>,
+    /// Rows left after the exclusion.
+    pub(crate) n: usize,
+    pub(crate) rows_excluded: usize,
+}
+
+pub(crate) fn prepare(sample: &Sample, config: &SynthesizeConfig) -> Result<Preparation> {
     let filtered;
     let (sample, rows_excluded) = if config.exclude_rows.is_empty() {
         (sample, 0)
@@ -314,29 +328,38 @@ pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<Synthesi
                 .into(),
         ));
     }
+    Ok(Preparation {
+        prepared,
+        dropped,
+        merged_report,
+        n,
+        rows_excluded,
+    })
+}
 
-    let merged: Vec<ColumnData> = prepared.iter().map(|p| p.merged.clone()).collect();
-    let originals: Vec<ColumnData> = prepared.iter().map(|p| p.original.clone()).collect();
-    let integer_flags: Vec<bool> = prepared.iter().map(|p| p.integer).collect();
-    let names: Vec<String> = prepared.iter().map(|p| p.name.clone()).collect();
-
-    let copula = Copula::fit(&merged, &integer_flags);
-    let rows_out = config.rows.unwrap_or(n);
-    let mut synthetic = copula.sample(rows_out, &mut Rng::new(config.seed));
-    // Round through the written text, so the metrics see exactly the values the file contains.
-    for (column, p) in synthetic.iter_mut().zip(&prepared) {
+/// Rounds each float column to the decimals its real strings had, through the written text, so
+/// the metrics see exactly the values the file contains.
+pub(crate) fn round_to_observed(synthetic: &mut [ColumnData], prepared: &[Prepared]) {
+    for (column, p) in synthetic.iter_mut().zip(prepared) {
         if let (ColumnData::Numeric(values), Some(d)) = (column, p.decimals) {
             for v in values.iter_mut().flatten() {
                 *v = format!("{v:.d$}").parse().unwrap_or(*v);
             }
         }
     }
+}
 
-    let rows: Vec<Vec<String>> = (0..rows_out)
+/// The synthetic columns as written text, row by row.
+pub(crate) fn format_rows(
+    synthetic: &[ColumnData],
+    prepared: &[Prepared],
+    rows_out: usize,
+) -> Vec<Vec<String>> {
+    (0..rows_out)
         .map(|r| {
             synthetic
                 .iter()
-                .zip(&prepared)
+                .zip(prepared)
                 .map(|(c, p)| match c {
                     ColumnData::Numeric(v) => {
                         v[r].map_or_else(String::new, |x| format_number(x, p.integer, p.decimals))
@@ -345,15 +368,37 @@ pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<Synthesi
                 })
                 .collect()
         })
-        .collect();
+        .collect()
+}
 
-    let mut warnings = Vec::new();
-    for d in &dropped {
-        warnings.push(format!(
-            "column \"{}\" not synthesized: {}",
-            d.column, d.reason
-        ));
-    }
+/// One warning per column that was not synthesized.
+pub(crate) fn dropped_warnings(dropped: &[DroppedColumn]) -> Vec<String> {
+    dropped
+        .iter()
+        .map(|d| format!("column \"{}\" not synthesized: {}", d.column, d.reason))
+        .collect()
+}
+
+/// Synthesizes a table shaped like `sample`. See the module docs for what is and is not kept.
+pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<SynthesisResult> {
+    let Preparation {
+        prepared,
+        dropped,
+        merged_report,
+        n,
+        rows_excluded,
+    } = prepare(sample, config)?;
+    let merged: Vec<ColumnData> = prepared.iter().map(|p| p.merged.clone()).collect();
+    let originals: Vec<ColumnData> = prepared.iter().map(|p| p.original.clone()).collect();
+    let integer_flags: Vec<bool> = prepared.iter().map(|p| p.integer).collect();
+    let names: Vec<String> = prepared.iter().map(|p| p.name.clone()).collect();
+
+    let copula = Copula::fit(&merged, &integer_flags);
+    let rows_out = config.rows.unwrap_or(n);
+    let mut synthetic = copula.sample(rows_out, &mut Rng::new(config.seed));
+    round_to_observed(&mut synthetic, &prepared);
+    let rows = format_rows(&synthetic, &prepared, rows_out);
+    let mut warnings = dropped_warnings(&dropped);
     if copula.shrinkage > 0.0 {
         warnings.push(format!("the correlation matrix was not positive definite and was shrunk toward the identity by {:.2}", copula.shrinkage));
     }
@@ -373,6 +418,7 @@ pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<Synthesi
         privacy_statement: PRIVACY_STATEMENT,
         limitations: limitations(),
         warnings,
+        network: None,
     };
     Ok(SynthesisResult {
         sample: Sample {

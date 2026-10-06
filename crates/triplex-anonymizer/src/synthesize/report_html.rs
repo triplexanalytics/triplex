@@ -69,6 +69,7 @@ pub fn render_html(r: &SynthesisReport) -> String {
 <h1>Synthesis report ({method}, seed {seed})</h1>
 <div class="notice">{privacy}</div>
 <p>{rows_in} real rows in, {rows_out} synthetic rows out. {n_cols} columns synthesized.</p>
+{network}
 <h2>Fidelity per column</h2>
 <table><thead><tr><th>Column</th><th>Kind</th><th>KS statistic</th><th>Total variation</th><th>Mean real / synthetic</th><th>Null rate real / synthetic</th></tr></thead><tbody>{columns}</tbody></table>
 <p>Numeric correlation: {pairs} pair(s) compared, max absolute error {max_err}, mean {mean_err}. <em>{corr_note}</em></p>
@@ -82,6 +83,7 @@ pub fn render_html(r: &SynthesisReport) -> String {
 </body>
 </html>
 "#,
+        network = super::bayesnet::network_html(r.network.as_ref()),
         method = r.method,
         seed = r.seed,
         privacy = esc(r.privacy_statement),

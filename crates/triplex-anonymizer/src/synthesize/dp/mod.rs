@@ -11,9 +11,9 @@
 //! attached on explicit request, under a warning that the report must then stay private.
 
 mod accountant;
-mod histogram;
+pub(crate) mod histogram;
 mod kendall;
-mod noise;
+pub(crate) mod noise;
 mod report_html;
 mod suggest;
 
@@ -111,6 +111,9 @@ pub struct DpReport {
     /// Present only when explicitly requested; see [`NonPrivateDiagnostics`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nonprivate_diagnostics: Option<NonPrivateDiagnostics>,
+    /// The dependency structure, for the Bayesian-network method (public: it is part of the output).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<super::bayesnet::NetworkReport>,
 }
 
 pub struct DpResult {
@@ -141,7 +144,7 @@ fn build_warnings(shrinkage: f64, numeric_columns: usize, columns: usize) -> Vec
     warnings
 }
 
-fn column_index(sample: &Sample, name: &str) -> Result<usize> {
+pub(crate) fn column_index(sample: &Sample, name: &str) -> Result<usize> {
     sample
         .headers
         .iter()
@@ -149,7 +152,7 @@ fn column_index(sample: &Sample, name: &str) -> Result<usize> {
         .ok_or_else(|| Error::ColumnNotFound(name.to_string()))
 }
 
-fn cell(sample: &Sample, row: usize, column: usize) -> Option<&str> {
+pub(crate) fn cell(sample: &Sample, row: usize, column: usize) -> Option<&str> {
     sample.rows[row].get(column).map(String::as_str)
 }
 
@@ -223,26 +226,32 @@ impl Sampler {
         } else {
             0.5
         };
-        Some(match &self.domain {
-            Domain::Numeric {
-                min,
-                max,
-                integer,
-                bins,
-            } => {
-                let bin_width = (max - min) / *bins as f64;
-                let value = (min + (k as f64 + fraction) * bin_width).clamp(*min, *max);
-                if *integer {
-                    format!("{}", value.round() as i64)
-                } else {
-                    format!("{}", (value * 1e6).round() / 1e6)
-                }
+        Some(cell_value(&self.domain, k, fraction))
+    }
+}
+
+/// The value written for value-cell `k` of `domain`: a numeric bin becomes the point `fraction`
+/// of the way through it, a category its label (`(other)` past the declared list).
+pub(crate) fn cell_value(domain: &Domain, k: usize, fraction: f64) -> String {
+    match domain {
+        Domain::Numeric {
+            min,
+            max,
+            integer,
+            bins,
+        } => {
+            let bin_width = (max - min) / *bins as f64;
+            let value = (min + (k as f64 + fraction) * bin_width).clamp(*min, *max);
+            if *integer {
+                format!("{}", value.round() as i64)
+            } else {
+                format!("{}", (value * 1e6).round() / 1e6)
             }
-            Domain::Categorical { values } => values
-                .get(k)
-                .cloned()
-                .unwrap_or_else(|| OTHER_CATEGORY.to_string()),
-        })
+        }
+        Domain::Categorical { values } => values
+            .get(k)
+            .cloned()
+            .unwrap_or_else(|| OTHER_CATEGORY.to_string()),
     }
 }
 
@@ -423,6 +432,7 @@ pub fn synthesize_dp(
         limitations: limitations(),
         warnings,
         nonprivate_diagnostics: None,
+        network: None,
     };
     Ok(DpResult {
         sample: Sample {

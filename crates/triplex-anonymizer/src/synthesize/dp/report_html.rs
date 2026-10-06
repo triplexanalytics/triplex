@@ -87,6 +87,7 @@ pub fn render_html(r: &DpReport) -> String {
 <h1>DP synthesis report ({method})</h1>
 <div class="guarantee"><strong>{guarantee}: epsilon = {eps}</strong> (delta = {delta}). Neighbor relation: {neighbor}. Row count public: {rows_public}. Column list and bounds public: {bounds_public}.<br>{statement}</div>
 <p>{rows_in} rows in, {rows_out} rows out; columns: {columns}. Budget spent: {spent:.6} of {eps}. Sampling seed {seed} (sampling only; the noise never uses it).</p>
+{network}
 <h2>Mechanisms</h2>
 <ul><li>Marginals: {marginal}</li><li>Correlation: {correlation}</li><li>Noise source: {source}</li><li>{rounding}</li></ul>
 <h2>Budget ledger</h2>
@@ -97,6 +98,7 @@ pub fn render_html(r: &DpReport) -> String {
 </body>
 </html>
 "#,
+        network = super::super::bayesnet::network_html(r.network.as_ref()),
         method = r.method,
         guarantee = esc(p.guarantee),
         eps = p.epsilon_total,

@@ -100,10 +100,23 @@ fn discrete_laplace_ratio(source: &mut dyn NoiseSource, t: u64, s: u64) -> i64 {
 /// `floor(epsilon * 1e6) / 1e6`, never more than the requested budget.
 pub const EPSILON_RESOLUTION: u64 = 1_000_000;
 
+/// `epsilon` in units of `1 / EPSILON_RESOLUTION`, rounded down. Float multiplication can round a
+/// product up across an integer, so the result is checked against `epsilon` itself and lowered by
+/// one unit if it came out above it: the calibrated epsilon is never larger than the request.
+fn resolution_units(epsilon: f64) -> u64 {
+    let units = (epsilon * EPSILON_RESOLUTION as f64).floor() as u64;
+    if units as f64 / EPSILON_RESOLUTION as f64 > epsilon {
+        units.saturating_sub(1)
+    } else {
+        units
+    }
+}
+
 /// The epsilon the noise is actually calibrated to for a requested `epsilon`: rounded down to
-/// [`EPSILON_RESOLUTION`], so the noise is at least as large as the request implies.
+/// [`EPSILON_RESOLUTION`], so the noise is at least as large as the request implies (and never
+/// calibrated to more than `epsilon`, even by a float rounding error).
 pub fn effective_epsilon(epsilon: f64) -> f64 {
-    (epsilon * EPSILON_RESOLUTION as f64).floor() / EPSILON_RESOLUTION as f64
+    resolution_units(epsilon) as f64 / EPSILON_RESOLUTION as f64
 }
 
 /// Adds discrete-Laplace noise calibrated for a query with integer L1 `sensitivity` under
@@ -119,7 +132,7 @@ pub fn add_noise(
             "epsilon must be a positive number and the sensitivity at least 1".into(),
         ));
     }
-    let s = (epsilon * EPSILON_RESOLUTION as f64).floor() as u64;
+    let s = resolution_units(epsilon);
     if s == 0 {
         return Err(Error::Validation(format!(
             "epsilon {epsilon} is below the resolution {:e} of the noise sampler",
@@ -135,6 +148,18 @@ pub fn add_noise(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_effective_epsilon_never_exceeds_the_request() {
+        // 1.4 / 5 sits one ulp below 0.28, and its product with 1e6 rounds up to exactly 280000.
+        let requested = (2.0 - 2.0 * 0.3) / 5.0;
+        assert!(effective_epsilon(requested) <= requested);
+        for i in 1..20_000u32 {
+            let e = f64::from(i) / 7.0 / 1000.0;
+            assert!(effective_epsilon(e) <= e, "{e}");
+            assert!(effective_epsilon(e) > e - 2e-6, "{e}");
+        }
+    }
 
     fn source(seed: u64) -> InsecureSeededNoise {
         InsecureSeededNoise::new(seed)

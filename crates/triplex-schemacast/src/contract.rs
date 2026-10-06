@@ -168,6 +168,18 @@ pub struct DeclaredSynthesize {
     pub marginal_share: Option<f64>,
     #[serde(default)]
     pub bins: Option<usize>,
+    /// `gaussian_copula` (the default) or `bayesian_network`.
+    #[serde(default)]
+    pub method: Option<String>,
+    /// For `bayesian_network`: `chow_liu` (the default) or `k_parent`.
+    #[serde(default)]
+    pub structure: Option<String>,
+    /// For `k_parent`: parents per column (1 to 3).
+    #[serde(default)]
+    pub max_parents: Option<usize>,
+    /// For `bayesian_network`: share of epsilon spent choosing the structure.
+    #[serde(default)]
+    pub structure_share: Option<f64>,
     #[serde(default)]
     pub columns: Vec<DeclaredSynthesizeColumn>,
 }

@@ -120,3 +120,74 @@ fn suggestions_come_from_the_parsed_bytes_and_flag_the_identifier_column() {
         "the unique note column"
     );
 }
+
+// ---- Bayesian network byte APIs
+
+#[test]
+fn bayes_bytes_round_trips_through_csv_and_reports_the_network() {
+    use triplex_anonymizer::synthesize::bayesnet::{synthesize_bayes_bytes, BayesConfig};
+    let mut csv = String::from("plan,region\n");
+    for i in 0..300 {
+        let (plan, region) = if i % 2 == 0 {
+            ("free", "north")
+        } else {
+            ("pro", "south")
+        };
+        csv.push_str(&format!("{plan},{region}\n"));
+    }
+    let (out, report) =
+        synthesize_bayes_bytes(csv.as_bytes(), "csv", &BayesConfig::default()).unwrap();
+    let text = String::from_utf8(out).unwrap();
+    assert_eq!(text.lines().count(), 301);
+    assert!(text.starts_with("plan,region\n"));
+    assert_eq!(report.network.unwrap().nodes.len(), 2);
+}
+
+#[test]
+fn bayes_dp_bytes_with_and_without_diagnostics() {
+    use triplex_anonymizer::synthesize::bayesnet::dp::{
+        synthesize_bayes_dp_bytes, BayesDpConfig, DEFAULT_STRUCTURE_SHARE,
+    };
+    use triplex_anonymizer::synthesize::bayesnet::StructureKind;
+    use triplex_anonymizer::synthesize::dp::{Domain, DpColumn, DpConfig, InsecureSeededNoise};
+    let mut csv = String::from("plan,region\n");
+    for i in 0..400 {
+        let (plan, region) = if i % 2 == 0 {
+            ("free", "north")
+        } else {
+            ("pro", "south")
+        };
+        csv.push_str(&format!("{plan},{region}\n"));
+    }
+    let cat = |name: &str, values: &[&str]| DpColumn {
+        name: name.into(),
+        domain: Domain::Categorical {
+            values: values.iter().map(|v| v.to_string()).collect(),
+        },
+    };
+    let config = BayesDpConfig {
+        dp: DpConfig {
+            epsilon: 20.0,
+            marginal_share: 0.5,
+            columns: vec![
+                cat("plan", &["free", "pro"]),
+                cat("region", &["north", "south"]),
+            ],
+            rows: None,
+            sampling_seed: 1,
+            exclude_rows: Default::default(),
+        },
+        structure: StructureKind::ChowLiu,
+        max_parents: 1,
+        structure_share: DEFAULT_STRUCTURE_SHARE,
+    };
+    let mut noise = InsecureSeededNoise::new(1);
+    let (out, report) =
+        synthesize_bayes_dp_bytes(csv.as_bytes(), "csv", &config, false, &mut noise).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap().lines().count(), 401);
+    assert!(report.nonprivate_diagnostics.is_none());
+    let mut noise = InsecureSeededNoise::new(1);
+    let (_, with) =
+        synthesize_bayes_dp_bytes(csv.as_bytes(), "csv", &config, true, &mut noise).unwrap();
+    assert!(with.nonprivate_diagnostics.is_some());
+}

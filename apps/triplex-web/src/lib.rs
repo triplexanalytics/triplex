@@ -200,6 +200,58 @@ pub fn synthesize(
     })
 }
 
+/// Tier 2 synthesis with a discrete Bayesian network, no privacy guarantee:
+/// keeps categorical dependencies the copula loses. `structure` is `"chow_liu"` (a tree) or
+/// `"k_parent"` (up to `max_parents`, 1 to 3, parents per column); `bins` is the number of
+/// equal-width bins per numeric column. The other arguments are as for [`synthesize`].
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn synthesize_bayes(
+    bytes: &[u8],
+    extension: &str,
+    seed: u32,
+    rows: u32,
+    min_category_count: u32,
+    excluded_row_indices: &[u32],
+    excluded_columns_json: &str,
+    structure: &str,
+    max_parents: u32,
+    bins: u32,
+) -> Result<SynthesizeOutput, JsValue> {
+    use triplex_anonymizer::synthesize::bayesnet::{BayesConfig, StructureKind};
+    let structure = match structure {
+        "chow_liu" => StructureKind::ChowLiu,
+        "k_parent" => StructureKind::KParent,
+        other => {
+            return Err(to_js_err(format!(
+                "structure must be \"chow_liu\" or \"k_parent\", got \"{other}\""
+            )))
+        }
+    };
+    let exclude_columns: Vec<String> =
+        serde_json::from_str(excluded_columns_json).map_err(to_js_err)?;
+    let config = BayesConfig {
+        base: triplex_anonymizer::synthesize::SynthesizeConfig {
+            rows: (rows > 0).then_some(rows as usize),
+            seed: u64::from(seed),
+            min_category_count: min_category_count as usize,
+            exclude_columns,
+            exclude_rows: excluded_row_indices.iter().map(|&i| i as usize).collect(),
+        },
+        structure,
+        max_parents: max_parents as usize,
+        bins: bins as usize,
+    };
+    let (synthetic_csv, report) =
+        triplex_anonymizer::synthesize::bayesnet::synthesize_bayes_bytes(bytes, extension, &config)
+            .map_err(to_js_err)?;
+    let report_json = serde_json::to_string(&report).map_err(to_js_err)?;
+    Ok(SynthesizeOutput {
+        synthetic_csv,
+        report_json,
+    })
+}
+
 /// Tier 2 synthesis with epsilon-differential privacy. `config_json` is the
 /// JSON form of a `.triplex.yaml` `synthesize:` block: a required `epsilon` (no default) and each
 /// column's PUBLIC domain (`min`/`max` or category `values`). `seed` only seeds the sampling step;
@@ -218,21 +270,45 @@ pub fn synthesize_dp(
 ) -> Result<SynthesizeOutput, JsValue> {
     let declared: triplex_schemacast::DeclaredSynthesize =
         serde_json::from_str(config_json).map_err(to_js_err)?;
-    let mut config = triplex_anonymizer::synthesize::dp::config_from_declared(
-        &declared,
-        (rows > 0).then_some(rows as usize),
-        u64::from(seed),
-    )
-    .map_err(to_js_err)?;
-    config.exclude_rows = excluded_row_indices.iter().map(|&i| i as usize).collect();
-    let (synthetic_csv, report) = triplex_anonymizer::synthesize::dp::synthesize_dp_bytes(
-        bytes,
-        extension,
-        &config,
-        with_diagnostics,
-        &mut triplex_anonymizer::synthesize::dp::OsNoise,
-    )
-    .map_err(to_js_err)?;
+    let rows = (rows > 0).then_some(rows as usize);
+    let exclude_rows: std::collections::HashSet<usize> =
+        excluded_row_indices.iter().map(|&i| i as usize).collect();
+    let (synthetic_csv, report) =
+        if triplex_anonymizer::synthesize::bayesnet::dp::is_bayes(&declared) {
+            // `method: bayesian_network`, with `structure`, `max_parents` and
+            // `structure_share`; the same budget and public domains as the copula.
+            let mut config = triplex_anonymizer::synthesize::bayesnet::dp::config_from_declared(
+                &declared,
+                rows,
+                u64::from(seed),
+            )
+            .map_err(to_js_err)?;
+            config.dp.exclude_rows = exclude_rows;
+            triplex_anonymizer::synthesize::bayesnet::dp::synthesize_bayes_dp_bytes(
+                bytes,
+                extension,
+                &config,
+                with_diagnostics,
+                &mut triplex_anonymizer::synthesize::dp::OsNoise,
+            )
+            .map_err(to_js_err)?
+        } else {
+            let mut config = triplex_anonymizer::synthesize::dp::config_from_declared(
+                &declared,
+                rows,
+                u64::from(seed),
+            )
+            .map_err(to_js_err)?;
+            config.exclude_rows = exclude_rows;
+            triplex_anonymizer::synthesize::dp::synthesize_dp_bytes(
+                bytes,
+                extension,
+                &config,
+                with_diagnostics,
+                &mut triplex_anonymizer::synthesize::dp::OsNoise,
+            )
+            .map_err(to_js_err)?
+        };
     let report_json = serde_json::to_string(&report).map_err(to_js_err)?;
     Ok(SynthesizeOutput {
         synthetic_csv,

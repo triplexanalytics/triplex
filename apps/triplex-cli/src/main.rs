@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n  triplex modelcard --config <path.triplex.yaml> --input <path> --out-dir <dir>\n  triplex synthesize --input <path> --output <path.csv> --report-dir <dir> [--rows <n>] [--seed <n>] [--min-category-count <n>] [--config <path.triplex.yaml> [--with-nonprivate-diagnostics]]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.\ntriplex modelcard reads the `modelcard:` block of --config (target_column, prediction_column, optional score_column, slice_by, protected_attribute, thresholds), evaluates every row of --input, writes model_card.json, report.html and reproduce.py into --out-dir, and exits 0 (pass), 1 (warning: a suppressed or undefined slice) or 2 (a fairness threshold breach). The card is a documentation aid, not a compliance claim.\ntriplex synthesize fits a Gaussian copula to --input (.csv or .parquet) and writes a synthetic CSV to --output, plus synthesis_report.json, report.html, reproduce.py and drift_check.json (a DriftGuard diff of the synthetic file against the original, on the synthesized columns) into --report-dir. Identifier-like columns are dropped, not synthesized. The output carries NO formal privacy guarantee; the report measures fidelity and leakage but certifies nothing.\ntriplex synthesize --config switches to differentially private mode: the `synthesize:` block of the config declares a required `epsilon` (no default) and each column's public bounds or category values; the fitted parameters are epsilon-DP for replacing one record with the row count public, using operating-system randomness for the noise (--seed only seeds sampling). It writes dp_report.json and report.html. The report holds no real-data figures unless --with-nonprivate-diagnostics is given, which adds them (and drift_check.json) under a warning that they are outside the guarantee.";
+const USAGE: &str = "usage:\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n  triplex modelcard --config <path.triplex.yaml> --input <path> --out-dir <dir>\n  triplex synthesize --input <path> --output <path.csv> --report-dir <dir> [--rows <n>] [--seed <n>] [--min-category-count <n>] [--method copula|bayes-net [--structure chow-liu|k-parent] [--parents <1-3>] [--bins <n>]] [--config <path.triplex.yaml> [--with-nonprivate-diagnostics]]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.\ntriplex modelcard reads the `modelcard:` block of --config (target_column, prediction_column, optional score_column, slice_by, protected_attribute, thresholds), evaluates every row of --input, writes model_card.json, report.html and reproduce.py into --out-dir, and exits 0 (pass), 1 (warning: a suppressed or undefined slice) or 2 (a fairness threshold breach). The card is a documentation aid, not a compliance claim.\ntriplex synthesize fits a Gaussian copula to --input (.csv or .parquet), or with --method bayes-net a Bayesian network (a Chow-Liu tree, or up to --parents parents per column) that also keeps categorical dependencies, and and writes a synthetic CSV to --output, plus synthesis_report.json, report.html, reproduce.py and drift_check.json (a DriftGuard diff of the synthetic file against the original, on the synthesized columns) into --report-dir. Identifier-like columns are dropped, not synthesized. The output carries NO formal privacy guarantee; the report measures fidelity and leakage but certifies nothing.\ntriplex synthesize --config switches to differentially private mode: the `synthesize:` block of the config declares a required `epsilon` (no default) and each column's public bounds or category values; the fitted parameters are epsilon-DP for replacing one record with the row count public, using operating-system randomness for the noise (--seed only seeds sampling). With `method: bayesian_network` in the block (optional `structure: chow_liu|k_parent`, `max_parents`, `structure_share`) the DP model is a Bayesian network: the dependency structure is chosen by report-noisy-max and the conditional tables are noisy counts, both inside the same epsilon. It writes dp_report.json and report.html. The report holds no real-data figures unless --with-nonprivate-diagnostics is given, which adds them (and drift_check.json) under a warning that they are outside the guarantee.";
 
 /// Exit codes per the design notes: 0 success, 1
 /// non-blocking warning (`driftguard` statistical drift with no schema
@@ -167,26 +167,46 @@ fn run_synthesize_dp(
     let Some(declared) = contract.synthesize.as_ref() else {
         return fail(&"the config has no `synthesize:` block");
     };
-    let config =
-        match triplex_anonymizer::synthesize::dp::config_from_declared(declared, rows, seed) {
-            Ok(c) => c,
-            Err(e) => return fail(&e),
-        };
+    let bayes = triplex_anonymizer::synthesize::bayesnet::dp::is_bayes(declared);
     if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
         if let Err(e) = std::fs::create_dir_all(parent) {
             return fail(&format!("could not create {parent:?}: {e}"));
         }
     }
     let with_diagnostics = args.iter().any(|a| a == "--with-nonprivate-diagnostics");
-    let report = match triplex_anonymizer::synthesize::dp::synthesize_dp_file(
-        input,
-        output,
-        &config,
-        with_diagnostics,
-        &mut triplex_anonymizer::synthesize::dp::OsNoise,
-    ) {
-        Ok(r) => r,
-        Err(e) => return fail(&e),
+    let report = if bayes {
+        let config = match triplex_anonymizer::synthesize::bayesnet::dp::config_from_declared(
+            declared, rows, seed,
+        ) {
+            Ok(c) => c,
+            Err(e) => return fail(&e),
+        };
+        match triplex_anonymizer::synthesize::bayesnet::dp::synthesize_bayes_dp_file(
+            input,
+            output,
+            &config,
+            with_diagnostics,
+            &mut triplex_anonymizer::synthesize::dp::OsNoise,
+        ) {
+            Ok(r) => r,
+            Err(e) => return fail(&e),
+        }
+    } else {
+        let config =
+            match triplex_anonymizer::synthesize::dp::config_from_declared(declared, rows, seed) {
+                Ok(c) => c,
+                Err(e) => return fail(&e),
+            };
+        match triplex_anonymizer::synthesize::dp::synthesize_dp_file(
+            input,
+            output,
+            &config,
+            with_diagnostics,
+            &mut triplex_anonymizer::synthesize::dp::OsNoise,
+        ) {
+            Ok(r) => r,
+            Err(e) => return fail(&e),
+        }
     };
     if let Err(e) = std::fs::create_dir_all(report_dir) {
         return fail(&format!(
@@ -235,6 +255,59 @@ fn run_synthesize_dp(
     );
     println!("{report_json}");
     ExitCode::SUCCESS
+}
+
+/// `--method bayes-net [--structure chow-tree|k-parent] [--parents n] [--bins n]` for the
+/// non-private synthesizer; `None` keeps the Gaussian copula.
+fn bayes_config_from_flags(
+    args: &[String],
+    base: &triplex_anonymizer::synthesize::SynthesizeConfig,
+) -> std::result::Result<Option<triplex_anonymizer::synthesize::bayesnet::BayesConfig>, ExitCode> {
+    use triplex_anonymizer::synthesize::bayesnet::{BayesConfig, StructureKind};
+    let bad = |message: String| {
+        eprintln!("error: {message}");
+        ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+    };
+    match flag_value(args, "--method").as_deref() {
+        None | Some("copula") => {
+            for flag in ["--structure", "--parents", "--bins"] {
+                if flag_value(args, flag).is_some() {
+                    return Err(bad(format!("{flag} only applies to --method bayes-net")));
+                }
+            }
+            return Ok(None);
+        }
+        Some("bayes-net") => {}
+        Some(other) => {
+            return Err(bad(format!(
+                "--method expects copula or bayes-net, got {other:?}"
+            )))
+        }
+    }
+    let mut config = BayesConfig {
+        base: base.clone(),
+        ..BayesConfig::default()
+    };
+    config.structure = match flag_value(args, "--structure").as_deref() {
+        None | Some("chow-liu") => StructureKind::ChowLiu,
+        Some("k-parent") => StructureKind::KParent,
+        Some(other) => {
+            return Err(bad(format!(
+                "--structure expects chow-liu or k-parent, got {other:?}"
+            )))
+        }
+    };
+    for (flag, target) in [
+        ("--parents", &mut config.max_parents),
+        ("--bins", &mut config.bins),
+    ] {
+        if let Some(v) = flag_value(args, flag) {
+            *target = v
+                .parse::<usize>()
+                .map_err(|_| bad(format!("{flag} expects a whole number, got {v:?}")))?;
+        }
+    }
+    Ok(Some(config))
 }
 
 fn main() -> ExitCode {
@@ -484,6 +557,10 @@ fn main() -> ExitCode {
                 PathBuf::from(output),
                 PathBuf::from(report_dir),
             );
+            let bayes_config = match bayes_config_from_flags(&args, &config) {
+                Ok(c) => c,
+                Err(code) => return code,
+            };
             if let Some(config_path) = flag_value(&args, "--config") {
                 return run_synthesize_dp(
                     &args,
@@ -501,14 +578,19 @@ fn main() -> ExitCode {
                     return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
                 }
             }
-            let report =
-                match triplex_anonymizer::synthesize::synthesize_file(&input, &output, &config) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        eprintln!("error: {e}");
-                        return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
-                    }
-                };
+            let result = match &bayes_config {
+                Some(bayes) => triplex_anonymizer::synthesize::bayesnet::synthesize_bayes_file(
+                    &input, &output, bayes,
+                ),
+                None => triplex_anonymizer::synthesize::synthesize_file(&input, &output, &config),
+            };
+            let report = match result {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                }
+            };
             // DriftGuard diff of the synthetic file against the original, restricted to the
             // columns that were synthesized (dropped identifiers would read as removed columns).
             let infer =
@@ -533,25 +615,28 @@ fn main() -> ExitCode {
                 return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
             }
             let report_json = serde_json::to_string_pretty(&report).unwrap();
-            let files = [
+            let mut files = vec![
                 ("synthesis_report.json", report_json.clone()),
                 (
                     "report.html",
                     triplex_anonymizer::synthesize::render_html(&report),
                 ),
                 (
+                    "drift_check.json",
+                    serde_json::to_string_pretty(&drift).unwrap(),
+                ),
+            ];
+            // reproduce.py re-runs the Gaussian copula; the network has no script yet.
+            if bayes_config.is_none() {
+                files.push((
                     "reproduce.py",
                     triplex_anonymizer::synthesize::render_python_script(
                         &input.to_string_lossy(),
                         &output.to_string_lossy(),
                         config.min_category_count,
                     ),
-                ),
-                (
-                    "drift_check.json",
-                    serde_json::to_string_pretty(&drift).unwrap(),
-                ),
-            ];
+                ));
+            }
             for (name, contents) in files {
                 if let Err(e) = std::fs::write(report_dir.join(name), contents) {
                     eprintln!("error: could not write {name} into {report_dir:?}: {e}");
