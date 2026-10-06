@@ -27,6 +27,20 @@ self.onmessage = async (event) => {
         JSON.stringify(payload.excludedColumns ?? []),
       );
       result = { synthetic_csv: output.synthetic_csv, report_json: output.report_json };
+    } else if (type === "synthesizeBayes") {
+      const output = wasm.synthesize_bayes(
+        payload.bytes,
+        payload.extension,
+        payload.seed,
+        payload.rows,
+        payload.minCategoryCount,
+        payload.excludedRowIndices ?? [],
+        JSON.stringify(payload.excludedColumns ?? []),
+        payload.structure,
+        payload.maxParents,
+        payload.bins,
+      );
+      result = { synthetic_csv: output.synthetic_csv, report_json: output.report_json };
     } else if (type === "synthesizeDp") {
       const output = wasm.synthesize_dp(
         payload.bytes,

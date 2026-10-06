@@ -1,3 +1,12 @@
+const METHOD_LABEL = {
+  gaussian_copula: "Gaussian copula",
+  gaussian_copula_dp: "Gaussian copula, differentially private",
+  bayesian_network_chow_liu: "Bayesian network, tree",
+  bayesian_network_k_parent: "Bayesian network, several parents",
+  bayesian_network_chow_liu_dp: "Bayesian network, tree, differentially private",
+  bayesian_network_k_parent_dp: "Bayesian network, several parents, differentially private",
+};
+
 const pct = (x) => (x == null ? "n/a" : `${(x * 100).toFixed(1)}%`);
 const num = (x, digits = 4) => (x == null ? "n/a" : Number(x).toFixed(digits));
 
@@ -12,6 +21,42 @@ function Notes({ title, items }) {
         ))}
       </ul>
     </details>
+  );
+}
+
+/** Which column each column was modelled on. Only the Bayesian-network methods report one. */
+function NetworkSection({ network, isDp }) {
+  if (!network) return null;
+  return (
+    <>
+      <h4>Dependency structure</h4>
+      <p className="synth-hint">
+        Each column was generated given the columns listed next to it, parents first.
+        {isDp
+          ? " The structure was chosen with the privacy budget, so it can be a noisy estimate."
+          : ""}
+      </p>
+      <table className="synth-table">
+        <thead>
+          <tr>
+            <th>Column</th>
+            <th>Depends on</th>
+            <th title="Cells in this column's table: its own values times the parent combinations">
+              Table cells
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {network.nodes.map((n) => (
+            <tr key={n.column}>
+              <td>{n.column}</td>
+              <td>{n.parents.length === 0 ? "nothing (starting column)" : n.parents.join(", ")}</td>
+              <td>{n.table_cells.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 
@@ -73,6 +118,7 @@ function StandardResult({ report }) {
       <div className="banner banner-warning" role="note">
         {report.privacy_statement}
       </div>
+      <NetworkSection network={report.network} isDp={false} />
       {report.columns_dropped.length > 0 && (
         <>
           <h4>Not synthesized</h4>
@@ -143,6 +189,7 @@ function DpResult({ report, diagnosticsIncluded }) {
           ))}
         </tbody>
       </table>
+      <NetworkSection network={report.network} isDp />
       <Notes title="Warnings" items={report.warnings} />
       <Notes title="Limitations" items={report.limitations} />
       {diagnostics && (
@@ -172,8 +219,8 @@ export default function SynthesisReport({ result }) {
   return (
     <section className="synth-result" aria-label="Synthesis report">
       <p className="synth-hint">
-        {report.rows_out.toLocaleString()} synthetic rows from {report.rows_in.toLocaleString()}{" "}
-        original rows
+        {METHOD_LABEL[report.method] ?? report.method}: {report.rows_out.toLocaleString()} synthetic
+        rows from {report.rows_in.toLocaleString()} original rows
         {report.rows_excluded > 0 ? ` (${report.rows_excluded} removed rows not used)` : ""}
       </p>
       {mode === "dp" ? (

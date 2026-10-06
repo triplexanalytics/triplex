@@ -1,17 +1,27 @@
 import { useCallback, useMemo, useState } from "react";
 import { downloadBlob } from "../utils";
 import { profileFile } from "../state/profileClient";
-import { runSynthesize, runSynthesizeDp, suggestDomains } from "../state/synthesisClient";
+import {
+  runSynthesize,
+  runSynthesizeBayes,
+  runSynthesizeDp,
+  suggestDomains,
+} from "../state/synthesisClient";
 import {
   DEFAULT_BINS,
   DEFAULT_MARGINAL_SHARE,
   DEFAULT_MIN_CATEGORY_COUNT,
+  DEFAULT_MAX_PARENTS,
+  DEFAULT_METHOD,
+  DEFAULT_STRUCTURE,
+  DEFAULT_STRUCTURE_SHARE,
   DP_DIAGNOSTICS_DEFAULT,
   applySuggestions,
   blankColumns,
   buildDpConfig,
   rowsInUse,
   updateColumn,
+  validateBayes,
   validateCommon,
   validateDp,
 } from "../state/synthesisConfig";
@@ -41,6 +51,12 @@ export function useSynthesize({
   const [epsilon, setEpsilon] = useState("");
   const [marginalShare, setMarginalShare] = useState(String(DEFAULT_MARGINAL_SHARE));
   const [bins, setBins] = useState(String(DEFAULT_BINS));
+  // Which model: the Gaussian copula ("copula") or a Bayesian network ("bayesnet"), whose
+  // structure is a tree ("chow_liu") or up to `maxParents` parents per column ("k_parent").
+  const [method, setMethod] = useState(DEFAULT_METHOD);
+  const [structure, setStructure] = useState(DEFAULT_STRUCTURE);
+  const [maxParents, setMaxParents] = useState(String(DEFAULT_MAX_PARENTS));
+  const [structureShare, setStructureShare] = useState(String(DEFAULT_STRUCTURE_SHARE));
   const [columnEdits, setColumnEdits] = useState(null);
   const [confirmedPublic, setConfirmedPublic] = useState(false);
   const [includeDiagnostics, setIncludeDiagnostics] = useState(DP_DIAGNOSTICS_DEFAULT);
@@ -57,11 +73,40 @@ export function useSynthesize({
 
   const validation = useMemo(() => {
     const common = validateCommon({ seed, rows: rowsOut });
-    if (mode !== "dp") return { ok: common.length === 0, errors: common };
-    const dp = validateDp({ epsilon, marginalShare, bins, columns, confirmedPublic, rowCount });
+    if (mode !== "dp") {
+      const network = method === "bayesnet" ? validateBayes({ structure, maxParents, bins }) : [];
+      const errors = [...common, ...network];
+      return { ok: errors.length === 0, errors };
+    }
+    const dp = validateDp({
+      epsilon,
+      marginalShare,
+      bins,
+      columns,
+      confirmedPublic,
+      rowCount,
+      method,
+      structure,
+      maxParents,
+      structureShare,
+    });
     const errors = [...common, ...dp.errors];
     return { ok: errors.length === 0, errors };
-  }, [mode, seed, rowsOut, epsilon, marginalShare, bins, columns, confirmedPublic, rowCount]);
+  }, [
+    mode,
+    seed,
+    rowsOut,
+    epsilon,
+    marginalShare,
+    bins,
+    columns,
+    confirmedPublic,
+    rowCount,
+    method,
+    structure,
+    maxParents,
+    structureShare,
+  ]);
 
   const editColumn = useCallback(
     (name, patch) => {
@@ -111,14 +156,32 @@ export function useSynthesize({
         mode === "dp"
           ? await runSynthesizeDp({
               ...common,
-              config: buildDpConfig({ epsilon, marginalShare, bins, columns }),
+              config: buildDpConfig({
+                epsilon,
+                marginalShare,
+                bins,
+                columns,
+                method,
+                structure,
+                maxParents,
+                structureShare,
+              }),
               withDiagnostics: includeDiagnostics,
             })
-          : await runSynthesize({
-              ...common,
-              minCategoryCount: Number(minCategoryCount),
-              excludedColumns: [...(removedColumns ?? [])],
-            });
+          : method === "bayesnet"
+            ? await runSynthesizeBayes({
+                ...common,
+                minCategoryCount: Number(minCategoryCount),
+                excludedColumns: [...(removedColumns ?? [])],
+                structure,
+                maxParents: Number(maxParents) || DEFAULT_MAX_PARENTS,
+                bins: Number(bins),
+              })
+            : await runSynthesize({
+                ...common,
+                minCategoryCount: Number(minCategoryCount),
+                excludedColumns: [...(removedColumns ?? [])],
+              });
       // The synthetic table goes through the same profiling path as an uploaded file, so the
       // Table and the side panel can show it like any other dataset.
       const { sample, profile } = await profileFile(output.synthetic_csv, "csv");
@@ -153,6 +216,10 @@ export function useSynthesize({
     columns,
     includeDiagnostics,
     minCategoryCount,
+    method,
+    structure,
+    maxParents,
+    structureShare,
   ]);
 
   const downloadCsv = useCallback(() => {
@@ -189,6 +256,14 @@ export function useSynthesize({
     setMarginalShare,
     bins,
     setBins,
+    method,
+    setMethod,
+    structure,
+    setStructure,
+    maxParents,
+    setMaxParents,
+    structureShare,
+    setStructureShare,
     columns,
     editColumn,
     confirmedPublic,

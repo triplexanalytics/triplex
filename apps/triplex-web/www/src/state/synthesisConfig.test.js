@@ -9,6 +9,7 @@ import {
   parseValueList,
   rowsInUse,
   updateColumn,
+  validateBayes,
   validateCommon,
   validateDp,
 } from "./synthesisConfig";
@@ -300,5 +301,86 @@ describe("validateCommon", () => {
         rows,
       ).toBe(true);
     }
+  });
+});
+
+describe("Bayesian network", () => {
+  const network = (over = {}) =>
+    valid({ method: "bayesnet", structure: "chow_liu", structureShare: "0.3", ...over });
+
+  it("accepts a complete network configuration and still needs an epsilon", () => {
+    expect(validateDp(network())).toEqual({ ok: true, errors: [] });
+    expect(validateDp(network({ epsilon: "" })).errors.some((e) => e.field === "epsilon")).toBe(
+      true,
+    );
+  });
+
+  it("does not apply the copula's marginal share or its row cap", () => {
+    // The marginal share is meaningless for the network, and the cap comes from Kendall's tau.
+    const r = validateDp(
+      network({
+        marginalShare: "abc",
+        rowCount: MAX_DP_ROWS_WITH_CORRELATION + 1,
+        columns: updateColumn(
+          updateColumn(blankColumns(["a", "b"]), "a", { include: true, min: "0", max: "1" }),
+          "b",
+          { include: true, min: "0", max: "1" },
+        ),
+      }),
+    );
+    expect(r).toEqual({ ok: true, errors: [] });
+    // ...while the copula still enforces both
+    expect(validateDp(valid({ marginalShare: "abc" })).ok).toBe(false);
+  });
+
+  it("requires the structure share to be strictly between 0 and 1", () => {
+    for (const structureShare of ["", "0", "1", "1.5", "x"]) {
+      const r = validateDp(network({ structureShare }));
+      expect(
+        r.errors.some((e) => e.field === "structureShare"),
+        structureShare,
+      ).toBe(true);
+    }
+  });
+
+  it("checks parents per column only for the k-parent structure", () => {
+    for (const maxParents of ["", "0", "4", "1.5", "x"]) {
+      const r = validateDp(network({ structure: "k_parent", maxParents }));
+      expect(
+        r.errors.some((e) => e.field === "maxParents"),
+        maxParents,
+      ).toBe(true);
+    }
+    expect(validateDp(network({ structure: "k_parent", maxParents: "3" })).ok).toBe(true);
+    expect(validateDp(network({ structure: "chow_liu", maxParents: "junk" })).ok).toBe(true);
+  });
+
+  it("builds the config JSON for each model", () => {
+    const copula = buildDpConfig(valid());
+    expect(copula.marginal_share).toBe(0.5);
+    expect(copula).not.toHaveProperty("method");
+
+    const tree = buildDpConfig(network());
+    expect(tree).toMatchObject({
+      epsilon: 1,
+      method: "bayesian_network",
+      structure: "chow_liu",
+      structure_share: 0.3,
+    });
+    expect(tree).not.toHaveProperty("marginal_share");
+    expect(tree).not.toHaveProperty("max_parents");
+
+    const kParent = buildDpConfig(network({ structure: "k_parent", maxParents: "3" }));
+    expect(kParent).toMatchObject({ structure: "k_parent", max_parents: 3 });
+  });
+
+  it("validates the non-private network's shape and bins", () => {
+    expect(validateBayes({ structure: "chow_liu", maxParents: "x", bins: "32" })).toEqual([]);
+    expect(validateBayes({ structure: "k_parent", maxParents: "5", bins: "32" })[0].field).toBe(
+      "maxParents",
+    );
+    expect(validateBayes({ structure: "chow_liu", maxParents: "2", bins: "1" })[0].field).toBe(
+      "bins",
+    );
   });
 });

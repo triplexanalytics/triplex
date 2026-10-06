@@ -1,4 +1,6 @@
 import { needsPublicConfirmation } from "../state/synthesisConfig";
+import InfoTrigger from "./InfoTrigger";
+import ReadMore from "./ReadMore";
 
 /**
  * @param {{ label: string, hint?: string, error?: unknown, children: import("react").ReactNode }} props
@@ -10,6 +12,110 @@ function Field({ label, hint, error, children }) {
       {children}
       {hint && <span className="synth-hint">{hint}</span>}
     </label>
+  );
+}
+
+/** Which model to fit, and for the network, its dependency structure. */
+function ModelPicker({ s, errorFor }) {
+  const network = s.method === "bayesnet";
+  return (
+    <>
+      <fieldset className="synth-modes">
+        <legend>Model</legend>
+        <label>
+          <input
+            type="radio"
+            name="synth-method"
+            checked={!network}
+            onChange={() => s.setMethod("copula")}
+          />{" "}
+          Gaussian copula{" "}
+          <span className="synth-hint">(distributions and correlation between number columns)</span>
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="synth-method"
+            checked={network}
+            onChange={() => s.setMethod("bayesnet")}
+          />{" "}
+          Bayesian network{" "}
+          <span className="synth-hint">(also keeps dependencies between category columns)</span>{" "}
+          <InfoTrigger
+            align="left"
+            tooltip={
+              <>
+                Each column is modelled given a few other columns (its parents, for example region
+                given plan), and new rows are drawn one column at a time, parents first. That keeps
+                dependencies the copula loses, above all between category columns. Numbers are
+                grouped into bins first.
+                <ReadMore term="bayesian-network" />
+              </>
+            }
+          />
+        </label>
+      </fieldset>
+      {network && (
+        <fieldset className="synth-modes">
+          <legend>Dependency structure</legend>
+          <label>
+            <input
+              type="radio"
+              name="synth-structure"
+              checked={s.structure === "chow_liu"}
+              onChange={() => s.setStructure("chow_liu")}
+            />{" "}
+            Tree <span className="synth-hint">(each column depends on at most one other)</span>{" "}
+            <InfoTrigger
+              align="left"
+              tooltip={
+                <>
+                  Keeps the strongest pairwise relationships with small tables, so it holds up at a
+                  small privacy budget. It cannot represent an effect that needs three columns at
+                  once.
+                  <ReadMore term="chow-liu-tree" />
+                </>
+              }
+            />
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="synth-structure"
+              checked={s.structure === "k_parent"}
+              onChange={() => s.setStructure("k_parent")}
+            />{" "}
+            Several parents{" "}
+            <span className="synth-hint">(each column depends on up to 3 earlier columns)</span>{" "}
+            <InfoTrigger
+              align="left"
+              tooltip={
+                <>
+                  Can keep effects a tree cannot, such as a value that depends on two columns
+                  together. Every extra parent multiplies the size of a table, so it needs more data
+                  or a larger privacy budget; otherwise a table is mostly noise.
+                  <ReadMore term="k-parent-network" />
+                </>
+              }
+            />
+          </label>
+          {s.structure === "k_parent" && (
+            <Field
+              label="Parents per column (1 to 3)"
+              hint="Columns are taken in the order of the table."
+              error={errorFor("maxParents")}
+            >
+              <input
+                type="text"
+                inputMode="numeric"
+                value={s.maxParents}
+                onChange={(e) => s.setMaxParents(e.target.value)}
+              />
+            </Field>
+          )}
+        </fieldset>
+      )}
+    </>
   );
 }
 
@@ -122,6 +228,8 @@ export default function SynthesizeForm({ synthesis, hasFile, fileName, onRun }) 
         </label>
       </fieldset>
 
+      <ModelPicker s={s} errorFor={errorFor} />
+
       {isDp ? (
         <div className="banner banner-warning" role="note">
           You choose the columns and their <strong>public</strong> bounds; nothing is taken from the
@@ -179,14 +287,26 @@ export default function SynthesizeForm({ synthesis, hasFile, fileName, onRun }) 
             />
           </Field>
         ) : (
-          <Field label="Merge categories seen fewer than" hint="times into “(other)”.">
-            <input
-              type="text"
-              inputMode="numeric"
-              value={s.minCategoryCount}
-              onChange={(e) => s.setMinCategoryCount(e.target.value)}
-            />
-          </Field>
+          <>
+            <Field label="Merge categories seen fewer than" hint="times into “(other)”.">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={s.minCategoryCount}
+                onChange={(e) => s.setMinCategoryCount(e.target.value)}
+              />
+            </Field>
+            {s.method === "bayesnet" && (
+              <Field label="Bins per number column" error={errorFor("bins")}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={s.bins}
+                  onChange={(e) => s.setBins(e.target.value)}
+                />
+              </Field>
+            )}
+          </>
         )}
       </div>
 
@@ -195,14 +315,32 @@ export default function SynthesizeForm({ synthesis, hasFile, fileName, onRun }) 
           <details className="synth-advanced">
             <summary>Advanced</summary>
             <div className="synth-fields">
-              <Field label="Share of ε for column distributions" error={errorFor("marginalShare")}>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={s.marginalShare}
-                  onChange={(e) => s.setMarginalShare(e.target.value)}
-                />
-              </Field>
+              {s.method === "bayesnet" ? (
+                <Field
+                  label="Share of ε for choosing the structure"
+                  hint="The rest fits the tables."
+                  error={errorFor("structureShare")}
+                >
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={s.structureShare}
+                    onChange={(e) => s.setStructureShare(e.target.value)}
+                  />
+                </Field>
+              ) : (
+                <Field
+                  label="Share of ε for column distributions"
+                  error={errorFor("marginalShare")}
+                >
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={s.marginalShare}
+                    onChange={(e) => s.setMarginalShare(e.target.value)}
+                  />
+                </Field>
+              )}
               <Field label="Histogram bins per number column" error={errorFor("bins")}>
                 <input
                   type="text"

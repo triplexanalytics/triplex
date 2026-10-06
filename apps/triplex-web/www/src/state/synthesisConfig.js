@@ -21,6 +21,14 @@ export const OTHER_CATEGORY = "(other)";
 /** The noise sampler's epsilon resolution (`dp/noise.rs`): smaller budgets are refused. */
 export const MIN_EPSILON = 0.000001;
 
+// Model choice. "copula" is the Gaussian copula; "bayesnet" a discrete Bayesian
+// network, with a tree ("chow_liu") or up to `maxParents` parents per column ("k_parent").
+export const DEFAULT_METHOD = "copula";
+export const DEFAULT_STRUCTURE = "chow_liu";
+export const DEFAULT_MAX_PARENTS = 2;
+export const MAX_PARENTS = 3;
+export const DEFAULT_STRUCTURE_SHARE = 0.3;
+
 /** Distinct, trimmed, non-empty values from comma- or newline-separated text. */
 export function parseValueList(text) {
   const seen = new Set();
@@ -112,7 +120,18 @@ export function needsPublicConfirmation(columns) {
  * @returns {{ ok: boolean, errors: { field: string, message: string }[] }}
  * `rowCount` is the number of rows that will be used (after the user's row removals).
  */
-export function validateDp({ epsilon, marginalShare, bins, columns, confirmedPublic, rowCount }) {
+export function validateDp({
+  epsilon,
+  marginalShare,
+  bins,
+  columns,
+  confirmedPublic,
+  rowCount,
+  method = DEFAULT_METHOD,
+  structure = DEFAULT_STRUCTURE,
+  maxParents = String(DEFAULT_MAX_PARENTS),
+  structureShare = String(DEFAULT_STRUCTURE_SHARE),
+}) {
   const errors = [];
   const add = (field, message) => errors.push({ field, message });
 
@@ -122,9 +141,19 @@ export function validateDp({ epsilon, marginalShare, bins, columns, confirmedPub
   } else if (eps < MIN_EPSILON) {
     add("epsilon", `Epsilon must be at least ${MIN_EPSILON}.`);
   }
-  const share = Number(marginalShare);
-  if (!(share > 0 && share < 1)) {
-    add("marginalShare", "The marginal share must be strictly between 0 and 1.");
+  const network = method === "bayesnet";
+  if (network) {
+    const share = Number(structureShare);
+    if (!(share > 0 && share < 1)) {
+      add("structureShare", "The share spent on the structure must be strictly between 0 and 1.");
+    }
+    const parents = parentsError(structure, maxParents);
+    if (parents) add("maxParents", parents);
+  } else {
+    const share = Number(marginalShare);
+    if (!(share > 0 && share < 1)) {
+      add("marginalShare", "The marginal share must be strictly between 0 and 1.");
+    }
   }
   const binCount = Number(bins);
   if (!Number.isInteger(binCount) || binCount < 2) {
@@ -159,7 +188,8 @@ export function validateDp({ epsilon, marginalShare, bins, columns, confirmedPub
     }
   }
   const numericCount = included.filter((c) => c.kind === "numeric").length;
-  if (numericCount >= 2 && rowCount > MAX_DP_ROWS_WITH_CORRELATION) {
+  // The row cap comes from the copula's quadratic Kendall statistic; the network has no such step.
+  if (!network && numericCount >= 2 && rowCount > MAX_DP_ROWS_WITH_CORRELATION) {
     add(
       "rows",
       `With two or more numeric columns, DP mode supports at most ${MAX_DP_ROWS_WITH_CORRELATION.toLocaleString()} rows (you have ${rowCount.toLocaleString()}). Remove rows or use fewer numeric columns.`,
@@ -174,11 +204,51 @@ export function validateDp({ epsilon, marginalShare, bins, columns, confirmedPub
   return { ok: errors.length === 0, errors };
 }
 
+/** Why `maxParents` is invalid for the structure, or null. Only the k-parent structure uses it. */
+export function parentsError(structure, maxParents) {
+  if (structure !== "k_parent") return null;
+  const k = Number(maxParents);
+  if (String(maxParents ?? "").trim() === "" || !Number.isInteger(k) || k < 1 || k > MAX_PARENTS) {
+    return `Parents per column must be a whole number from 1 to ${MAX_PARENTS}.`;
+  }
+  return null;
+}
+
+/** Checks for the non-private Bayesian network (the copula has none beyond validateCommon). */
+export function validateBayes({ structure, maxParents, bins }) {
+  const errors = [];
+  const parents = parentsError(structure, maxParents);
+  if (parents) errors.push({ field: "maxParents", message: parents });
+  const binCount = Number(bins);
+  if (!Number.isInteger(binCount) || binCount < 2) {
+    errors.push({ field: "bins", message: "Use a whole number of bins, at least 2." });
+  }
+  return errors;
+}
+
 /** The JSON the `synthesize_dp` wasm export expects (the `synthesize:` block's shape). */
-export function buildDpConfig({ epsilon, marginalShare, bins, columns }) {
+export function buildDpConfig({
+  epsilon,
+  marginalShare,
+  bins,
+  columns,
+  method = DEFAULT_METHOD,
+  structure = DEFAULT_STRUCTURE,
+  maxParents = String(DEFAULT_MAX_PARENTS),
+  structureShare = String(DEFAULT_STRUCTURE_SHARE),
+}) {
+  const network =
+    method === "bayesnet"
+      ? {
+          method: "bayesian_network",
+          structure,
+          ...(structure === "k_parent" ? { max_parents: Number(maxParents) } : {}),
+          structure_share: Number(structureShare),
+        }
+      : { marginal_share: Number(marginalShare) };
   return {
     epsilon: Number(epsilon),
-    marginal_share: Number(marginalShare),
+    ...network,
     bins: Number(bins),
     columns: columns
       .filter((c) => c.include)

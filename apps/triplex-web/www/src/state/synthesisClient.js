@@ -28,6 +28,34 @@ export function runSynthesize({
   });
 }
 
+/** Non-private Bayesian network. `structure` is "chow_liu" or "k_parent";
+ * `maxParents` (1 to 3) only matters for "k_parent". Resolves to `{ synthetic_csv, report_json }`. */
+export function runSynthesizeBayes({
+  bytes,
+  extension,
+  seed,
+  rows,
+  minCategoryCount,
+  excludedRowIndices,
+  excludedColumns,
+  structure,
+  maxParents,
+  bins,
+}) {
+  return client.request("synthesizeBayes", {
+    bytes,
+    extension,
+    seed,
+    rows,
+    minCategoryCount,
+    excludedRowIndices,
+    excludedColumns,
+    structure,
+    maxParents,
+    bins,
+  });
+}
+
 /** Differentially private synthesis. `config` is the `synthesize:` block's JSON shape (see
  * synthesisConfig.js `buildDpConfig`). Resolves to `{ synthetic_csv, report_json }`. */
 export function runSynthesizeDp({

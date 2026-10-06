@@ -7,6 +7,12 @@ import { glossaryUrl, METHOD_GLOSSARY } from "./glossary";
 // vitest runs from apps/triplex-web/www; paths are relative to it.
 const read = (rel) => readFileSync(resolve(process.cwd(), "src/state", rel), "utf8");
 
+const LINK_FILES = [
+  "riskExplanations.jsx",
+  "../components/ColumnMenu.jsx",
+  "../components/SynthesizeForm.jsx",
+];
+
 // Slugs published on the docs site: `<!-- term: slug -->` markers outside the internal
 // "Process terms" section of the canonical glossary.
 function publishedSlugs() {
@@ -28,7 +34,7 @@ function publishedSlugs() {
 describe("glossary links", () => {
   it("every term the app links to has a published glossary entry", () => {
     const linked = new Set(Object.values(METHOD_GLOSSARY));
-    for (const file of ["riskExplanations.jsx", "../components/ColumnMenu.jsx"]) {
+    for (const file of LINK_FILES) {
       for (const m of read(file).matchAll(/<ReadMore term="([a-z0-9-]+)"/g)) linked.add(m[1]);
     }
     expect(linked.size).toBeGreaterThan(8);
@@ -37,7 +43,7 @@ describe("glossary links", () => {
   });
 
   it("no info tooltip is left with a dead, non-link 'Read more'", () => {
-    for (const file of ["riskExplanations.jsx", "../components/ColumnMenu.jsx"]) {
+    for (const file of LINK_FILES) {
       expect(read(file)).not.toContain('<span className="info-trigger-readmore">');
     }
   });
