@@ -363,10 +363,15 @@ fn synthesize_file_writes_a_csv_that_reads_back() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
-/// Runs reproduce.py with real Polars and compares its fidelity numbers with the Rust report.
+/// Runs reproduce.py with real Polars and compares its fidelity numbers with the Rust report, for
+/// every non-private method: the script re-derives the evaluation from the two files, so it does
+/// not depend on which model wrote the synthetic one.
 /// Skipped when Polars is not importable (set TRIPLEX_PYTHON); CI without it skips this.
 #[test]
 fn reproduce_py_matches_the_rust_report() {
+    use triplex_anonymizer::synthesize::bayesnet::{
+        synthesize_bayes_file, BayesConfig, StructureKind,
+    };
     let python = std::env::var("TRIPLEX_PYTHON").unwrap_or_else(|_| "python3".into());
     if !std::process::Command::new(&python)
         .args(["-c", "import polars"])
@@ -377,7 +382,44 @@ fn reproduce_py_matches_the_rust_report() {
         eprintln!("SKIPPED reproduce_py_matches_the_rust_report: {python} has no polars (set TRIPLEX_PYTHON)");
         return;
     }
-    let dir = std::env::temp_dir().join("triplex_synth_parity_test");
+    let config = SynthesizeConfig::default();
+    let network = |structure| BayesConfig {
+        structure,
+        ..BayesConfig::default()
+    };
+    type Run<'a> = &'a dyn Fn(
+        &std::path::Path,
+        &std::path::Path,
+    ) -> triplex_anonymizer::synthesize::SynthesisReport;
+    let methods: [(&str, Run); 4] = [
+        ("copula", &|i, o| {
+            triplex_anonymizer::synthesize::synthesize_file(i, o, &config).unwrap()
+        }),
+        ("tree", &|i, o| {
+            synthesize_bayes_file(i, o, &network(StructureKind::ChowLiu)).unwrap()
+        }),
+        ("k_parent", &|i, o| {
+            synthesize_bayes_file(i, o, &network(StructureKind::KParent)).unwrap()
+        }),
+        ("independent", &|i, o| {
+            synthesize_bayes_file(i, o, &network(StructureKind::Independent)).unwrap()
+        }),
+    ];
+    for (method, run) in methods {
+        reproduce_py_parity(&python, method, run, config.min_category_count);
+    }
+}
+
+fn reproduce_py_parity(
+    python: &str,
+    method: &str,
+    run: &dyn Fn(
+        &std::path::Path,
+        &std::path::Path,
+    ) -> triplex_anonymizer::synthesize::SynthesisReport,
+    min_category_count: usize,
+) {
+    let dir = std::env::temp_dir().join(format!("triplex_synth_parity_test_{method}"));
     std::fs::create_dir_all(&dir).unwrap();
     let (input, output, script) = (
         dir.join("real.csv"),
@@ -386,18 +428,17 @@ fn reproduce_py_matches_the_rust_report() {
     );
     let real = table(1500);
     triplex_io::write_csv(&input, &real.headers, &real.rows).unwrap();
-    let config = SynthesizeConfig::default();
-    let report = triplex_anonymizer::synthesize::synthesize_file(&input, &output, &config).unwrap();
+    let report = run(&input, &output);
     std::fs::write(
         &script,
         render_python_script(
             input.to_str().unwrap(),
             output.to_str().unwrap(),
-            config.min_category_count,
+            min_category_count,
         ),
     )
     .unwrap();
-    let out = std::process::Command::new(&python)
+    let out = std::process::Command::new(python)
         .arg(&script)
         .output()
         .unwrap();
@@ -410,9 +451,12 @@ fn reproduce_py_matches_the_rust_report() {
     std::fs::remove_dir_all(&dir).ok();
 
     let close = |what: &str, a: Option<f64>, b: &Value| match (a, b.as_f64()) {
-        (Some(x), Some(y)) => assert!((x - y).abs() < 1e-9, "{what}: rust {x} vs script {y}"),
+        (Some(x), Some(y)) => assert!(
+            (x - y).abs() < 1e-9,
+            "{method} {what}: rust {x} vs script {y}"
+        ),
         (None, None) => {}
-        other => panic!("{what}: {other:?}"),
+        other => panic!("{method} {what}: {other:?}"),
     };
     for c in &report.fidelity.columns {
         let t = &theirs["columns"][&c.column];

@@ -623,3 +623,95 @@ fn the_independent_marginals_config_block_takes_no_structure_settings() {
         assert!(error.to_string().contains("has no structure"), "{error}");
     }
 }
+
+// ---- an end-to-end empirical distinguisher for the whole pipeline (a sanity check, not a proof)
+
+/// Accuracy of the best threshold test at telling two neighboring datasets apart from one figure of
+/// the synthetic output, with the structure choice, the noisy tables and the sampling all in the
+/// loop. Epsilon-DP bounds it by e^eps / (1 + e^eps), whatever the figure is.
+///
+/// The data makes `y` follow `x`, so the replaced record moves the structure score as well as two
+/// tables; the figure is the share of synthetic rows with `x = a` and `y = a`, which depends on
+/// both.
+fn network_distinguisher_accuracy(kind: StructureKind, epsilon: f64, trials: u64) -> f64 {
+    let dataset = |aa: usize, bb: usize| Sample {
+        headers: vec!["x".into(), "y".into(), "z".into()],
+        rows: (0..aa + bb)
+            .map(|i| {
+                let v = if i < aa { "a" } else { "b" };
+                let z = if i % 2 == 0 { "a" } else { "b" };
+                vec![v.to_string(), v.to_string(), z.to_string()]
+            })
+            .collect(),
+    };
+    // neighbors: one record is replaced, (a, a, a) becomes (b, b, a)
+    let (d0, d1) = (dataset(100, 100), {
+        let mut d = dataset(100, 100);
+        d.rows[0] = vec!["b".into(), "b".into(), "a".into()];
+        d
+    });
+    let ab = |name: &str| DpColumn {
+        name: name.into(),
+        domain: Domain::Categorical {
+            values: vec!["a".into(), "b".into()],
+        },
+    };
+    let mut config = bn_dp(epsilon, kind, 2, 1, vec![ab("x"), ab("y"), ab("z")]);
+    config.dp.rows = Some(4_000);
+    let share = |d: &Sample, seed: u64| {
+        let r = synthesize_bayes_dp(d, &config, &mut InsecureSeededNoise::new(seed)).unwrap();
+        r.sample
+            .rows
+            .iter()
+            .filter(|row| row[0] == "a" && row[1] == "a")
+            .count() as f64
+            / r.sample.rows.len() as f64
+    };
+    let s0: Vec<f64> = (0..trials).map(|t| share(&d0, 1000 + t)).collect();
+    let s1: Vec<f64> = (0..trials).map(|t| share(&d1, 500_000 + t)).collect();
+    let mean = |s: &[f64]| s.iter().sum::<f64>() / s.len() as f64;
+    let (m0, m1) = (mean(&s0), mean(&s1));
+    let threshold = (m0 + m1) / 2.0;
+    let higher_is_d0 = m0 > m1;
+    let correct = s0
+        .iter()
+        .filter(|&&v| (v > threshold) == higher_is_d0)
+        .count()
+        + s1.iter()
+            .filter(|&&v| (v > threshold) != higher_is_d0)
+            .count();
+    correct as f64 / (2 * trials) as f64
+}
+
+const ALL_STRUCTURES: [StructureKind; 3] = [
+    StructureKind::ChowLiu,
+    StructureKind::KParent,
+    StructureKind::Independent,
+];
+
+#[test]
+fn an_end_to_end_distinguisher_stays_within_the_dp_bound_for_every_structure() {
+    let epsilon: f64 = 1.0;
+    let bound = epsilon.exp() / (1.0 + epsilon.exp());
+    for kind in ALL_STRUCTURES {
+        let accuracy = network_distinguisher_accuracy(kind, epsilon, 400);
+        assert!(
+            accuracy <= bound + 0.05,
+            "{kind:?}: accuracy {accuracy} exceeds the epsilon-{epsilon} bound {bound} (plus slack)"
+        );
+    }
+}
+
+#[test]
+fn the_end_to_end_distinguisher_can_detect_leakage_when_epsilon_is_large() {
+    for kind in ALL_STRUCTURES {
+        let (low, high) = (
+            network_distinguisher_accuracy(kind, 0.2, 300),
+            network_distinguisher_accuracy(kind, 200.0, 300),
+        );
+        assert!(
+            high > low + 0.05,
+            "{kind:?}: accuracy at epsilon 200 ({high}) should clearly exceed epsilon 0.2 ({low})"
+        );
+    }
+}

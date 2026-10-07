@@ -640,17 +640,16 @@ fn main() -> ExitCode {
                     serde_json::to_string_pretty(&drift).unwrap(),
                 ),
             ];
-            // reproduce.py re-runs the Gaussian copula; the network and marginals have no script yet.
-            if bayes_config.is_none() {
-                files.push((
-                    "reproduce.py",
-                    triplex_anonymizer::synthesize::render_python_script(
-                        &input.to_string_lossy(),
-                        &output.to_string_lossy(),
-                        config.min_category_count,
-                    ),
-                ));
-            }
+            // reproduce.py re-derives the evaluation from the two files, whichever model wrote
+            // the synthetic one.
+            files.push((
+                "reproduce.py",
+                triplex_anonymizer::synthesize::render_python_script(
+                    &input.to_string_lossy(),
+                    &output.to_string_lossy(),
+                    config.min_category_count,
+                ),
+            ));
             for (name, contents) in files {
                 if let Err(e) = std::fs::write(report_dir.join(name), contents) {
                     eprintln!("error: could not write {name} into {report_dir:?}: {e}");
