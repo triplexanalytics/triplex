@@ -70,6 +70,7 @@ function ModelPicker({ s, errorFor }) {
                 Every column is drawn on its own from its own distribution. Each column looks right,
                 but nothing that links two columns survives. Use it as a floor to compare the other
                 models against, not as a realistic table. Numbers are grouped into bins first.
+                <ReadMore term="independent-marginals" />
               </>
             }
           />
