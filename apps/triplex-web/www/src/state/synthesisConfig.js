@@ -23,7 +23,13 @@ export const MIN_EPSILON = 0.000001;
 
 // Model choice. "copula" is the Gaussian copula; "bayesnet" a discrete Bayesian
 // network, with a tree ("chow_liu") or up to `maxParents` parents per column ("k_parent").
+// "marginals" is the baseline: every column on its own, which the backend runs
+// as the network with the structure "independent".
 export const DEFAULT_METHOD = "copula";
+export const INDEPENDENT_STRUCTURE = "independent";
+
+/** True for the models fitted on binned columns (everything but the copula). */
+export const isBinned = (method) => method === "bayesnet" || method === "marginals";
 export const DEFAULT_STRUCTURE = "chow_liu";
 export const DEFAULT_MAX_PARENTS = 2;
 export const MAX_PARENTS = 3;
@@ -141,8 +147,10 @@ export function validateDp({
   } else if (eps < MIN_EPSILON) {
     add("epsilon", `Epsilon must be at least ${MIN_EPSILON}.`);
   }
-  const network = method === "bayesnet";
-  if (network) {
+  const network = isBinned(method);
+  if (method === "marginals") {
+    // No structure to choose and nothing to split: the whole budget fits the histograms.
+  } else if (network) {
     const share = Number(structureShare);
     if (!(share > 0 && share < 1)) {
       add("structureShare", "The share spent on the structure must be strictly between 0 and 1.");
@@ -238,14 +246,16 @@ export function buildDpConfig({
   structureShare = String(DEFAULT_STRUCTURE_SHARE),
 }) {
   const network =
-    method === "bayesnet"
-      ? {
-          method: "bayesian_network",
-          structure,
-          ...(structure === "k_parent" ? { max_parents: Number(maxParents) } : {}),
-          structure_share: Number(structureShare),
-        }
-      : { marginal_share: Number(marginalShare) };
+    method === "marginals"
+      ? { method: "independent_marginals" }
+      : method === "bayesnet"
+        ? {
+            method: "bayesian_network",
+            structure,
+            ...(structure === "k_parent" ? { max_parents: Number(maxParents) } : {}),
+            structure_share: Number(structureShare),
+          }
+        : { marginal_share: Number(marginalShare) };
   return {
     epsilon: Number(epsilon),
     ...network,

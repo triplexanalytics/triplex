@@ -5,6 +5,8 @@ const METHOD_LABEL = {
   bayesian_network_k_parent: "Bayesian network, several parents",
   bayesian_network_chow_liu_dp: "Bayesian network, tree, differentially private",
   bayesian_network_k_parent_dp: "Bayesian network, several parents, differentially private",
+  independent_marginals: "Independent columns (baseline)",
+  independent_marginals_dp: "Independent columns (baseline), differentially private",
 };
 
 const pct = (x) => (x == null ? "n/a" : `${(x * 100).toFixed(1)}%`);
@@ -26,7 +28,8 @@ function Notes({ title, items }) {
 
 /** Which column each column was modelled on. Only the Bayesian-network methods report one. */
 function NetworkSection({ network, isDp }) {
-  if (!network) return null;
+  // The independent baseline has no structure to show: no column depends on another.
+  if (!network || network.structure === "independent") return null;
   return (
     <>
       <h4>Dependency structure</h4>

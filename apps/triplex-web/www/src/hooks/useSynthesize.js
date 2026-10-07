@@ -15,6 +15,8 @@ import {
   DEFAULT_METHOD,
   DEFAULT_STRUCTURE,
   DEFAULT_STRUCTURE_SHARE,
+  INDEPENDENT_STRUCTURE,
+  isBinned,
   DP_DIAGNOSTICS_DEFAULT,
   applySuggestions,
   blankColumns,
@@ -74,7 +76,13 @@ export function useSynthesize({
   const validation = useMemo(() => {
     const common = validateCommon({ seed, rows: rowsOut });
     if (mode !== "dp") {
-      const network = method === "bayesnet" ? validateBayes({ structure, maxParents, bins }) : [];
+      const network = isBinned(method)
+        ? validateBayes({
+            structure: method === "marginals" ? INDEPENDENT_STRUCTURE : structure,
+            maxParents,
+            bins,
+          })
+        : [];
       const errors = [...common, ...network];
       return { ok: errors.length === 0, errors };
     }
@@ -168,12 +176,12 @@ export function useSynthesize({
               }),
               withDiagnostics: includeDiagnostics,
             })
-          : method === "bayesnet"
+          : isBinned(method)
             ? await runSynthesizeBayes({
                 ...common,
                 minCategoryCount: Number(minCategoryCount),
                 excludedColumns: [...(removedColumns ?? [])],
-                structure,
+                structure: method === "marginals" ? INDEPENDENT_STRUCTURE : structure,
                 maxParents: Number(maxParents) || DEFAULT_MAX_PARENTS,
                 bins: Number(bins),
               })

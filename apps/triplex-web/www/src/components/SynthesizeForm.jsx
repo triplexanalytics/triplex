@@ -1,4 +1,4 @@
-import { needsPublicConfirmation } from "../state/synthesisConfig";
+import { isBinned, needsPublicConfirmation } from "../state/synthesisConfig";
 import InfoTrigger from "./InfoTrigger";
 import ReadMore from "./ReadMore";
 
@@ -26,7 +26,7 @@ function ModelPicker({ s, errorFor }) {
           <input
             type="radio"
             name="synth-method"
-            checked={!network}
+            checked={s.method === "copula"}
             onChange={() => s.setMethod("copula")}
           />{" "}
           Gaussian copula{" "}
@@ -50,6 +50,26 @@ function ModelPicker({ s, errorFor }) {
                 dependencies the copula loses, above all between category columns. Numbers are
                 grouped into bins first.
                 <ReadMore term="bayesian-network" />
+              </>
+            }
+          />
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="synth-method"
+            checked={s.method === "marginals"}
+            onChange={() => s.setMethod("marginals")}
+          />{" "}
+          Independent columns{" "}
+          <span className="synth-hint">(baseline: keeps no dependency between columns)</span>{" "}
+          <InfoTrigger
+            align="left"
+            tooltip={
+              <>
+                Every column is drawn on its own from its own distribution. Each column looks right,
+                but nothing that links two columns survives. Use it as a floor to compare the other
+                models against, not as a realistic table. Numbers are grouped into bins first.
               </>
             }
           />
@@ -296,7 +316,7 @@ export default function SynthesizeForm({ synthesis, hasFile, fileName, onRun }) 
                 onChange={(e) => s.setMinCategoryCount(e.target.value)}
               />
             </Field>
-            {s.method === "bayesnet" && (
+            {isBinned(s.method) && (
               <Field label="Bins per number column" error={errorFor("bins")}>
                 <input
                   type="text"
@@ -315,7 +335,7 @@ export default function SynthesizeForm({ synthesis, hasFile, fileName, onRun }) 
           <details className="synth-advanced">
             <summary>Advanced</summary>
             <div className="synth-fields">
-              {s.method === "bayesnet" ? (
+              {s.method === "marginals" ? null : s.method === "bayesnet" ? (
                 <Field
                   label="Share of ε for choosing the structure"
                   hint="The rest fits the tables."

@@ -374,6 +374,33 @@ describe("Bayesian network", () => {
     expect(kParent).toMatchObject({ structure: "k_parent", max_parents: 3 });
   });
 
+  it("independent columns: no shares, no row cap, no structure fields", () => {
+    const marginals = (over = {}) =>
+      valid({ method: "marginals", marginalShare: "junk", structureShare: "junk", ...over });
+    expect(validateDp(marginals()).ok).toBe(true);
+    expect(validateDp(marginals({ epsilon: "" })).ok).toBe(false);
+    expect(validateDp(marginals({ bins: "1" })).errors[0].field).toBe("bins");
+    expect(
+      validateDp(
+        marginals({
+          columns: updateColumn(
+            updateColumn(blankColumns(["a", "b"]), "a", { include: true, min: "0", max: "1" }),
+            "b",
+            { include: true, min: "0", max: "1" },
+          ),
+          rowCount: MAX_DP_ROWS_WITH_CORRELATION + 1,
+        }),
+      ).ok,
+    ).toBe(true);
+
+    const config = buildDpConfig(marginals());
+    expect(config).toMatchObject({ epsilon: 1, method: "independent_marginals" });
+    for (const field of ["structure", "max_parents", "structure_share", "marginal_share"]) {
+      expect(config).not.toHaveProperty(field);
+    }
+    expect(validateBayes({ structure: "independent", maxParents: "x", bins: "32" })).toEqual([]);
+  });
+
   it("validates the non-private network's shape and bins", () => {
     expect(validateBayes({ structure: "chow_liu", maxParents: "x", bins: "32" })).toEqual([]);
     expect(validateBayes({ structure: "k_parent", maxParents: "5", bins: "32" })[0].field).toBe(
