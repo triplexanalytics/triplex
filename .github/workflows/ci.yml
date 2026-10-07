@@ -37,3 +37,26 @@ jobs:
       # the www/ Vite pipeline: that's frontend tooling, out of scope for
       # this backend-only gate (see the project guidelines's backend/frontend split).
       - run: cargo build -p triplex-web --target wasm32-unknown-unknown --release
+
+  frontend:
+    name: lint, typecheck, format, test (www)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/triplex-web/www
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Node 24 ships npm 11, which the lockfile was written with. npm 10
+          # (Node 22) rejects it: it wants an optional peer (esbuild) locked.
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/triplex-web/www/package-lock.json
+      # None of these need the generated wasm glue in www/pkg/, so this job
+      # builds no Rust. The full Vite build (which does) is not gated here.
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm test
