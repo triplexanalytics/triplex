@@ -14,6 +14,7 @@
 
 pub mod bayesnet;
 pub mod dp;
+pub mod sketch;
 
 mod copula;
 mod metrics;
@@ -103,6 +104,9 @@ pub struct SynthesisReport {
     /// The dependency structure, for the Bayesian-network methods.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub network: Option<bayesnet::NetworkReport>,
+    /// The classes of the sketch, for the sketch method (Tier 3).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sketch: Option<sketch::SketchSummary>,
 }
 
 pub struct SynthesisResult {
@@ -419,6 +423,7 @@ pub fn synthesize(sample: &Sample, config: &SynthesizeConfig) -> Result<Synthesi
         limitations: limitations(),
         warnings,
         network: None,
+        sketch: None,
     };
     Ok(SynthesisResult {
         sample: Sample {

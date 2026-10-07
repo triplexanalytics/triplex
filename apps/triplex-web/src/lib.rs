@@ -254,6 +254,106 @@ pub fn synthesize_bayes(
     })
 }
 
+fn sketch_base_config(
+    seed: u32,
+    rows: u32,
+    min_category_count: u32,
+    excluded_row_indices: &[u32],
+    excluded_columns_json: &str,
+) -> Result<triplex_anonymizer::synthesize::SynthesizeConfig, JsValue> {
+    Ok(triplex_anonymizer::synthesize::SynthesizeConfig {
+        rows: (rows > 0).then_some(rows as usize),
+        seed: u64::from(seed),
+        min_category_count: min_category_count as usize,
+        exclude_columns: serde_json::from_str(excluded_columns_json).map_err(to_js_err)?,
+        exclude_rows: excluded_row_indices.iter().map(|&i| i as usize).collect(),
+    })
+}
+
+/// Tier 3, sketch-based synthesis: proposes a sketch for an uploaded file and
+/// returns it as JSON. The rows are grouped into `classes` classes (seeded by `seed`); a class
+/// with fewer than `min_class_size` rows is folded into the nearest one; `bins` is the number of
+/// density bins per number axis. **The sketch is derived from the data** (class ranges end at
+/// real values): it stays in the page like the data does. The other arguments are as for
+/// [`synthesize`].
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn propose_sketch(
+    bytes: &[u8],
+    extension: &str,
+    seed: u32,
+    min_category_count: u32,
+    excluded_row_indices: &[u32],
+    excluded_columns_json: &str,
+    classes: u32,
+    min_class_size: u32,
+    bins: u32,
+) -> Result<String, JsValue> {
+    let config = triplex_anonymizer::synthesize::sketch::SketchConfig {
+        base: sketch_base_config(
+            seed,
+            0,
+            min_category_count,
+            excluded_row_indices,
+            excluded_columns_json,
+        )?,
+        classes: classes as usize,
+        min_class_size: min_class_size as usize,
+        bins: bins as usize,
+    };
+    let sketch = triplex_anonymizer::synthesize::sketch::propose_bytes(bytes, extension, &config)
+        .map_err(to_js_err)?;
+    serde_json::to_string(&sketch).map_err(to_js_err)
+}
+
+/// Tier 3: samples a synthetic table from `sketch_json` (a sketch from [`propose_sketch`], as
+/// proposed or after the user changed it) and measures it against the uploaded file. No privacy
+/// guarantee. An unusable sketch is refused with the class and column at fault.
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn synthesize_sketch(
+    bytes: &[u8],
+    extension: &str,
+    sketch_json: &str,
+    seed: u32,
+    rows: u32,
+    min_category_count: u32,
+    excluded_row_indices: &[u32],
+    excluded_columns_json: &str,
+) -> Result<SynthesizeOutput, JsValue> {
+    let sketch: triplex_anonymizer::synthesize::sketch::Sketch =
+        serde_json::from_str(sketch_json).map_err(to_js_err)?;
+    let config = sketch_base_config(
+        seed,
+        rows,
+        min_category_count,
+        excluded_row_indices,
+        excluded_columns_json,
+    )?;
+    let (synthetic_csv, report) = triplex_anonymizer::synthesize::sketch::synthesize_sketch_bytes(
+        bytes, extension, &sketch, &config,
+    )
+    .map_err(to_js_err)?;
+    let report_json = serde_json::to_string(&report).map_err(to_js_err)?;
+    Ok(SynthesizeOutput {
+        synthetic_csv,
+        report_json,
+    })
+}
+
+/// Tier 3 steering: merges classes `a` and `b` of `sketch_json` into one (sizes add up, ranges
+/// and shares are combined in proportion to the sizes) and returns the new sketch as JSON. The
+/// other steering steps (move a range, drop a class, change a size) are plain edits of the JSON.
+#[wasm_bindgen]
+pub fn merge_sketch_classes(sketch_json: &str, a: u32, b: u32) -> Result<String, JsValue> {
+    let mut sketch: triplex_anonymizer::synthesize::sketch::Sketch =
+        serde_json::from_str(sketch_json).map_err(to_js_err)?;
+    sketch
+        .merge_classes(a as usize, b as usize)
+        .map_err(to_js_err)?;
+    serde_json::to_string(&sketch).map_err(to_js_err)
+}
+
 /// Tier 2 synthesis with epsilon-differential privacy. `config_json` is the
 /// JSON form of a `.triplex.yaml` `synthesize:` block: a required `epsilon` (no default) and each
 /// column's PUBLIC domain (`min`/`max` or category `values`). `seed` only seeds the sampling step;

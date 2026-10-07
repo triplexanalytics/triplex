@@ -336,6 +336,7 @@ pub fn synthesize_bayes(sample: &Sample, config: &BayesConfig) -> Result<Synthes
             config.max_parents,
             config.bins,
         )),
+        sketch: None,
     };
     Ok(SynthesisResult {
         sample: Sample {

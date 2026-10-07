@@ -391,7 +391,10 @@ fn reproduce_py_matches_the_rust_report() {
         &std::path::Path,
         &std::path::Path,
     ) -> triplex_anonymizer::synthesize::SynthesisReport;
-    let methods: [(&str, Run); 4] = [
+    let sketch_of = |i: &std::path::Path| {
+        triplex_anonymizer::synthesize::sketch::propose_file(i, &Default::default()).unwrap()
+    };
+    let methods: [(&str, Run); 5] = [
         ("copula", &|i, o| {
             triplex_anonymizer::synthesize::synthesize_file(i, o, &config).unwrap()
         }),
@@ -403,6 +406,15 @@ fn reproduce_py_matches_the_rust_report() {
         }),
         ("independent", &|i, o| {
             synthesize_bayes_file(i, o, &network(StructureKind::Independent)).unwrap()
+        }),
+        ("sketch", &|i, o| {
+            triplex_anonymizer::synthesize::sketch::synthesize_sketch_file(
+                i,
+                o,
+                &sketch_of(i),
+                &config,
+            )
+            .unwrap()
         }),
     ];
     for (method, run) in methods {

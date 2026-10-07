@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex --version\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n  triplex modelcard --config <path.triplex.yaml> --input <path> --out-dir <dir>\n  triplex synthesize --input <path> --output <path.csv> --report-dir <dir> [--rows <n>] [--seed <n>] [--min-category-count <n>] [--method copula|bayes-net|marginals [--structure chow-liu|k-parent] [--parents <1-3>] [--bins <n>]] [--config <path.triplex.yaml> [--with-nonprivate-diagnostics]]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.\ntriplex modelcard reads the `modelcard:` block of --config (target_column, prediction_column, optional score_column, slice_by, protected_attribute, thresholds), evaluates every row of --input, writes model_card.json, report.html and reproduce.py into --out-dir, and exits 0 (pass), 1 (warning: a suppressed or undefined slice) or 2 (a fairness threshold breach). The card is a documentation aid, not a compliance claim.\ntriplex synthesize fits a Gaussian copula to --input (.csv or .parquet), or with --method bayes-net a Bayesian network (a Chow-Liu tree, or up to --parents parents per column) that also keeps categorical dependencies, or with --method marginals independent marginals (every column drawn on its own, a baseline that keeps no dependency between columns), and writes a synthetic CSV to --output, plus synthesis_report.json, report.html, reproduce.py and drift_check.json (a DriftGuard diff of the synthetic file against the original, on the synthesized columns) into --report-dir. Identifier-like columns are dropped, not synthesized. The output carries NO formal privacy guarantee; the report measures fidelity and leakage but certifies nothing.\ntriplex synthesize --config switches to differentially private mode: the `synthesize:` block of the config declares a required `epsilon` (no default) and each column's public bounds or category values; the fitted parameters are epsilon-DP for replacing one record with the row count public, using operating-system randomness for the noise (--seed only seeds sampling). With `method: bayesian_network` in the block (optional `structure: chow_liu|k_parent`, `max_parents`, `structure_share`) the DP model is a Bayesian network: the dependency structure is chosen by report-noisy-max and the conditional tables are noisy counts, both inside the same epsilon. With `method: independent_marginals` every column is a noisy histogram of its own and the whole epsilon goes to those histograms. It writes dp_report.json and report.html. The report holds no real-data figures unless --with-nonprivate-diagnostics is given, which adds them (and drift_check.json) under a warning that they are outside the guarantee.";
+const USAGE: &str = "usage:\n  triplex --version\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n  triplex modelcard --config <path.triplex.yaml> --input <path> --out-dir <dir>\n  triplex synthesize --input <path> --output <path.csv> --report-dir <dir> [--rows <n>] [--seed <n>] [--min-category-count <n>] [--method copula|bayes-net|marginals|sketch [--structure chow-liu|k-parent] [--parents <1-3>] [--bins <n>] [--classes <n>] [--min-class-size <n>]] [--sketch <path.triplex.yaml>] [--config <path.triplex.yaml> [--with-nonprivate-diagnostics]]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.\ntriplex modelcard reads the `modelcard:` block of --config (target_column, prediction_column, optional score_column, slice_by, protected_attribute, thresholds), evaluates every row of --input, writes model_card.json, report.html and reproduce.py into --out-dir, and exits 0 (pass), 1 (warning: a suppressed or undefined slice) or 2 (a fairness threshold breach). The card is a documentation aid, not a compliance claim.\ntriplex synthesize fits a Gaussian copula to --input (.csv or .parquet), or with --method bayes-net a Bayesian network (a Chow-Liu tree, or up to --parents parents per column) that also keeps categorical dependencies, or with --method marginals independent marginals (every column drawn on its own, a baseline that keeps no dependency between columns), and writes a synthetic CSV to --output, plus synthesis_report.json, report.html, reproduce.py and drift_check.json (a DriftGuard diff of the synthetic file against the original, on the synthesized columns) into --report-dir. Identifier-like columns are dropped, not synthesized. The output carries NO formal privacy guarantee; the report measures fidelity and leakage but certifies nothing. With --method sketch (Tier 3) the rows are grouped into --classes classes (default 4; a class under --min-class-size rows, default 20, is folded into the nearest one), each class is described per column by a range and a density or by a share per value, and rows are drawn class by class with every column independent inside a class. The sketch that was used is written to sketch.triplex.yaml in --report-dir; it is derived from the data, so handle it like the data. Edit that file and pass it back with --sketch to generate from the edited sketch.\ntriplex synthesize --config switches to differentially private mode: the `synthesize:` block of the config declares a required `epsilon` (no default) and each column's public bounds or category values; the fitted parameters are epsilon-DP for replacing one record with the row count public, using operating-system randomness for the noise (--seed only seeds sampling). With `method: bayesian_network` in the block (optional `structure: chow_liu|k_parent`, `max_parents`, `structure_share`) the DP model is a Bayesian network: the dependency structure is chosen by report-noisy-max and the conditional tables are noisy counts, both inside the same epsilon. With `method: independent_marginals` every column is a noisy histogram of its own and the whole epsilon goes to those histograms. It writes dp_report.json and report.html. The report holds no real-data figures unless --with-nonprivate-diagnostics is given, which adds them (and drift_check.json) under a warning that they are outside the guarantee.";
 
 /// Exit codes per the design notes: 0 success, 1
 /// non-blocking warning (`driftguard` statistical drift with no schema
@@ -287,9 +287,18 @@ fn bayes_config_from_flags(
                 }
             }
         }
+        // The sketch method (Tier 3) is handled by `sketch_from_flags`; `--bins` is its too.
+        Some("sketch") => {
+            for flag in ["--structure", "--parents"] {
+                if flag_value(args, flag).is_some() {
+                    return Err(bad(format!("{flag} only applies to --method bayes-net")));
+                }
+            }
+            return Ok(None);
+        }
         Some(other) => {
             return Err(bad(format!(
-                "--method expects copula, bayes-net or marginals, got {other:?}"
+                "--method expects copula, bayes-net, marginals or sketch, got {other:?}"
             )))
         }
     }
@@ -318,6 +327,66 @@ fn bayes_config_from_flags(
         }
     }
     Ok(Some(config))
+}
+
+/// The sketch to generate from (Tier 3), or `None` for the other methods:
+/// `--sketch <path.triplex.yaml>` reads one, `--method sketch [--classes n] [--min-class-size n]
+/// [--bins n]` proposes one from the input.
+fn sketch_from_flags(
+    args: &[String],
+    input: &std::path::Path,
+    base: &triplex_anonymizer::synthesize::SynthesizeConfig,
+) -> std::result::Result<Option<triplex_anonymizer::synthesize::sketch::Sketch>, ExitCode> {
+    use triplex_anonymizer::synthesize::sketch::{propose_file, sketch_from_yaml, SketchConfig};
+    let bad = |message: String| {
+        eprintln!("error: {message}");
+        ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+    };
+    let method = flag_value(args, "--method");
+    let proposing = method.as_deref() == Some("sketch");
+    if let Some(path) = flag_value(args, "--sketch") {
+        if method.is_some() && !proposing {
+            return Err(bad("--sketch only goes with --method sketch".into()));
+        }
+        for flag in ["--classes", "--min-class-size", "--bins"] {
+            if flag_value(args, flag).is_some() {
+                return Err(bad(format!(
+                    "{flag} shapes a proposed sketch; it does not apply to a sketch read with --sketch"
+                )));
+            }
+        }
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| bad(format!("could not read --sketch {path:?}: {e}")))?;
+        return sketch_from_yaml(&text)
+            .map(Some)
+            .map_err(|e| bad(e.to_string()));
+    }
+    if !proposing {
+        for flag in ["--classes", "--min-class-size"] {
+            if flag_value(args, flag).is_some() {
+                return Err(bad(format!("{flag} only applies to --method sketch")));
+            }
+        }
+        return Ok(None);
+    }
+    let mut config = SketchConfig {
+        base: base.clone(),
+        ..SketchConfig::default()
+    };
+    for (flag, target) in [
+        ("--classes", &mut config.classes),
+        ("--min-class-size", &mut config.min_class_size),
+        ("--bins", &mut config.bins),
+    ] {
+        if let Some(v) = flag_value(args, flag) {
+            *target = v
+                .parse::<usize>()
+                .map_err(|_| bad(format!("{flag} expects a whole number, got {v:?}")))?;
+        }
+    }
+    propose_file(input, &config)
+        .map(Some)
+        .map_err(|e| bad(e.to_string()))
 }
 
 fn main() -> ExitCode {
@@ -592,11 +661,24 @@ fn main() -> ExitCode {
                     return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
                 }
             }
-            let result = match &bayes_config {
-                Some(bayes) => triplex_anonymizer::synthesize::bayesnet::synthesize_bayes_file(
-                    &input, &output, bayes,
-                ),
-                None => triplex_anonymizer::synthesize::synthesize_file(&input, &output, &config),
+            let sketch = match sketch_from_flags(&args, &input, &config) {
+                Ok(s) => s,
+                Err(code) => return code,
+            };
+            let result = match (&sketch, &bayes_config) {
+                (Some(sketch), _) => {
+                    triplex_anonymizer::synthesize::sketch::synthesize_sketch_file(
+                        &input, &output, sketch, &config,
+                    )
+                }
+                (None, Some(bayes)) => {
+                    triplex_anonymizer::synthesize::bayesnet::synthesize_bayes_file(
+                        &input, &output, bayes,
+                    )
+                }
+                (None, None) => {
+                    triplex_anonymizer::synthesize::synthesize_file(&input, &output, &config)
+                }
             };
             let report = match result {
                 Ok(r) => r,
@@ -640,6 +722,16 @@ fn main() -> ExitCode {
                     serde_json::to_string_pretty(&drift).unwrap(),
                 ),
             ];
+            // The sketch that was used, so the run can be repeated or the sketch edited.
+            if let Some(sketch) = &sketch {
+                match triplex_anonymizer::synthesize::sketch::sketch_to_yaml(sketch) {
+                    Ok(yaml) => files.push(("sketch.triplex.yaml", yaml)),
+                    Err(e) => {
+                        eprintln!("error: {e}");
+                        return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                    }
+                }
+            }
             // reproduce.py re-derives the evaluation from the two files, whichever model wrote
             // the synthetic one.
             files.push((
