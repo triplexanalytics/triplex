@@ -2,7 +2,7 @@
 
 use triplex_anonymizer::synthesize::sketch::{
     generate, propose, sketch_from_yaml, sketch_to_yaml, synthesize_sketch, Axis, ColumnKind,
-    Sketch, SketchClass, SketchColumn, SketchConfig, DEFAULT_MIN_CLASS_SIZE, SKETCH_VERSION,
+    Sketch, SketchClass, SketchColumn, SketchConfig, Split, DEFAULT_MIN_CLASS_SIZE, SKETCH_VERSION,
 };
 use triplex_anonymizer::synthesize::SynthesizeConfig;
 use triplex_io::Sample;
@@ -383,6 +383,131 @@ fn merging_two_classes_adds_their_sizes_and_keeps_both_shapes() {
     let mut same = two_class_sketch();
     assert!(same.merge_classes(1, 1).is_err());
     assert!(same.merge_classes(0, 7).is_err());
+}
+
+// ---- slice T3.2: splitting a class and adding one by hand
+
+#[test]
+fn splitting_a_class_divides_its_rows_and_leaves_the_output_distribution_alone() {
+    let mut split = two_class_sketch();
+    split.split_class(0, 0, &Split::At(2.5)).unwrap();
+    split.validate().unwrap();
+    let names: Vec<&str> = split.classes.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["lowa", "lowb", "high"]);
+    // a quarter of the range of a flat class holds a quarter of its 300 rows
+    assert_eq!((split.classes[0].size, split.classes[1].size), (75, 225));
+    let range = |class: usize| match split.classes[class].axes[0] {
+        Axis::Numeric { min, max, .. } => (min, max),
+        _ => panic!("a number axis"),
+    };
+    assert_eq!((range(0), range(1)), ((0.0, 2.5), (2.5, 10.0)));
+    // the other axis is copied to both parts
+    assert_eq!(split.classes[0].axes[1], split.classes[1].axes[1]);
+
+    // the table generated from the split sketch is distributed like the one before the split
+    let (before, after) = (
+        numbers(&generate(&two_class_sketch(), 20_000, 1), 0),
+        numbers(&generate(&split, 20_000, 2), 0),
+    );
+    for limit in [1.0, 2.5, 5.0, 7.5, 50.0, 105.0] {
+        assert!(
+            (share_below(&before, limit) - share_below(&after, limit)).abs() < 0.015,
+            "share below {limit}: {} before, {} after",
+            share_below(&before, limit),
+            share_below(&after, limit)
+        );
+    }
+}
+
+#[test]
+fn splitting_follows_the_density_and_works_on_category_axes() {
+    // three quarters of the mass sits in the upper half
+    let mut skewed = two_class_sketch();
+    if let Axis::Numeric { density, .. } = &mut skewed.classes[0].axes[0] {
+        *density = vec![1.0, 3.0];
+    }
+    skewed.split_class(0, 0, &Split::At(5.0)).unwrap();
+    assert_eq!((skewed.classes[0].size, skewed.classes[1].size), (75, 225));
+
+    let mut mixed = two_class_sketch();
+    mixed.classes[0].axes[1] = Axis::Categorical {
+        shares: vec![2.0, 1.0],
+        null_share: 0.0,
+    };
+    mixed.split_class(0, 1, &Split::Values(vec![1])).unwrap();
+    mixed.validate().unwrap();
+    // the part holding "b" comes first and gets a third of the rows
+    assert_eq!((mixed.classes[0].size, mixed.classes[1].size), (100, 200));
+    let shares = |class: usize| match &mixed.classes[class].axes[1] {
+        Axis::Categorical { shares, .. } => shares.clone(),
+        _ => panic!("a category axis"),
+    };
+    assert_eq!((shares(0), shares(1)), (vec![0.0, 1.0], vec![2.0, 0.0]));
+}
+
+#[test]
+fn a_split_that_cannot_be_made_is_refused_and_changes_nothing() {
+    let refused = |class: usize, column: usize, split: Split, message: &str| {
+        let mut sketch = two_class_sketch();
+        let error = sketch
+            .split_class(class, column, &split)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(message), "{error}");
+        assert_eq!(sketch, two_class_sketch());
+    };
+    refused(0, 0, Split::At(10.0), "strictly inside");
+    refused(0, 0, Split::At(-1.0), "strictly inside");
+    refused(0, 0, Split::At(f64::NAN), "strictly inside");
+    refused(
+        0,
+        0,
+        Split::Values(vec![0]),
+        "a number column is split at a value",
+    );
+    refused(0, 1, Split::At(1.0), "a number column is split at a value");
+    refused(0, 1, Split::Values(vec![5]), "does not have");
+    // class "low" is all "a": taking "b" out, or everything, leaves an empty part
+    refused(0, 1, Split::Values(vec![1]), "without any rows");
+    refused(0, 1, Split::Values(vec![0, 1]), "without any rows");
+    refused(9, 0, Split::At(1.0), "no such class");
+    refused(0, 9, Split::At(1.0), "no such column");
+}
+
+#[test]
+fn a_class_added_by_hand_starts_as_wide_as_the_sketch() {
+    let mut sketch = two_class_sketch();
+    let index = sketch.add_class(50).unwrap();
+    sketch.validate().unwrap();
+    assert_eq!(index, 2);
+    let added = &sketch.classes[2];
+    assert_eq!((added.name.as_str(), added.size), ("Class 1", 50));
+    assert_eq!(
+        added.axes,
+        vec![
+            Axis::Numeric {
+                min: 0.0,
+                max: 110.0,
+                density: vec![1.0, 1.0],
+                null_share: 0.0,
+            },
+            Axis::Categorical {
+                shares: vec![1.0, 1.0],
+                null_share: 0.0,
+            },
+        ]
+    );
+    // a second one does not reuse the name
+    sketch.add_class(0).unwrap();
+    assert_eq!(sketch.classes[3].name, "Class 2");
+    // the number follows on from the highest in use, also after a split ("Class 2a", "Class 2b")
+    sketch.split_class(3, 0, &Split::At(50.0)).unwrap();
+    sketch.add_class(0).unwrap();
+    assert_eq!(sketch.classes.last().unwrap().name, "Class 3");
+    // alone, the first added class fills the gap the two original classes leave
+    sketch.classes.retain(|c| c.name == "Class 1");
+    let x = numbers(&generate(&sketch, 4000, 1), 0);
+    assert!(x.iter().any(|v| (20.0..90.0).contains(v)));
 }
 
 // ---- the report

@@ -274,6 +274,192 @@ impl Sketch {
         self.classes.remove(b);
         Ok(())
     }
+
+    /// Splits class `class` in two along column `column` (slice T3.2). On a number axis the cut
+    /// is a value strictly inside the class's range: one part keeps the range below it, the other
+    /// the range above, each with its share of the density. On a category axis the cut is a set
+    /// of value positions: one part keeps those values, the other the rest. The class's rows are
+    /// divided in proportion to the mass on each side; every other axis is copied to both parts,
+    /// which is exact for a class whose columns are independent. The parts take the class's
+    /// place, named after it with an `a` and a `b`.
+    pub fn split_class(&mut self, class: usize, column: usize, split: &Split) -> Result<()> {
+        let source = self
+            .classes
+            .get(class)
+            .ok_or_else(|| invalid("there is no such class to split".into()))?
+            .clone();
+        let axis = source
+            .axes
+            .get(column)
+            .ok_or_else(|| invalid("there is no such column to split along".into()))?;
+        let empty_side = || invalid("the split leaves one part without any rows".into());
+        let (first, second, share) = match (axis, split) {
+            (
+                Axis::Numeric {
+                    min,
+                    max,
+                    density,
+                    null_share,
+                },
+                Split::At(at),
+            ) => {
+                if !(at.is_finite() && *at > *min && *at < *max) {
+                    return Err(invalid(format!(
+                        "the cut must lie strictly inside the class's range ({min} to {max})"
+                    )));
+                }
+                let part = |from: f64, to: f64| {
+                    let mut out = vec![0.0; density.len()];
+                    for (i, weight) in density.iter().enumerate() {
+                        let (lo, hi) = bin_edges(*min, *max, density.len(), i);
+                        let (a, b) = (lo.max(from), hi.min(to));
+                        if b > a && hi > lo {
+                            spread(&mut out, from, to, a, b, weight * (b - a) / (hi - lo));
+                        }
+                    }
+                    let mass: f64 = out.iter().sum();
+                    (
+                        Axis::Numeric {
+                            min: from,
+                            max: to,
+                            density: out,
+                            null_share: *null_share,
+                        },
+                        mass,
+                    )
+                };
+                let ((low, low_mass), (high, high_mass)) = (part(*min, *at), part(*at, *max));
+                if low_mass <= 0.0 || high_mass <= 0.0 {
+                    return Err(empty_side());
+                }
+                (low, high, low_mass / (low_mass + high_mass))
+            }
+            (Axis::Categorical { shares, null_share }, Split::Values(picked)) => {
+                if picked.iter().any(|k| *k >= shares.len()) {
+                    return Err(invalid(
+                        "the split names a value the column does not have".into(),
+                    ));
+                }
+                let part = |keep: bool| {
+                    let out: Vec<f64> = shares
+                        .iter()
+                        .enumerate()
+                        .map(|(k, s)| if picked.contains(&k) == keep { *s } else { 0.0 })
+                        .collect();
+                    let mass: f64 = out.iter().sum();
+                    (
+                        Axis::Categorical {
+                            shares: out,
+                            null_share: *null_share,
+                        },
+                        mass,
+                    )
+                };
+                let ((chosen, chosen_mass), (rest, rest_mass)) = (part(true), part(false));
+                if chosen_mass <= 0.0 || rest_mass <= 0.0 {
+                    return Err(empty_side());
+                }
+                (chosen, rest, chosen_mass / (chosen_mass + rest_mass))
+            }
+            _ => {
+                return Err(invalid(
+                    "a number column is split at a value, a category column by a set of values"
+                        .into(),
+                ))
+            }
+        };
+        let first_size = ((source.size as f64 * share).round() as usize).min(source.size);
+        let part = |suffix: &str, size: usize, axis: Axis| {
+            let mut axes = source.axes.clone();
+            axes[column] = axis;
+            SketchClass {
+                name: format!("{}{suffix}", source.name),
+                size,
+                axes,
+            }
+        };
+        self.classes.splice(
+            class..=class,
+            [
+                part("a", first_size, first),
+                part("b", source.size - first_size, second),
+            ],
+        );
+        Ok(())
+    }
+
+    /// Adds a class drawn by hand (slice T3.2): it stands for `size` rows and starts out as wide
+    /// as the whole sketch, flat over every number column's full range and equal over every
+    /// category value, for the user to narrow. It is named "Class N" with the next number not yet
+    /// in use. Returns its position.
+    pub fn add_class(&mut self, size: usize) -> Result<usize> {
+        self.validate()?;
+        let axes = self
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, column)| match &column.kind {
+                ColumnKind::Categorical { values } => Axis::Categorical {
+                    shares: vec![1.0; values.len()],
+                    null_share: 0.0,
+                },
+                ColumnKind::Numeric { .. } => {
+                    let (mut min, mut max, mut bins) = (f64::INFINITY, f64::NEG_INFINITY, 1);
+                    for class in &self.classes {
+                        if let Axis::Numeric {
+                            min: lo,
+                            max: hi,
+                            density,
+                            null_share,
+                        } = &class.axes[i]
+                        {
+                            if *null_share < 1.0 {
+                                (min, max) = (min.min(*lo), max.max(*hi));
+                                bins = bins.max(density.len());
+                            }
+                        }
+                    }
+                    if min > max {
+                        (min, max) = (0.0, 0.0); // every class is all nulls on this column
+                    }
+                    Axis::Numeric {
+                        min,
+                        max,
+                        density: vec![1.0; bins],
+                        null_share: 0.0,
+                    }
+                }
+            })
+            .collect();
+        // One past the highest number in use ("Class 1a" and "Class 4" give "Class 5"), so the
+        // name is new and follows on from what the user sees.
+        let number = 1 + self
+            .classes
+            .iter()
+            .filter_map(|c| c.name.strip_prefix("Class "))
+            .filter_map(|rest| {
+                let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+                digits.parse::<usize>().ok()
+            })
+            .max()
+            .unwrap_or(0);
+        self.classes.push(SketchClass {
+            name: format!("Class {number}"),
+            size,
+            axes,
+        });
+        Ok(self.classes.len() - 1)
+    }
+}
+
+/// Where [`Sketch::split_class`] cuts a class.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Split {
+    /// A value on a number axis.
+    At(f64),
+    /// Positions of the values, in the column's order, that go to the first part.
+    Values(Vec<usize>),
 }
 
 /// Rows of a class that have a value on this axis.

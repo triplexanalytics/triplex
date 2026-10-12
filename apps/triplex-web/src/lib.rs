@@ -354,6 +354,50 @@ pub fn merge_sketch_classes(sketch_json: &str, a: u32, b: u32) -> Result<String,
     serde_json::to_string(&sketch).map_err(to_js_err)
 }
 
+fn edited_sketch<E: std::fmt::Display>(
+    sketch_json: &str,
+    edit: impl FnOnce(&mut triplex_anonymizer::synthesize::sketch::Sketch) -> Result<(), E>,
+) -> Result<String, JsValue> {
+    let mut sketch: triplex_anonymizer::synthesize::sketch::Sketch =
+        serde_json::from_str(sketch_json).map_err(to_js_err)?;
+    edit(&mut sketch).map_err(to_js_err)?;
+    serde_json::to_string(&sketch).map_err(to_js_err)
+}
+
+/// Tier 3 steering (slice T3.2): splits class `class` of `sketch_json` in two along column
+/// `column` and returns the new sketch as JSON. `split_json` is `{"at": <number>}` for a number
+/// column (a value strictly inside the class's range) or `{"values": [<positions>]}` for a
+/// category column (the values that go to the first part).
+#[wasm_bindgen]
+pub fn split_sketch_class(
+    sketch_json: &str,
+    class: u32,
+    column: u32,
+    split_json: &str,
+) -> Result<String, JsValue> {
+    let split: triplex_anonymizer::synthesize::sketch::Split =
+        serde_json::from_str(split_json).map_err(to_js_err)?;
+    edited_sketch(sketch_json, |sketch| {
+        sketch.split_class(class as usize, column as usize, &split)
+    })
+}
+
+/// Tier 3 steering (slice T3.2): adds a class drawn by hand that stands for `size` rows and
+/// starts as wide as the whole sketch. Returns the new sketch as JSON; the class is the last one.
+#[wasm_bindgen]
+pub fn add_sketch_class(sketch_json: &str, size: u32) -> Result<String, JsValue> {
+    edited_sketch(sketch_json, |sketch| {
+        sketch.add_class(size as usize).map(|_| ())
+    })
+}
+
+/// Tier 3 (slice T3.2): checks a sketch the user loaded from a file and returns it re-serialized,
+/// or the reason it cannot be used (naming the class and column at fault).
+#[wasm_bindgen]
+pub fn validate_sketch(sketch_json: &str) -> Result<String, JsValue> {
+    edited_sketch(sketch_json, |sketch| sketch.validate())
+}
+
 /// Tier 2 synthesis with epsilon-differential privacy. `config_json` is the
 /// JSON form of a `.triplex.yaml` `synthesize:` block: a required `epsilon` (no default) and each
 /// column's PUBLIC domain (`min`/`max` or category `values`). `seed` only seeds the sampling step;
