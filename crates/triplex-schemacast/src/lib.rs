@@ -285,7 +285,6 @@ pub fn infer_schema_from_bytes(bytes: &[u8], extension: &str) -> Result<SchemaCo
 /// side by side, which each independently re-parse the whole file) and
 /// returns both the inferred schema and the row data serialized as Arrow
 /// IPC bytes — typed columns, not a JSON string of every stringified cell.
-/// See the design notes.
 pub fn read_and_profile_bytes(bytes: &[u8], extension: &str) -> Result<(SchemaContract, Vec<u8>)> {
     let sample = convert::read_full_bytes(bytes, extension)?;
     let schema = infer_schema(&sample);

@@ -1,7 +1,7 @@
 # triplex-mcp
 
-MCP (Model Context Protocol) server over SchemaCast, stdio transport only —
-see the design notes. A coding agent (Claude Code or any other MCP client)
+MCP (Model Context Protocol) server over SchemaCast, stdio transport only.
+A coding agent (Claude Code or any other MCP client)
 launches this as a local process and talks to it over its own stdin/stdout,
 same trust boundary as `apps/triplex-cli`: no network, no server, nothing
 here reads bytes over the wire.

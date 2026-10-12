@@ -1,9 +1,7 @@
 //! A from-scratch, Rust-native Explainable Boosting Machine (EBM; Lou et al.,
 //! Microsoft Research) for per-*row* disclosure risk — an alternative
 //! technique to `suda.rs`'s SUDA/DIS-SUDA, same shape (one score per row,
-//! higher means riskier), switchable via `RowRiskModel` in `lib.rs`. See
-//! the design notes and the research note this
-//! promotes, the design notes.
+//! higher means riskier), switchable via `RowRiskModel` in `lib.rs`.
 //!
 //! An EBM fits `g(E[y]) = β₀ + Σf_i(x_i) + Σf_ij(x_ij)`: one smooth "shape
 //! function" per feature (plus, in the full published technique, automatic
@@ -27,9 +25,8 @@
 //! which is what lets an additive model learn a smooth per-value
 //! contribution instead of only ever answering yes/no.
 //!
-//! **Where this runs.** the design notes left "where
-//! would this run" as an open question, since the reference library
-//! (InterpretML) is Python-only. Answered here: native Rust, trained from
+//! **Where this runs.** The reference library (InterpretML) is
+//! Python-only. Here: native Rust, trained from
 //! scratch with no external ML dependency, so it runs in exactly the same
 //! wasm/CLI/Python-binding surfaces every other DatasetCard metric already
 //! does, with no Python runtime requirement.

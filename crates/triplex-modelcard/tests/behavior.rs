@@ -1,5 +1,4 @@
-//! Edge cases, privacy/wording guards and output-contract checks (the design notes
-//! modelcard.md sections 2-4).
+//! Edge cases, privacy/wording guards and output-contract checks.
 
 use serde_json::Value;
 use triplex_io::Sample;

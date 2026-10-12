@@ -8,7 +8,7 @@ fairness metrics. Neither is a dependency of Triplex: they are used once, here, 
     pip install scikit-learn fairlearn numpy pandas
     python scripts/modelcard_oracle.py
 
-Synthetic data only (seeded), per the project guidelines.
+Synthetic data only (seeded).
 """
 import json
 import pathlib

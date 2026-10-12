@@ -1,5 +1,5 @@
-//! `reproduce.py`: the reproducible local Python/Polars script from
-//! the design notes's CI/CD output contract -- lets
+//! `reproduce.py`: the reproducible local Python/Polars script of the
+//! CI/CD output contract -- lets
 //! a reviewer independently re-check the numeric drift thresholds (null
 //! rate, mean) with no Rust toolchain and no trust in this binary's output.
 //!

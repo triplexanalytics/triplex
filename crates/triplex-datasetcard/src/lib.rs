@@ -1,7 +1,5 @@
 //! DatasetCard: dataset privacy-risk scoring at the dataset/column/record
-//! level, independent of any anonymization recipe — see
-//! the design notes and
-//! the design notes for the product decision.
+//! level, independent of any anonymization recipe.
 //!
 //! Column-level scoring, extracted from `crates/triplex-anonymizer/src/
 //! bucket.rs`'s original implementation (same functions, same tests, no
@@ -9,8 +7,7 @@
 //! generalized column can be checked against. `compose_quasi_identifiers`
 //! builds dataset-level scoring on top of the same functions, run against
 //! a combined quasi-identifier instead of one column. Record-level
-//! (SUDA-style) scoring is still a later phase — see the the design notes
-//! entry for what's deliberately not built yet.
+//! (SUDA-style) scoring is still a later phase.
 
 use std::collections::{HashMap, HashSet};
 
@@ -25,9 +22,8 @@ pub use suda::{dis_suda_scores, suda_scores, MAX_QUASI_IDENTIFIER_COLUMNS};
 /// Which technique computes a row's disclosure-risk score — see
 /// `suda.rs`/`ebm.rs`'s module docs for how each one works.
 /// `row_risk_scores` dispatches on this the same way `evaluate_risk_model`
-/// dispatches on `RiskModel`, so switching between them (a product decision
-/// per the design notes: "implement both, switchable
-/// on request" rather than pick one) is a one-line call-site change.
+/// dispatches on `RiskModel`, so switching between them (both are implemented,
+/// switchable on request, rather than one picked) is a one-line call-site change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RowRiskModel {
@@ -47,7 +43,7 @@ pub fn row_risk_scores(model: RowRiskModel, columns: &[Vec<String>]) -> Result<V
 }
 
 /// A named formal-privacy model a bucketed (generalized) column can be
-/// checked against — see the design notes's Tier 1 row.
+/// checked against.
 /// `evaluate_risk_model` computes every variant except δ-presence and k-map
 /// directly from values already in the dataset. Those two are different in
 /// kind: both bound risk relative to a *population* the dataset is only a
@@ -57,7 +53,7 @@ pub fn row_risk_scores(model: RowRiskModel, columns: &[Vec<String>]) -> Result<V
 /// larger than this dataset — a concept nothing in this crate has yet.
 /// ponytail: δ-presence and k-map named but unimplemented; add a
 /// population-table type and real arms here once one exists, rather than
-/// fake a result now — see the project guidelines's rule that a privacy claim is never
+/// fake a result now: a privacy claim is never
 /// asserted without a passing test backing it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -426,9 +422,7 @@ pub fn delta_disclosure_worst_group(
 /// defined over: two columns can each look safe scored alone (e.g. a ZIP
 /// code shared by thousands of people, a birth year shared by millions)
 /// while their combination re-identifies almost everyone, because the
-/// equivalence classes that matter are the joint ones — see
-/// the design notes's "dataset-level
-/// aggregation method" gap. Row `i`'s key is every column's row-`i` value
+/// equivalence classes that matter are the joint ones. Row `i`'s key is every column's row-`i` value
 /// joined by U+001F (Unit Separator), a control character that can't
 /// appear in a numeric `"lo-hi"` bucket label or ordinary CSV text.
 ///

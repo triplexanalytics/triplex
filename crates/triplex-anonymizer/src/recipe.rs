@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use triplex_core::{Error, Result};
 
-/// The four Tier 1 mechanisms from the design notes's
-/// product matrix, plus `Drop`: not a masking strategy at all, but a
+/// The four Tier 1 mechanisms, plus `Drop`: not a masking strategy at all, but a
 /// declared column's other valid fate — excluded from the output entirely
 /// rather than transformed in place. Declaring any other method is a clear
 /// deserialization error, not a silently ignored no-op. Each masking

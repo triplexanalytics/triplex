@@ -1,7 +1,7 @@
-//! Numeric generalization/bucketing — the k-anonymity mechanism from
-//! the design notes's Tier 1 row. The named risk models a
+//! Numeric generalization/bucketing — the Tier 1 k-anonymity
+//! mechanism. The named risk models a
 //! bucketed column can be checked against (`RiskModel`/`evaluate_risk_model`
-//! and friends) moved to `triplex-datasetcard` — see the design notes —
+//! and friends) live in `triplex-datasetcard`,
 //! since scoring risk needs to run independently of any recipe, before a
 //! masking mechanism is even chosen.
 
@@ -45,8 +45,8 @@ pub fn bucket_value(width: u64, value: &str) -> String {
 /// Same bucketing as `bucket_value`, for a caller that already has a typed
 /// numeric value instead of a string to parse (e.g. `apps/triplex-web`'s
 /// risk-scoring wasm exports, which take a typed-array of `f64` straight
-/// from the browser instead of a JSON string of stringified cells — see
-/// the design notes follow-up). `NaN` represents a
+/// from the browser instead of a JSON string of stringified cells).
+/// `NaN` represents a
 /// missing/non-numeric cell, passed through as an empty string, the same
 /// convention `bucket_value` uses for a value that fails to parse.
 pub fn bucket_numeric(width: u64, value: f64) -> String {
@@ -66,7 +66,7 @@ pub fn bucket_numeric(width: u64, value: f64) -> String {
 /// plan tiers): truncating "Utrecht"/"Rotterdam" to 3 characters doesn't
 /// merge them into a meaningful shared category the way a hand-authored
 /// taxonomy (city → province → country) would — that taxonomy mechanism is
-/// still deliberately unbuilt, see the design notes.
+/// still deliberately unbuilt.
 /// `width == 0` means "no truncation," matching a bucket width of 0 having
 /// no meaningful bucket: the value passes through unchanged, the same
 /// behavior `score_column_risk_string`'s exact-value grouping already had

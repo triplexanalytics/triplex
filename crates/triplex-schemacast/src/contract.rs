@@ -62,8 +62,7 @@ impl DeclaredColumn {
 
 /// Optional DriftGuard threshold overrides, layered onto the same
 /// `.triplex.yaml` contract a dataset already declares its schema in --
-/// the design notes's "Configuration:
-/// version-controlled `.triplex.yaml` only" rule means DriftGuard gets no
+/// configuration is version-controlled `.triplex.yaml` only, so DriftGuard gets no
 /// config format of its own. Unset fields fall back to
 /// `triplex_driftguard::DriftThresholds::default()`; schemacast only parses
 /// this block, it has no opinion on what the values mean.

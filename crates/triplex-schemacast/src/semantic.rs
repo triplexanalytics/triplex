@@ -1,7 +1,6 @@
 //! Sensitive-column semantic type detection, layered on top of the primitive
-//! `ColumnType`. Rule-based (regex/checksum + header-keyword matching) only —
-//! the design notes's "Sensitive-column / PII detection
-//! roadmap" fixes this as the year-1 method, no ML/NER classifier.
+//! `ColumnType`. Rule-based (regex/checksum + header-keyword matching) only,
+//! no ML/NER classifier.
 //!
 //! No country-specific pattern library (proper phone-number or postal-code
 //! validation per country, the way `libphonenumber` does it) exists in this
@@ -35,7 +34,7 @@ pub enum SemanticType {
     /// network's number length, not just one issuer's.
     CreditCard,
     /// `aa:bb:cc:dd:ee:ff` or `aa-bb-cc-dd-ee-ff`, six hex-byte groups. Named
-    /// in Tonic's own generator list (the design notes)
+    /// in Tonic's own generator list
     /// as a distinct sensitive type worth its own generator.
     MacAddress,
     /// IPv4 (four dot-separated octets, each 0-255) or a permissive IPv6
@@ -68,8 +67,7 @@ pub enum SemanticType {
     /// (≥95% distinct relative to row count) — probably a row identifier
     /// (a sequential ID, an order or customer number), not a quantity
     /// anyone means to add, average, or bucket. Cardinality-only heuristic,
-    /// deliberately no header-keyword gate — see
-    /// the design notes. A dismissible hint, not an
+    /// deliberately no header-keyword gate. A dismissible hint, not an
     /// error: the column stays typed `Integer`, and a small file can still
     /// false-positive (few rows, all-distinct values) or a genuinely
     /// high-cardinality quantity column can still trip it.

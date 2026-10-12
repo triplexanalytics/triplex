@@ -1,6 +1,5 @@
 //! Prints every risk model this crate can compute against one small
-//! synthetic dataset, for evaluating the new metrics from the design notes
-//!  against real numbers before deciding on any UI investment. Run
+//! synthetic dataset, for evaluating the metrics against real numbers. Run
 //! with `cargo run --example demo -p triplex-datasetcard`.
 
 use triplex_datasetcard::{

@@ -35,7 +35,7 @@ jobs:
       # Compiles apps/triplex-web for the browser target only — confirms
       # the wasm-bindgen surface still builds. Does not run wasm-bindgen or
       # the www/ Vite pipeline: that's frontend tooling, out of scope for
-      # this backend-only gate (see the project guidelines's backend/frontend split).
+      # this backend-only gate.
       - run: cargo build -p triplex-web --target wasm32-unknown-unknown --release
 
   frontend:

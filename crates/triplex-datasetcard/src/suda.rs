@@ -1,8 +1,7 @@
 //! SUDA (Special Uniques Detection Algorithm; Elliot & Manning) and
 //! DIS-SUDA: per-*row* disclosure risk from a set of quasi-identifier
 //! columns, complementing this crate's per-*column* `k_anonymity`/
-//! `l_diversity`/`t_closeness` — see the design notes
-//! . Production use at the UK ONS and Australian Bureau of Statistics;
+//! `l_diversity`/`t_closeness`. Production use at the UK ONS and Australian Bureau of Statistics;
 //! reference implementations in R's `sdcMicro` (`suda2`) and a standalone
 //! Python package.
 //!

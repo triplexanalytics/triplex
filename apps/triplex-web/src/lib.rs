@@ -1,8 +1,7 @@
 //! Thin `wasm-bindgen` surface over SchemaCast/Anonymizer for the browser.
 //! Every action here runs entirely client-side: input bytes come from a
 //! file the user picked, output bytes are handed back to the page for a
-//! browser download. No network call, no server — see
-//! the design notes's S3.5 step.
+//! browser download. No network call, no server.
 //!
 //! Mirrors `apps/triplex-cli`'s role for the native binary: this crate owns
 //! JS-facing signatures and error conversion only, no logic of its own —
@@ -32,7 +31,7 @@ pub struct TableAndProfile {
 /// Table view: parses `bytes` once and returns both the schema profile (for
 /// the header sparklines and Column-view tab) and the row data, replacing
 /// the old `read_table`+`profile_columns` pair — each of which independently
-/// re-parsed the whole file. See the design notes.
+/// re-parsed the whole file.
 #[wasm_bindgen]
 pub fn read_and_profile_table(bytes: &[u8], extension: &str) -> Result<TableAndProfile, JsValue> {
     let (schema, table_arrow) =
@@ -488,13 +487,13 @@ pub fn check_pattern_conformance(
     serde_json::to_string(&report).map_err(to_js_err)
 }
 
-/// Column-view tab: a pre-anonymize privacy-risk advisory
-///  — k-anonymity for one numeric column's raw values, computed
+/// Column-view tab: a pre-anonymize privacy-risk advisory —
+/// k-anonymity for one numeric column's raw values, computed
 /// straight from the upload, before the user has picked any anonymization
 /// method or recipe. `values` is that column's values as a typed `f64`
 /// array (every current caller pre-filters to integer-inferred columns, so
 /// this is a real typed array from the browser's Arrow-backed table, not a
-/// JSON string of stringified cells — see the design notes follow-up);
+/// JSON string of stringified cells);
 /// `NaN` marks a missing/non-numeric cell, bucketed into its own singleton
 /// bucket same as `bucket_numeric`'s doc comment describes. Returns a
 /// `RiskAssessment` as JSON. k-anonymity alone needs no second column — see
@@ -569,7 +568,7 @@ fn pair_risk_worst_groups(
 /// not just numeric), both that column's raw values in row order. Returns
 /// a four-element JSON array of `RiskAssessment`
 /// (`[l_diversity, t_closeness, beta_likeness, delta_disclosure]` —
-/// widened from two elements to four, see the design notes; a caller that
+/// widened from two elements to four; a caller that
 /// only reads the first two elements is unaffected).
 #[wasm_bindgen]
 pub fn score_column_pair_risk(
@@ -598,7 +597,7 @@ pub fn score_column_pair_risk(
 /// category; weak/arbitrary for free-text categorical values (city names,
 /// plan tiers), where a hand-authored taxonomy would do better and is
 /// still deliberately unbuilt — see `generalize_string_prefix`'s doc
-/// comment and the design notes. `values_json` is that column's raw values
+/// comment. `values_json` is that column's raw values
 /// in row order, as a JSON array of strings — a typed array isn't an
 /// option for strings the way `&[f64]` is for numbers.
 #[wasm_bindgen]
@@ -780,8 +779,8 @@ pub fn score_suda(columns_json: &str) -> Result<String, JsValue> {
 /// export, unchanged, since the shipped UI still calls it directly), but
 /// dispatches on `model` ("suda" or "ebm") — see
 /// `triplex_datasetcard::RowRiskModel`'s doc comment for how each technique
-/// works and why both exist (a product decision to implement both,
-/// switchable on request, rather than pick one — the design notes).
+/// works and why both exist (both are implemented,
+/// switchable on request).
 /// `columns_json` is the same shape `score_suda` takes. Returns a JSON
 /// array of `[score, dis_share]` pairs, one per row -- `dis_share` reuses
 /// `dis_suda_scores`'s proportional-distribution formula, which has

@@ -48,7 +48,7 @@ pub struct AnonymizeReport {
     /// `columns_anonymized` rather than folded into it.
     pub columns_dropped: Vec<String>,
     pub unique_masked_values_minted: usize,
-    /// The audit-JSON risk report the design notes's Tier 1 row promises
+    /// The Tier 1 audit-JSON risk report
     /// ("audit JSON reporting which risk model(s) the output satisfies") —
     /// see `assess_bucket_risk`. `None` when the recipe declares no
     /// `AnonymizeMethod::Bucket` column, since there's no quasi-identifier
@@ -66,8 +66,8 @@ pub struct AnonymizeReport {
 /// k-anonymity over every `AnonymizeMethod::Bucket` column's own masked
 /// (generalized) values, composed into one equivalence-class key if there's
 /// more than one — `Bucket`, by definition, is what makes a column a
-/// quasi-identifier here, so this needs no separate recipe declaration (see
-/// the decision to keep v1 to auto k-anonymity only, not a
+/// quasi-identifier here, so this needs no separate recipe declaration (v1
+/// is auto k-anonymity only, not a
 /// selectable model + declared sensitive column). Reads `masked`, not the
 /// original sample: the risk being reported is about the *output*, the same
 /// composite an attacker would actually see. `.expect(...)`, not `?`:
@@ -301,8 +301,7 @@ fn mask_rows(
 
 const PROFILE_SAMPLE_ROWS: usize = 1000;
 
-/// Writes the `baseline.profile.json` artifact the design notes
-/// the design notes describes Anonymizer as auto-minting: the masked
+/// Writes the `baseline.profile.json` artifact Anonymizer auto-mints: the masked
 /// output's own schema (re-inferred from what was actually written, not the
 /// input) plus whatever risk assessment this run computed.
 /// `triplex-driftguard`'s `DriftProfile` is the intended consumer -- this

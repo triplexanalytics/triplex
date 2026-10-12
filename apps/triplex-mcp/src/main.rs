@@ -3,9 +3,7 @@
 //! conversion only, no logic of its own — everything real lives in
 //! `triplex-schemacast`. Same trust boundary as the CLI: an MCP stdio
 //! server is a local process an agent launches directly, not a network
-//! service, so it stays inside the local-first/client-perimeter rule
-//! without needing an ADR for the transport itself (see
-//! the design notes).
+//! service, so it stays inside the local-first/client-perimeter rule.
 //!
 //! Two tools today — `schema_infer`/`schema_validate`, the two read-only
 //! SchemaCast operations. `anonymize` deliberately isn't exposed yet: it

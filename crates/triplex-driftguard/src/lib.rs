@@ -1,5 +1,5 @@
-//! DriftGuard: verifier half of the Producer-Verifier flywheel
-//! (the design notes). Diffs two SchemaCast-inferred
+//! DriftGuard: verifier half of the Producer-Verifier flywheel.
+//! Diffs two SchemaCast-inferred
 //! schemas — a baseline and a candidate — for schema regressions (a column
 //! removed, or its type changed) and statistical drift (null rate, mean, or
 //! type-consistency moving beyond a threshold).
@@ -146,9 +146,8 @@ fn column_by_name<'a>(schema: &'a SchemaContract, name: &str) -> Option<&'a Colu
     schema.columns.iter().find(|c| c.name == name)
 }
 
-/// The `baseline.profile.json` artifact the design notes
-/// the design notes's Producer-Verifier flywheel describes Anonymizer as
-/// auto-minting -- a schema profile plus whatever `RiskAssessment` the
+/// The `baseline.profile.json` artifact Anonymizer auto-mints in the
+/// Producer-Verifier flywheel -- a schema profile plus whatever `RiskAssessment` the
 /// producing run already computed (e.g. `triplex-anonymizer`'s
 /// `AnonymizeReport::risk_assessment`), so DriftGuard can diff both without
 /// re-inferring the original data or re-deriving a quasi-identifier's risk

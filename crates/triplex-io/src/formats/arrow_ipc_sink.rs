@@ -4,7 +4,7 @@
 //! reader can decode directly (e.g. `apache-arrow`'s `tableFromIPC`), not a
 //! file. Built for `apps/triplex-web`'s full-file table view: typed
 //! columnar data across the wasm/JS boundary instead of a giant JSON string
-//! of stringified cells — see the design notes.
+//! of stringified cells.
 
 use super::parquet_sink::{arrays_for, schema_for, WriteColumnType};
 use arrow_array::RecordBatch;

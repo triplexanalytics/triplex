@@ -1,5 +1,5 @@
-//! `report.html`: the standalone offline visual report from
-//! the design notes's CI/CD output contract --
+//! `report.html`: the standalone offline visual report of the
+//! CI/CD output contract --
 //! inline CSS only, no external stylesheet/font/script, so it opens
 //! correctly from a local file with zero network access.
 
