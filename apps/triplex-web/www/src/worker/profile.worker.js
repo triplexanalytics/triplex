@@ -2,7 +2,7 @@
 // thread. Gets its own independent wasm instance from the main thread's —
 // cheap to instantiate, and nothing here needs shared memory with it.
 import init, * as wasm from "../../pkg/triplex_web.js";
-import wasmUrl from "../../pkg/triplex_web_bg.wasm?url";
+import wasmUrl from "./wasmUrl";
 import { timingLog } from "../state/wasmTiming";
 
 const ready = init(wasmUrl);

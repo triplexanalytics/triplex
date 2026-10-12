@@ -5,10 +5,9 @@
 // which the shared client already handles by keying on request id rather
 // than assuming one at a time.
 import { createWorkerRequestClient } from "./workerRequestClient";
+import { spawnDatasetCardWorker } from "./workers";
 
-const client = createWorkerRequestClient(
-  () => new Worker(new URL("../worker/datasetcard.worker.js", import.meta.url), { type: "module" }),
-);
+const client = createWorkerRequestClient(spawnDatasetCardWorker);
 
 /** `columns`: `[{ name, kind: "numeric" | "string", values }]`, `values` a typed
  * `Float64Array` for `"numeric"` or a plain string array for `"string"`.

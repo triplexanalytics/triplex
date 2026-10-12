@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "triplex-jupyter"
+# Placeholder: versions are git tags created by CI, never edited by hand (see the project guidelines).
+version = "0.0.0"
+description = "The Triplex Analytics web UI as a Jupyter widget. Runs locally in the notebook."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+dependencies = ["anywidget>=0.9"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/triplex_jupyter"]
+# The bundle is build output (gitignored), so hatch has to be told to ship it.
+artifacts = ["src/triplex_jupyter/static/*"]

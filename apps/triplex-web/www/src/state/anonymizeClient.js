@@ -1,10 +1,9 @@
 // Thin request/response wrapper around anonymize.worker.js — see
 // workerRequestClient.js for the shared shape.
 import { createWorkerRequestClient } from "./workerRequestClient";
+import { spawnAnonymizeWorker } from "./workers";
 
-const client = createWorkerRequestClient(
-  () => new Worker(new URL("../worker/anonymize.worker.js", import.meta.url), { type: "module" }),
-);
+const client = createWorkerRequestClient(spawnAnonymizeWorker);
 
 /** Resolves to `{ masked_csv, mapping_csv, report_json }` — the same shape
  * `wasm.anonymize`'s `AnonymizeOutput` carries, just plain-object'd for the

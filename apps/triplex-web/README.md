@@ -54,9 +54,18 @@ For a production build: `make build`, then `make preview` — or
 asset URL are genuinely different code paths between dev and build, so check
 both after any change to `src/worker/` or `src/wasm.js`.
 
+For the Jupyter widget: `make widget` builds the same app as one JS file
+plus one stylesheet into `www/dist-widget/` (`www/vite.widget.config.js`,
+entry `www/src/widget.jsx`), with the workers and the `.wasm` inlined,
+because anywidget can load nothing else. `packages/triplex-jupyter` ships
+that bundle. Two rules keep it working: every rule in `www/src/styles.css`
+stays inside `.app-shell` (the sheet is loaded into a notebook page this app
+does not own; page-level rules go in `page.css`), and workers are created
+only in `www/src/state/workers.js`.
+
 `make test`/`make clippy`/`make fmt` run against this crate and everything
 it depends on (`triplex-io`, `triplex-schemacast`, `triplex-anonymizer`).
-`make clean` removes `www/pkg`, `www/dist`, and this crate's `target/`
+`make clean` removes `www/pkg`, `www/dist`, `www/dist-widget`, and this crate's `target/`
 output.
 
 ## Scope

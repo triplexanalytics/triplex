@@ -1,10 +1,9 @@
 // Thin request/response wrapper around synthesize.worker.js — see workerRequestClient.js for the
 // shared shape.
 import { createWorkerRequestClient } from "./workerRequestClient";
+import { spawnSynthesizeWorker } from "./workers";
 
-const client = createWorkerRequestClient(
-  () => new Worker(new URL("../worker/synthesize.worker.js", import.meta.url), { type: "module" }),
-);
+const client = createWorkerRequestClient(spawnSynthesizeWorker);
 
 /** Non-private synthesis. Resolves to `{ synthetic_csv, report_json }`. `rows` of 0 means as many
  * rows as the input. `excludedRowIndices`/`excludedColumns` are what the user removed in the table. */

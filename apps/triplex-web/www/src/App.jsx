@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useWasm } from "./hooks/useWasm";
 import { useProfiledFile } from "./hooks/useProfiledFile";
 import { useAnonymize } from "./hooks/useAnonymize";
@@ -35,8 +35,13 @@ const TIER_OF_DATASET = { original: 1, synthetic: 2, sketched: 3 };
 /** Composition root only: wires the three hooks together and renders. Every
  * actual behavior (wasm lifecycle, file/contract/recipe state, the
  * anonymize/pattern-check workflow) lives in its own hook under `hooks/` —
- * keeping that logic out of this file is deliberate, not an oversight. */
-export default function App() {
+ * keeping that logic out of this file is deliberate, not an oversight.
+ *
+ * Both props are for a host that embeds the app (the Jupyter widget, `widget.jsx`); the
+ * standalone page passes neither. `initialFile` is a `File` loaded as if the user had dropped
+ * it. `onHostState` is called with the artifacts the user has produced so far, whenever one of
+ * them changes. */
+export default function App({ initialFile = null, onHostState = null }) {
   const { wasm, methods } = useWasm();
   const file = useProfiledFile(wasm);
   const anonymize = useAnonymize({
@@ -323,6 +328,30 @@ export default function App() {
       );
     }
   };
+
+  useEffect(() => {
+    if (initialFile) handleFile(initialFile);
+    // handleFile is a new function on every render; only a new file from the host re-runs this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFile]);
+
+  // What a host can read back. The mapping file reverses the pseudonyms: it is reported so the
+  // host can offer it, and the host decides whether it goes any further (widget.jsx sends it to
+  // the kernel only when the user opted in). The salt is deliberately not here.
+  const anonymizeResult = anonymize.anonymizeResult;
+  useEffect(() => {
+    if (!onHostState || !wasm) return;
+    onHostState({
+      recipe_yaml:
+        file.recipe.columns.length > 0 ? wasm.recipe_json_to_yaml(JSON.stringify(file.recipe)) : "",
+      contract_yaml: file.contract ? wasm.contract_json_to_yaml(JSON.stringify(file.contract)) : "",
+      masked_csv: anonymizeResult?.masked_csv ?? null,
+      anonymize_report_json: anonymizeResult?.report_json ?? "",
+      mapping_csv: anonymizeResult?.mapping_csv ?? null,
+      synthetic_csv: syntheticResult?.csv ?? null,
+      synthesis_report_json: syntheticResult?.reportJson ?? "",
+    });
+  }, [onHostState, wasm, file.recipe, file.contract, anonymizeResult, syntheticResult]);
 
   const error = file.error || anonymize.error;
 

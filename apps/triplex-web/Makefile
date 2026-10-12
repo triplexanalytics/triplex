@@ -4,18 +4,19 @@
 
 WASM_BINDGEN_VERSION := 0.2.127
 
-.PHONY: help setup wasm dev build preview test clippy fmt clean
+.PHONY: help setup wasm dev build widget preview test clippy fmt clean
 
 help:
 	@echo "make setup    one-time toolchain setup (rustup target, wasm-bindgen-cli, npm install)"
 	@echo "make wasm     build the .wasm and regenerate www/pkg/ glue"
 	@echo "make dev      wasm + start the Vite dev server"
 	@echo "make build    wasm + production Vite build (www/dist/)"
+	@echo "make widget   wasm + single-file Jupyter widget build (www/dist-widget/)"
 	@echo "make preview  serve the production build (run 'make build' first)"
 	@echo "make test     cargo test for this crate/deps, plus vitest for www/"
 	@echo "make clippy   cargo clippy for this crate/deps, plus eslint for www/"
 	@echo "make fmt      check formatting for this crate and www/ (does not rewrite files)"
-	@echo "make clean    remove www/pkg, www/dist, and this crate's target/ output"
+	@echo "make clean    remove www/pkg, www/dist, www/dist-widget, and this crate's target/ output"
 
 # One-time: wasm32 target for rustc, the wasm-bindgen CLI pinned to match
 # Cargo.lock's wasm-bindgen version, and this app's npm dependencies.
@@ -45,6 +46,13 @@ dev: wasm
 # Rebuilds the wasm first, then Vite's production build into www/dist/.
 build: wasm
 	cd www && npm run build
+
+# Rebuilds the wasm first, then the Jupyter widget bundle into
+# www/dist-widget/ (widget.js + style.css): the same app as one JS file with
+# the workers and the .wasm inlined, which is what anywidget can load. See
+# www/vite.widget.config.js.
+widget: wasm
+	cd www && npm run build:widget
 
 # Serves the build from `make build` — run that first, this doesn't rebuild.
 preview:
@@ -78,5 +86,5 @@ fmt:
 # Deletes generated output only (wasm glue, Vite build, this crate's Cargo
 # target/) — never touches www/node_modules, re-run `make setup` for that.
 clean:
-	rm -rf www/pkg www/dist
+	rm -rf www/pkg www/dist www/dist-widget
 	cargo clean -p triplex-web

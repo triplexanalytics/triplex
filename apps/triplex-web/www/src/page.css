@@ -1,0 +1,16 @@
+/* The standalone page's own chrome. Not loaded by the Jupyter widget (src/widget.jsx), whose
+   host page is not ours to style; everything the app itself needs is in styles.css. */
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}

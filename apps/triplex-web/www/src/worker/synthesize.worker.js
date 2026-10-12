@@ -5,7 +5,7 @@
 // Nothing here leaves the browser: the file's bytes, the synthetic CSV and the report only move
 // between this worker and the page.
 import init, * as wasm from "../../pkg/triplex_web.js";
-import wasmUrl from "../../pkg/triplex_web_bg.wasm?url";
+import wasmUrl from "./wasmUrl";
 import { timingLog } from "../state/wasmTiming";
 
 const ready = init(wasmUrl);

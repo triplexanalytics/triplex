@@ -2,6 +2,7 @@
 // outstanding request at a time is all this view needs (one uploaded file).
 import { tableFromIPC } from "apache-arrow";
 import { timingLog } from "./wasmTiming";
+import { spawnProfileWorker } from "./workers";
 
 let worker;
 let nextRequestId = 1;
@@ -64,9 +65,7 @@ export function sampleFromArrowTable(table) {
 
 function getWorker() {
   if (!worker) {
-    worker = new Worker(new URL("../worker/profile.worker.js", import.meta.url), {
-      type: "module",
-    });
+    worker = spawnProfileWorker();
     worker.onmessage = (event) => {
       const { type, requestId, ...rest } = event.data;
       const resolver = pending.get(requestId);

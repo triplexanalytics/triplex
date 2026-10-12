@@ -1,7 +1,6 @@
 /* === Theme tokens === */
 
 :root {
-  color-scheme: light;
   --bg: #f7f8fa;
   --surface: #ffffff;
   --surface-alt: #f1f3f6;
@@ -89,18 +88,16 @@
   --table-border: rgba(15, 76, 129, 0.16);
 }
 
-* {
+/* Every rule in this sheet stays inside .app-shell, so the sheet can load into a page the app
+   does not own (a Jupyter notebook) without restyling it. Rules for the standalone page itself
+   (html/body) live in page.css. :where() keeps these at their old element-only specificity. */
+.app-shell,
+.app-shell * {
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  margin: 0;
+.app-shell {
+  color-scheme: light;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
@@ -108,7 +105,7 @@ body {
   line-height: 1.5;
 }
 
-button {
+:where(.app-shell) button {
   font: inherit;
   cursor: pointer;
   border-radius: 6px;
@@ -118,7 +115,7 @@ button {
   padding: 0.4rem 0.8rem;
 }
 
-button:disabled {
+:where(.app-shell) button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -1949,6 +1946,42 @@ button.full-width {
 }
 .column-association {
   margin-top: 1.5rem;
+}
+
+/* === Jupyter widget host (widget.jsx) ===
+   The only rules outside .app-shell: the frame the notebook widget puts around the app. */
+
+.triplex-widget {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.triplex-widget-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 12px;
+}
+
+.triplex-widget-app {
+  flex: 1;
+  min-height: 0;
+}
+
+/* See measureFixedOrigin in widget.jsx: undoes the offset a notebook page adds to every element
+   the app positions with `position: fixed` and viewport coordinates (all set as inline styles). */
+.triplex-widget-probe {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.triplex-widget [style*="position: fixed"] {
+  translate: calc(-1 * var(--triplex-fixed-x, 0px)) calc(-1 * var(--triplex-fixed-y, 0px));
 }
 
 /* === Tier 3: sketch dialog and parallel coordinates === */

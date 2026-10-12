@@ -7,9 +7,8 @@
 // `result` as-is) and a timing log around that step, so forcing it through
 // the same generic resolve path would need its own escape hatch anyway.
 //
-// `workerFactory` is called at most once (lazily, on first request) — a
-// `() => new Worker(new URL(...), { type: "module" })` thunk, so the
-// `import.meta.url` base stays correct at each call site.
+// `workerFactory` is called at most once (lazily, on first request) — one
+// of the `spawn*Worker` thunks from workers.js.
 export function createWorkerRequestClient(workerFactory) {
   let worker;
   let nextRequestId = 1;
