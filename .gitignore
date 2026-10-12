@@ -1,0 +1,48 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# Editor state
+.vscode/
+.idea/
+
+# Build and generated output
+target/
+dist/
+dist-widget/
+build/
+coverage/
+*.log
+node_modules/
+.vite/
+*.tsbuildinfo
+# wasm-bindgen's generated JS glue and .wasm for apps/triplex-web (see its README)
+pkg/
+/mutants.out/
+/mutants.out.old/
+
+# Data: never commit real, raw or reversible-mapping data
+data/
+*.csv
+*.parquet
+*.arrow
+*.feather
+*.xlsx
+*.xls
+*.sqlite
+*.db
+# Exception: synthetic test fixtures
+!tests/fixtures/
+!tests/fixtures/**
+
+# packages/triplex-jupyter: the widget bundle `make bundle` copies in, plus Python leftovers
+packages/triplex-jupyter/src/triplex_jupyter/static/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
