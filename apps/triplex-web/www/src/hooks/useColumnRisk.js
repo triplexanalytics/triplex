@@ -17,8 +17,8 @@ const RISK_BUCKET_WIDTH = 10;
  * drops a result that arrives after a newer upload has already superseded
  * it.
  *
- * `removedRowIndices` (useProfiledFile.js's "remove rows from output," see
- * the design notes) is excluded from every column's values before scoring:
+ * `removedRowIndices` (useProfiledFile.js's "remove rows from output")
+ * is excluded from every column's values before scoring:
  * a removed row is gone from the real anonymize/download output, so the
  * risk advisory has to be about the dataset that's actually left, not the
  * original upload — otherwise it'd keep reporting a k-anonymity/diversity

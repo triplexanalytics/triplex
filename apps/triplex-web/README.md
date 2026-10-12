@@ -1,13 +1,11 @@
 # triplex-web
 
-Browser UI over SchemaCast/Anonymizer — see this repo's S3.5 step in
-the design notes. Everything still runs
+Browser UI over SchemaCast/Anonymizer. Everything runs
 client-side via WebAssembly: no server, no upload, no telemetry. The UI
 itself (`www/`) is a Vite + React app — the repo's first JS toolchain,
 adopted because its table view uses Glide Data Grid (React-only) and its
 components must also mount inside a Python anywidget later (which expects a
-bundled JS asset anyway); see the design notes and
-the design notes.
+bundled JS asset anyway).
 
 ## Commands
 
@@ -80,7 +78,5 @@ whatever `triplex-anonymizer::AnonymizeMethod::ALL` currently implements
 (just `token_hmac` today). Tier 2 ("Synthetic Data Generation") opens a
 dialog (standard Gaussian copula, or differentially private with a
 user-declared epsilon and public bounds) and the result becomes a Synthetic
-tab beside Original; see
-the design notes. Tier 3 is shown in the tier
-picker but disabled; see the design notes for what's
-deferred.
+tab beside Original. Tier 3 is shown in the tier
+picker but disabled.

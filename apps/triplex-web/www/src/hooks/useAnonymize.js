@@ -8,7 +8,7 @@ import { runAnonymize, checkPatternConformance, convertBytes } from "../state/an
  * why they're grouped in one hook separate from `useProfiledFile`.
  *
  * `salt` is a single value shared by every declared column, not a
- * per-column map: the design notes's cross-tier guarantee is that a given
+ * per-column map: the cross-tier guarantee is that a given
  * source value maps to the same output value everywhere it recurs (the same
  * column across files, the same key across related tables) so joins on the
  * pseudonymized output still work. A different salt per column would break
@@ -26,7 +26,7 @@ import { runAnonymize, checkPatternConformance, convertBytes } from "../state/an
  * `removedRowIndices` (`useProfiledFile.js`'s own state, "remove these rows
  * from the output") is forwarded straight to `wasm.anonymize`'s
  * `excluded_row_indices` — those rows never enter the masked output at all,
- * not just hidden from the Table tab (see the design notes for why this
+ * not just hidden from the Table tab (this
  * belongs to the real anonymize call, not a client-side pre-filter). */
 export function useAnonymize({
   wasm,

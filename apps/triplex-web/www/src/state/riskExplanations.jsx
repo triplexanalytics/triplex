@@ -70,8 +70,8 @@ export function distinctCountExplanation(_count) {
   return (
     <>
       The number of different values this column actually takes on, out of every row. A string
-      column has no numeric range to generalize the way an integer column does,
-      so its k-anonymity groups are its exact values:{" "}
+      column has no numeric range to generalize the way an integer column does, so its k-anonymity
+      groups are its exact values:{" "}
       <strong>fewer distinct values means bigger groups and a safer k-anonymity score</strong>,
       while a column that's close to one distinct value per row is close to unique per row (k=1)
       even before anonymizing it.
@@ -80,8 +80,8 @@ export function distinctCountExplanation(_count) {
   );
 }
 
-// The dataset-level verdict (the design notes "dataset-level aggregation"
-// gap): the k-anonymity bars above score one column at a time; this matrix
+// The dataset-level verdict:
+// the k-anonymity bars above score one column at a time; this matrix
 // scores every *pair* of quasi-identifier columns combined, since a real
 // attacker rarely knows only one thing about someone. Same lead-with-the-
 // concept, row/column-mechanics-last structure as L_DIVERSITY_INFO/

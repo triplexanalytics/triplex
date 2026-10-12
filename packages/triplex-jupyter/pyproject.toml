@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "triplex-jupyter"
-# Placeholder: versions are git tags created by CI, never edited by hand (see the project guidelines).
+# Placeholder: versions are git tags created by CI, never edited by hand.
 version = "0.0.0"
 description = "The Triplex Analytics web UI as a Jupyter widget. Runs locally in the notebook."
 readme = "README.md"

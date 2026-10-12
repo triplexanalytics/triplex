@@ -22,15 +22,15 @@ export function scoreColumnRisk(columns, bucketWidth, transfer) {
  * `{ lDiversity, tCloseness, betaLikeness, deltaDisclosure, jointK, rowRisk }`:
  * the first four are each a `rows.length x cols.length` array of
  * `RiskAssessment | null` (one per quasi-identifier/candidate-sensitive-column
- * pair, the design notes adding the latter two alongside the original pair);
+ * pair);
  * `jointK` is a `rows.length x rows.length` array — the dataset-level
  * verdict, every quasi-identifier column pair's *combined* k-anonymity
  * (`null` on the diagonal, a column paired with itself), not each one scored
  * alone. See `compose_quasi_identifiers` on the Rust side for why that's a
  * different computation from just averaging the per-column scores.
  * `rowRisk` is `[score, share][]`, one pair per row in original row order,
- * from whichever technique `rowRiskModel` names ("suda" or "ebm"
- *  — default "suda" if omitted) — `null` when there are no
+ * from whichever technique `rowRiskModel` names ("suda" or "ebm" —
+ * default "suda" if omitted) — `null` when there are no
  * quasi-identifier columns or more than `score_row_risk` accepts. */
 export function scoreDiversityMatrix(rows, cols, bucketWidth, rowRiskModel, transfer) {
   return client.request("diversityMatrix", { rows, cols, bucketWidth, rowRiskModel }, transfer);

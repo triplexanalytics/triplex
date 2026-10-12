@@ -100,8 +100,7 @@ function bucketQuasiIdentifiers(rows, bucketWidth) {
   );
 }
 
-// The dataset-level verdict (the design notes "dataset-level
-// aggregation" gap): every quasi-identifier column pair's *combined*
+// The dataset-level verdict: every quasi-identifier column pair's *combined*
 // k-anonymity, not just each one scored alone -- two columns that each
 // look safe independently (a ZIP code, a birth year) can single out
 // almost everyone once combined.

@@ -46,7 +46,7 @@ export function useProfiledFile(wasm) {
   // removedColumns/AnonymizeMethod::Drop above, driven by TableTab.jsx's
   // row-filter banner ("Remove these rows") rather than a per-column
   // method. Threaded into useAnonymize as excluded_row_indices
-  //  -- like Drop, this only takes effect through an actual anonymize
+  // -- like Drop, this only takes effect through an actual anonymize
   // run, not the "download original before anonymizing" bypass.
   const [removedRowIndices, setRemovedRowIndices] = useState(() => new Set());
   const [error, setError] = useState("");

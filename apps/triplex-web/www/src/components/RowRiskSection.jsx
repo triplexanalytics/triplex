@@ -9,7 +9,7 @@ const MODEL_LABEL = { suda: "SUDA", ebm: "EBM" };
 /** Dataset Anonymity Analysis tab: the one row-level (not column or
  * column-pair) risk view in the app — every matrix above answers "how
  * safe is this column/pair," this answers "which specific rows are most
- * identifiable" (SUDA/DIS-SUDA or EBM, the design notes — `model`
+ * identifiable" (SUDA/DIS-SUDA or EBM — `model`
  * picks which, `onModelChange` switches it). Ranks the riskiest rows by
  * score, capped to the top `TOP_N` so a large file doesn't dump a score
  * for every single row; rows scoring 0 or below are left out entirely

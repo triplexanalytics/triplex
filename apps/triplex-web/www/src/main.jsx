@@ -7,7 +7,7 @@ import "./page.css";
  * standalone page below calls this with `#root`, and a future Python
  * anywidget host calls it with whatever node it owns. No assumption that
  * `document.body`/a fixed `#root` id exists, per the cross-surface reuse
- * constraint in the design notes. */
+ * constraint. */
 export function mount(container) {
   const root = createRoot(container);
   root.render(<App />);

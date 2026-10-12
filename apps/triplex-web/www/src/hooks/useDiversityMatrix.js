@@ -10,8 +10,8 @@ const RISK_BUCKET_WIDTH = 10;
  * sensitive column) pair, plus the combined-k-anonymity matrix (every
  * quasi-identifier pair's *joint* k-anonymity — the dataset-level verdict).
  * A quasi-identifier is an integer column (generalized into a numeric
- * bucket) or a categorical/string column (scored on its exact values,
- * the design notes). Computed in App.jsx as
+ * bucket) or a categorical/string column (scored on its exact values).
+ * Computed in App.jsx as
  * soon as sample/profile are ready — same as useColumnRisk, and for the
  * same reason: computing this only once DiversityCheckSection mounts (i.e.,
  * only once the user opens that tab) means the per-column k-anonymity bars
@@ -20,8 +20,8 @@ const RISK_BUCKET_WIDTH = 10;
  * it instead of everything being ready together by the time the user gets
  * there.
  *
- * `removedRowIndices` (useProfiledFile.js's "remove rows from output," see
- * the design notes) is excluded from every row/col array before scoring —
+ * `removedRowIndices` (useProfiledFile.js's "remove rows from output")
+ * is excluded from every row/col array before scoring —
  * same reasoning as useColumnRisk.js: a removed row is gone from the real
  * anonymize/download output, so this dataset-level analysis has to reflect
  * what's actually left, not the original upload. */
@@ -35,8 +35,8 @@ export function useDiversityMatrix(sample, profile, removedRowIndices) {
   const [raw, setRaw] = useState(null); // { lDiversity, tCloseness, betaLikeness, deltaDisclosure, jointK, rowRisk } | null
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  // Which technique computes RowRiskSection's per-row score ("suda" | "ebm",
-  // the design notes) — a dependency of the effect below like sample/profile
+  // Which technique computes RowRiskSection's per-row score ("suda" | "ebm")
+  // — a dependency of the effect below like sample/profile
   // are, so picking a different technique re-requests the whole matrix the
   // same way a new upload would, rather than needing a second, bespoke
   // recompute path just for this one piece of it.

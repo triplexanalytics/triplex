@@ -333,14 +333,13 @@ export function DiversityCompare({ left, right, hoverNames, onHoverNamesChange }
 
 /** Dataset Anonymity Analysis tab: up to five heatmaps below the
  * per-column k-anonymity cards, plus a row-level risk list. l-diversity,
- * t-closeness, β-likeness, and δ-disclosure (the design notes adding the
- * latter two) each cross every quasi-identifier column (integer,
+ * t-closeness, β-likeness, and δ-disclosure each cross every quasi-identifier column (integer,
  * generalized into a bucket, or categorical/string, scored on its exact
  * values) against every candidate sensitive column — t-closeness reports
  * one aggregate "how different is this group's mix" distance,
  * β-likeness/δ-disclosure report the sharper "single biggest belief shift
- * about one value" instead. Combined k-anonymity (the design notes
- * "dataset-level aggregation" gap) crosses every quasi-identifier column
+ * about one value" instead. Combined k-anonymity (the
+ * dataset-level check) crosses every quasi-identifier column
  * against every *other* quasi-identifier column, scoring the pair
  * together instead of alone — the dataset-level verdict a single column's
  * score can't give, since two columns that each look safe alone can

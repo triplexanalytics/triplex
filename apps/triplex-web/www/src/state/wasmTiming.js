@@ -1,5 +1,5 @@
 // Call-timing instrumentation for the wasm boundary — console.log only,
-// nothing sent anywhere, so it needs no telemetry/data-egress ADR. Gated on
+// nothing sent anywhere. Gated on
 // Vite's own dev/prod flag (`import.meta.env.DEV`) rather than a bespoke
 // toggle: on during `npm run dev`/`make dev`, stripped from a production
 // build without needing to remember to remove call sites by hand later.
