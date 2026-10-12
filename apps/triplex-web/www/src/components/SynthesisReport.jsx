@@ -6,6 +6,7 @@ const METHOD_LABEL = {
   bayesian_network_chow_liu_dp: "Bayesian network, tree, differentially private",
   bayesian_network_k_parent_dp: "Bayesian network, several parents, differentially private",
   independent_marginals: "Independent columns (baseline)",
+  sketch: "Sketch (classes on parallel coordinates)",
   independent_marginals_dp: "Independent columns (baseline), differentially private",
 };
 
@@ -122,6 +123,17 @@ function StandardResult({ report }) {
         {report.privacy_statement}
       </div>
       <NetworkSection network={report.network} isDp={false} />
+      {report.sketch && (
+        <>
+          <h4>Classes of the sketch</h4>
+          <p className="synth-hint">
+            {report.sketch.classes
+              .map((c) => `${c.name}: ${c.size.toLocaleString()} rows`)
+              .join(", ")}
+            . Rows were drawn class by class, every column on its own inside a class.
+          </p>
+        </>
+      )}
       {report.columns_dropped.length > 0 && (
         <>
           <h4>Not synthesized</h4>

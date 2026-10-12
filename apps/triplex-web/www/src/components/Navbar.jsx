@@ -17,6 +17,7 @@ export default function Navbar({
   onSelectTier,
   tier2Enabled,
   syntheticActive = false,
+  generatedNoun = "synthetic",
   canCompare = false,
   onCompare,
   onDownloadSyntheticCsv,
@@ -73,7 +74,7 @@ export default function Navbar({
       </button>
       {syntheticActive ? (
         <details className="download-menu" ref={detailsRef}>
-          <summary className="primary">Download synthetic data</summary>
+          <summary className="primary">Download {generatedNoun} data</summary>
           <ul>
             <li>
               <button
@@ -83,7 +84,7 @@ export default function Navbar({
                   onDownloadSyntheticCsv();
                 }}
               >
-                Synthetic data (.csv)
+                {generatedNoun === "sketched" ? "Sketched" : "Synthetic"} data (.csv)
               </button>
             </li>
             <li>

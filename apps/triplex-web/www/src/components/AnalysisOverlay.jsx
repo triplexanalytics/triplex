@@ -9,8 +9,8 @@ const DiversityCheckSection = lazy(() => import("./DiversityCheckSection"));
 
 // History is always last. The two analysis tabs describe whichever dataset is showing, and say so
 // in their label when it is not the original.
-function overlayTabs(synthetic) {
-  const suffix = synthetic ? " (Synthetic Data)" : "";
+function overlayTabs(generatedLabel) {
+  const suffix = generatedLabel ? ` (${generatedLabel} Data)` : "";
   return [
     { id: "columns", label: `Columns${suffix}` },
     { id: "analysis", label: `Privacy Analysis${suffix}` },
@@ -68,11 +68,12 @@ export default function AnalysisOverlay({
   historyEntries,
   onUndoHistoryEntry,
   synthesisResult,
+  generatedLabel,
   readOnly,
   association,
   openRequest,
 }) {
-  const tabs = overlayTabs(!!readOnly);
+  const tabs = overlayTabs(readOnly ? (generatedLabel ?? "Synthetic") : null);
   const [expanded, setExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState("columns");
   // `openRequest` ({ tab, seq }) lets the Tier picker open a tab from outside: a new `seq` means
@@ -169,7 +170,7 @@ export default function AnalysisOverlay({
             <SynthesisReport result={synthesisResult} />
           )}
           {innerTab === "analysis" && readOnly && (
-            <h4 className="synth-matrix-heading">Risk analysis of the synthetic table</h4>
+            <h4 className="synth-matrix-heading">Risk analysis of the generated table</h4>
           )}
           {innerTab === "analysis" && (
             <DiversityCheckSection

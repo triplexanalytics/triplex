@@ -5,10 +5,12 @@ import { useAnonymize } from "./hooks/useAnonymize";
 import { useDatasetAnalysis } from "./hooks/useDatasetAnalysis";
 import { useHistory } from "./hooks/useHistory";
 import { useSynthesize } from "./hooks/useSynthesize";
+import { useSketch } from "./hooks/useSketch";
 import { withColumnType } from "./state/yamlBuilder";
 import Navbar from "./components/Navbar";
 import DatasetTabs from "./components/DatasetTabs";
 import SynthesizeDialog from "./components/SynthesizeDialog";
+import SketchDialog from "./components/SketchDialog";
 import Dropzone from "./components/Dropzone";
 import LoadingOverlay from "./components/LoadingOverlay";
 
@@ -23,12 +25,12 @@ const TableTab = lazy(() => import("./components/TableTab"));
 const AnalysisOverlay = lazy(() => import("./components/AnalysisOverlay"));
 const CompareDialog = lazy(() => import("./components/CompareDialog"));
 
-// What the read-only synthetic view passes where the original view passes its anonymization state:
+// What a read-only generated view (synthetic or sketched) passes where the original view passes its anonymization state:
 // the synthetic table has no recipe, contract, pattern checks or removed rows of its own.
 const NO_ROWS = new Set();
 const NO_RECIPE = { columns: [] };
 const NO_PATTERN_CHECKS = {};
-const TIER_OF_DATASET = { original: 1, synthetic: 2 };
+const TIER_OF_DATASET = { original: 1, synthetic: 2, sketched: 3 };
 
 /** Composition root only: wires the three hooks together and renders. Every
  * actual behavior (wasm lifecycle, file/contract/recipe state, the
@@ -65,16 +67,52 @@ export default function App() {
     syntheticResult?.profile,
     NO_ROWS,
   );
-  // Which dataset the Table and the panel show. Synthetic (Tier 2) is read-only: no recipe,
-  // contract or row removal, and its analysis tabs describe the synthetic table.
+  // Tier 3: the sketch and the table generated from it.
+  const sketching = useSketch({
+    fileBytes: file.fileBytes,
+    extension: file.extension,
+    removedRowIndices: file.removedRowIndices,
+    removedColumns: file.removedColumns,
+  });
+  const sketchedResult = sketching.result;
+  const sketched = useDatasetAnalysis(
+    wasm,
+    sketchedResult?.sample,
+    sketchedResult?.profile,
+    NO_ROWS,
+  );
+  // Which dataset the Table and the panel show. A generated dataset (synthetic, Tier 2, or
+  // sketched, Tier 3) is read-only: no recipe, contract or row removal, and its analysis tabs
+  // describe the generated table.
   const [activeDataset, setActiveDataset] = useState("original");
-  const showingSynthetic = activeDataset === "synthetic" && !!syntheticResult;
-  const shownKey = showingSynthetic ? "synthetic" : "original";
+  const generatedDatasets = {
+    synthetic: {
+      key: "synthetic",
+      label: "Synthetic",
+      result: syntheticResult,
+      analysis: synthetic,
+    },
+    sketched: { key: "sketched", label: "Sketched", result: sketchedResult, analysis: sketched },
+  };
+  const generated = generatedDatasets[activeDataset]?.result
+    ? generatedDatasets[activeDataset]
+    : null;
+  const showingGenerated = !!generated;
+  const shownKey = generated?.key ?? "original";
   const [compareOpen, setCompareOpen] = useState(false);
-  const view = showingSynthetic ? synthetic : original;
-  const shown = showingSynthetic ? syntheticResult : file;
-  // The Compare view's two sides: the original (minus columns the user removed) and the synthetic
-  // table. A later AI-generated or uploaded dataset becomes another right-hand side here.
+  const view = generated?.analysis ?? original;
+  const shown = generated?.result ?? file;
+  // What Compare puts next to the original: the generated dataset on screen, else whichever exists.
+  const compared =
+    generated ??
+    (syntheticResult ? generatedDatasets.synthetic : null) ??
+    (sketchedResult ? generatedDatasets.sketched : null);
+  const comparedResult = compared?.result;
+  const comparedAnalysis = compared?.analysis;
+  const comparedLabel = compared?.label;
+  const comparedKey = compared?.key;
+  // The Compare view's two sides: the original (minus columns the user removed) and a generated
+  // table. A later uploaded dataset becomes another right-hand side here.
   const compareLeft = useMemo(
     () =>
       file.sample && file.profile
@@ -94,22 +132,23 @@ export default function App() {
   );
   const compareRight = useMemo(
     () =>
-      syntheticResult
+      comparedResult
         ? {
-            label: "Synthetic",
-            kind: "synthetic",
-            sample: syntheticResult.sample,
-            profile: syntheticResult.profile,
-            analysis: synthetic,
+            label: comparedLabel,
+            kind: comparedKey,
+            sample: comparedResult.sample,
+            profile: comparedResult.profile,
+            analysis: comparedAnalysis,
             excluded: NO_ROWS,
             droppedReasons: Object.fromEntries(
-              (syntheticResult.report.columns_dropped ?? []).map((d) => [d.column, d.reason]),
+              (comparedResult.report.columns_dropped ?? []).map((d) => [d.column, d.reason]),
             ),
           }
         : null,
-    [syntheticResult, synthetic],
+    [comparedResult, comparedAnalysis, comparedLabel, comparedKey],
   );
   const [synthDialogOpen, setSynthDialogOpen] = useState(false);
+  const [sketchDialogOpen, setSketchDialogOpen] = useState(false);
   const [tableWidth, setTableWidth] = useState(null);
   // `seq` makes a repeated request re-open a collapsed panel on the given tab.
   const [overlayRequest, setOverlayRequest] = useState({ tab: "columns", seq: 0 });
@@ -147,10 +186,26 @@ export default function App() {
     setSelectedColumn(null);
     setHoverNames(null);
   };
-  // Tier 1 shows the original; Tier 2 opens the synthesis dialog (also to re-run it).
+  // Tier 1 shows the original; Tier 2 opens the synthesis dialog and Tier 3 the sketch dialog
+  // (also to re-run them).
   const handleSelectTier = (tier) => {
     if (tier === 1) selectDataset("original");
     if (tier === 2) setSynthDialogOpen(true);
+    if (tier === 3) setSketchDialogOpen(true);
+  };
+  const handleSketchDone = () => {
+    setSketchDialogOpen(false);
+    selectDataset("sketched");
+    setOverlayRequest((r) => ({ tab: "analysis", seq: r.seq + 1 }));
+    history.log(
+      "Generate sketched data",
+      `${sketching.sketch?.classes.length ?? 0} classes`,
+      null,
+      () => {
+        sketching.clearResult();
+        selectDataset("original");
+      },
+    );
   };
   const handleSynthesisDone = () => {
     setSynthDialogOpen(false);
@@ -242,11 +297,14 @@ export default function App() {
     setSelectedColumn(null);
     setActiveDataset("original");
     setSynthDialogOpen(false);
+    setSketchDialogOpen(false);
     setCompareOpen(false);
     original.rowFilter.setRowFilter(null);
     synthetic.rowFilter.setRowFilter(null);
+    sketched.rowFilter.setRowFilter(null);
     anonymize.reset();
     synthesis.reset();
+    sketching.reset();
     const loaded = await file.loadFile(uploaded);
     if (loaded) {
       history.log(
@@ -257,6 +315,7 @@ export default function App() {
           file.reset();
           anonymize.reset();
           synthesis.reset();
+          sketching.reset();
           setActiveDataset("original");
           original.rowFilter.setRowFilter(null);
           history.clear();
@@ -283,11 +342,16 @@ export default function App() {
         activeTier={TIER_OF_DATASET[shownKey]}
         onSelectTier={handleSelectTier}
         tier2Enabled={!!file.sample}
-        syntheticActive={showingSynthetic}
-        canCompare={!!syntheticResult}
+        syntheticActive={showingGenerated}
+        generatedNoun={shownKey === "sketched" ? "sketched" : "synthetic"}
+        canCompare={!!compared}
         onCompare={() => setCompareOpen(true)}
-        onDownloadSyntheticCsv={synthesis.downloadCsv}
-        onDownloadSyntheticReport={synthesis.downloadReport}
+        onDownloadSyntheticCsv={
+          shownKey === "sketched" ? sketching.downloadCsv : synthesis.downloadCsv
+        }
+        onDownloadSyntheticReport={
+          shownKey === "sketched" ? sketching.downloadReport : synthesis.downloadReport
+        }
       />
       <main className="main-content">
         {error && <div className="banner banner-error">{error}</div>}
@@ -304,35 +368,36 @@ export default function App() {
                 active={shownKey}
                 onSelect={selectDataset}
                 hasSynthetic={!!syntheticResult}
+                hasSketched={!!sketchedResult}
               />
               <div className="dataset-table">
                 <TableTab
-                  key={showingSynthetic ? "synthetic" : "original"}
+                  key={shownKey}
                   sample={shown.sample}
                   profile={shown.profile}
                   methods={methods}
-                  recipe={showingSynthetic ? NO_RECIPE : file.recipe}
+                  recipe={showingGenerated ? NO_RECIPE : file.recipe}
                   salt={file.salt}
                   onPickMethod={handlePickMethod}
-                  removedColumns={showingSynthetic ? NO_ROWS : file.removedColumns}
+                  removedColumns={showingGenerated ? NO_ROWS : file.removedColumns}
                   onSaltChange={file.setSalt}
                   onAnonymize={anonymize.run}
                   anonymizing={anonymize.anonymizing}
-                  anonymizeResult={showingSynthetic ? null : anonymize.anonymizeResult}
+                  anonymizeResult={showingGenerated ? null : anonymize.anonymizeResult}
                   onColumnHover={handleColumnHover}
                   highlightColumnNames={highlightColumnNames}
-                  contract={showingSynthetic ? null : file.contract}
+                  contract={showingGenerated ? null : file.contract}
                   onDeclareAsString={declareAsString}
                   filteredRowIndices={view.rowFilter.filteredRowIndices}
                   onClearRowFilter={() => view.rowFilter.setRowFilter(null)}
-                  onRemoveVisibleRows={showingSynthetic ? undefined : handleRemoveVisibleRows}
+                  onRemoveVisibleRows={showingGenerated ? undefined : handleRemoveVisibleRows}
                   onRemoveFilteredOutRows={
-                    showingSynthetic ? undefined : handleRemoveFilteredOutRows
+                    showingGenerated ? undefined : handleRemoveFilteredOutRows
                   }
-                  removedRowIndices={showingSynthetic ? NO_ROWS : file.removedRowIndices}
+                  removedRowIndices={showingGenerated ? NO_ROWS : file.removedRowIndices}
                   onRestoreRemovedRows={handleRestoreRemovedRows}
-                  readOnly={showingSynthetic}
-                  dataset={showingSynthetic ? "synthetic" : "original"}
+                  readOnly={showingGenerated}
+                  dataset={shownKey}
                   onContentWidth={setTableWidth}
                 />
               </div>
@@ -341,11 +406,11 @@ export default function App() {
               columnProfile={shown.profile}
               selectedColumn={selectedColumn}
               onSelectColumn={setSelectedColumn}
-              contract={showingSynthetic ? null : file.contract}
+              contract={showingGenerated ? null : file.contract}
               onCheckPattern={anonymize.checkPattern}
-              patternChecks={showingSynthetic ? NO_PATTERN_CHECKS : anonymize.patternChecks}
-              checkingColumns={showingSynthetic ? NO_ROWS : anonymize.checkingColumns}
-              anonymizeResult={showingSynthetic ? null : anonymize.anonymizeResult}
+              patternChecks={showingGenerated ? NO_PATTERN_CHECKS : anonymize.patternChecks}
+              checkingColumns={showingGenerated ? NO_ROWS : anonymize.checkingColumns}
+              anonymizeResult={showingGenerated ? null : anonymize.anonymizeResult}
               riskByName={view.columnRisk.riskByName}
               riskLoading={view.columnRisk.riskLoading}
               onDeclareAsString={declareAsString}
@@ -363,7 +428,7 @@ export default function App() {
               onRowRiskModelChange={view.diversityMatrix.setRowRiskModel}
               onJointKCellClick={view.rowFilter.setRowFilter}
               methods={methods}
-              recipe={showingSynthetic ? NO_RECIPE : file.recipe}
+              recipe={showingGenerated ? NO_RECIPE : file.recipe}
               salt={file.salt}
               onPickMethod={handlePickMethod}
               onClearMethod={handleClearMethod}
@@ -373,8 +438,9 @@ export default function App() {
               columnSubsets={view.columnSubsets}
               historyEntries={history.entries}
               onUndoHistoryEntry={history.undo}
-              synthesisResult={showingSynthetic ? syntheticResult : null}
-              readOnly={showingSynthetic}
+              synthesisResult={generated?.result ?? null}
+              generatedLabel={generated?.label}
+              readOnly={showingGenerated}
               association={view.association}
               openRequest={overlayRequest}
             />
@@ -391,6 +457,16 @@ export default function App() {
               onClose={() => setCompareOpen(false)}
             />
           </Suspense>
+        )}
+        {sketchDialogOpen && (
+          <SketchDialog
+            sketching={sketching}
+            original={file.sample}
+            excluded={file.removedRowIndices}
+            fileName={file.fileName}
+            onClose={() => setSketchDialogOpen(false)}
+            onDone={handleSketchDone}
+          />
         )}
         {synthDialogOpen && (
           <SynthesizeDialog

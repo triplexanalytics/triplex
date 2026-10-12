@@ -26,7 +26,7 @@ const NO_ACTIONS = {
 
 /** `{ label, kind, sample, profile, analysis, excluded?, droppedReasons? }` per side; `analysis` is
  * useDatasetAnalysis's result for that dataset. Side A is the reference (the original); side B is
- * whatever it is compared with (today the synthetic table; later an AI-generated or uploaded one). */
+ * whatever it is compared with (today the synthetic table; later a sketched or uploaded one). */
 function SideLabels({ left, right }) {
   return (
     <div className="compare-pair compare-labels">

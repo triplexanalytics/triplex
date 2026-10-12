@@ -1,10 +1,11 @@
 import LockIcon from "./LockIcon";
 import { TIERS } from "./TierPicker.const";
 
-/** Tier 1 (masking) is the default view; Tier 2 (synthetic data) opens the synthesis dialog, and is
- * enabled once a file is loaded. Tier 3 is still a "coming soon" placeholder. */
+/** Tier 1 (masking) is the default view; Tier 2 (synthetic data) opens the synthesis dialog and
+ * Tier 3 (sketch-based synthesis) the sketch dialog. Both are enabled once a file is loaded
+ * (`tier2Enabled`). */
 export default function TierPicker({ activeTier = 1, onSelectTier, tier2Enabled = false }) {
-  const isEnabled = (id) => id === 1 || (id === 2 && tier2Enabled);
+  const isEnabled = (id) => id === 1 || tier2Enabled;
   return (
     <div className="tier-picker">
       {TIERS.map((tier) => (
@@ -16,8 +17,8 @@ export default function TierPicker({ activeTier = 1, onSelectTier, tier2Enabled 
           aria-pressed={tier.id === activeTier}
           onClick={() => onSelectTier?.(tier.id)}
           title={
-            tier.id === 2 && !tier2Enabled
-              ? "Load a file to generate synthetic data"
+            tier.id !== 1 && !tier2Enabled
+              ? "Load a file to generate data from it"
               : `${tier.caption}. ${tier.reversibility}.`
           }
         >

@@ -64,7 +64,7 @@ export const HISTOGRAM_BASELINE_COLOR = "#d7dbe2";
 // --table-header-bg*/--accent/--table-border tokens styles.css defines (a
 // second copy of the same hex by necessity -- CSS custom properties can't
 // import a JS constant -- so keep them in sync by hand if either changes).
-/** `dataset` ("original" | "synthetic" | "ai") picks the header background: the same tint as
+/** `dataset` ("original" | "synthetic" | "sketched") picks the header background: the same tint as
  * that dataset's tab (`--table-header-bg-<dataset>` etc. in styles.css), falling back to the
  * base tokens. */
 export function readGlideHeaderTheme(dataset = "original") {

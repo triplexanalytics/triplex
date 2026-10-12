@@ -83,3 +83,19 @@ export function runSynthesizeDp({
 export function suggestDomains(bytes, extension) {
   return client.request("suggestDomains", { bytes, extension });
 }
+
+/** Tier 3: proposes a sketch for the file. Resolves to the sketch as a JSON string. */
+export function proposeSketch(payload) {
+  return client.request("proposeSketch", payload);
+}
+
+/** Tier 3: samples from `sketch` (as proposed or after steering). Resolves to
+ * `{ synthetic_csv, report_json }`. */
+export function runSynthesizeSketch(payload) {
+  return client.request("synthesizeSketch", payload);
+}
+
+/** Tier 3 steering: classes `a` and `b` become one. Resolves to the new sketch as a JSON string. */
+export function mergeSketchClasses(sketch, a, b) {
+  return client.request("mergeSketchClasses", { sketch, a, b });
+}

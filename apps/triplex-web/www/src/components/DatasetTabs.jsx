@@ -1,19 +1,20 @@
 /** The dataset the Table and the side panel are showing. Each kind has its own fixed color (see
- * the `--ds-*` tokens in styles.css) so original, synthetic and AI-generated information can
+ * the `--ds-*` tokens in styles.css) so original, synthetic and sketched information can
  * always be told apart, here and on the panel tabs. */
 const DATASETS = [
   { id: "original", label: "Original", tier: 1 },
   { id: "synthetic", label: "Synthetic", tier: 2 },
-  { id: "ai", label: "AI-Generated", tier: 3 },
+  { id: "sketched", label: "Sketched", tier: 3 },
 ];
 
 /**
- * @param {{ active: string, onSelect: (id: string) => void, hasSynthetic: boolean }} props
+ * @param {{ active: string, onSelect: (id: string) => void, hasSynthetic: boolean,
+ *   hasSketched: boolean }} props
  */
-export default function DatasetTabs({ active, onSelect, hasSynthetic }) {
+export default function DatasetTabs({ active, onSelect, hasSynthetic, hasSketched }) {
   const disabledReason = {
     synthetic: hasSynthetic ? null : "Generate synthetic data first (Tier 2 card)",
-    ai: "Tier 3 is coming soon",
+    sketched: hasSketched ? null : "Sketch data first (Tier 3 card)",
   };
   return (
     <div className="dataset-tabs" role="tablist" aria-label="Dataset">

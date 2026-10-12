@@ -1,7 +1,6 @@
 // Labels from the design notes —
-// UI-only; the engine and CLI keep saying Tier 1/2/3 everywhere else. Only
-// Tier 1 is interactive in v1; 2 and 3 are shown disabled so the eventual
-// three-tier structure is legible from day one. Reversibility text and the
+// UI-only; the engine and CLI keep saying Tier 1/2/3 everywhere else. Tiers
+// 2 and 3 need a loaded file. Reversibility text and the
 // lock icon's strength come from the design notes's
 // "Anonymizer tier detail" table.
 export const TIERS = [
@@ -23,7 +22,8 @@ export const TIERS = [
   {
     id: 3,
     label: "Pattern-persistent Data Generation",
-    caption: "Advanced and pattern-persistent data anonymization",
+    caption:
+      "Sketch your data as classes on parallel coordinates, steer the sketch, generate from it",
     reversibility: "Irreversible (synthetic)",
     lockStrength: 3,
   },

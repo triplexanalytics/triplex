@@ -52,6 +52,33 @@ self.onmessage = async (event) => {
         payload.excludedRowIndices ?? [],
       );
       result = { synthetic_csv: output.synthetic_csv, report_json: output.report_json };
+    } else if (type === "proposeSketch") {
+      // Tier 3: the sketch is derived from the data and stays in the page.
+      result = wasm.propose_sketch(
+        payload.bytes,
+        payload.extension,
+        payload.seed,
+        payload.minCategoryCount,
+        payload.excludedRowIndices ?? [],
+        JSON.stringify(payload.excludedColumns ?? []),
+        payload.classes,
+        payload.minClassSize,
+        payload.bins,
+      );
+    } else if (type === "synthesizeSketch") {
+      const output = wasm.synthesize_sketch(
+        payload.bytes,
+        payload.extension,
+        JSON.stringify(payload.sketch),
+        payload.seed,
+        payload.rows,
+        payload.minCategoryCount,
+        payload.excludedRowIndices ?? [],
+        JSON.stringify(payload.excludedColumns ?? []),
+      );
+      result = { synthetic_csv: output.synthetic_csv, report_json: output.report_json };
+    } else if (type === "mergeSketchClasses") {
+      result = wasm.merge_sketch_classes(JSON.stringify(payload.sketch), payload.a, payload.b);
     } else if (type === "suggestDomains") {
       result = wasm.suggest_synthesis_domains(payload.bytes, payload.extension);
     } else {
