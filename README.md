@@ -1,6 +1,8 @@
 # Triplex
 
 [![ci](https://github.com/triplexanalytics/triplex/actions/workflows/ci.yml/badge.svg)](https://github.com/triplexanalytics/triplex/actions/workflows/ci.yml)
+[![engine + CLI version](https://raw.githubusercontent.com/triplexanalytics/triplex/badges/workspace.svg)](https://github.com/triplexanalytics/triplex/tags)
+[![web UI version](https://raw.githubusercontent.com/triplexanalytics/triplex/badges/web.svg)](https://github.com/triplexanalytics/triplex/tags)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Local-first data privacy tooling: schema contracts, pseudonymization, synthetic data,
