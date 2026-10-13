@@ -108,7 +108,9 @@ pub struct AnonymizeBytesResult {
     pub report: AnonymizeReport,
 }
 
-fn read_rows(path: &Path) -> Result<triplex_io::Sample> {
+/// Reads every row of a local `.csv` or `.parquet` file: the inputs
+/// `anonymize_file` and the `synthesize_*_file` functions accept.
+pub fn read_rows(path: &Path) -> Result<triplex_io::Sample> {
     match path.extension().and_then(|e| e.to_str()) {
         Some("csv") => triplex_io::read_csv_full(path),
         Some("parquet") => triplex_io::read_parquet_rows(path),
@@ -346,7 +348,30 @@ pub fn anonymize_file(
     excluded_row_indices: &HashSet<usize>,
     profile_out_path: Option<&Path>,
 ) -> Result<AnonymizeReport> {
-    let sample = read_rows(input_path)?;
+    let (masked, report) = anonymize_sample(
+        read_rows(input_path)?,
+        recipe,
+        mapping_out_path,
+        mapping_passphrase,
+        excluded_row_indices,
+    )?;
+    triplex_io::write_csv(output_path, &masked.headers, &masked.rows)?;
+    if let Some(profile_path) = profile_out_path {
+        mint_profile(output_path, report.risk_assessment, profile_path)?;
+    }
+    Ok(report)
+}
+
+/// `anonymize_file` for rows the caller already holds (`packages/triplex-python`
+/// handing over a DataFrame): same env-var salts and same mapping file on
+/// disk, but the masked table is returned instead of written.
+pub fn anonymize_sample(
+    sample: triplex_io::Sample,
+    recipe: &AnonymizeRecipe,
+    mapping_out_path: &Path,
+    mapping_passphrase: Option<&str>,
+    excluded_row_indices: &HashSet<usize>,
+) -> Result<(triplex_io::Sample, AnonymizeReport)> {
     let (sample, rows_excluded) = exclude_rows(sample, excluded_row_indices);
     let (resolved, drop_indices) = resolve_columns(recipe, &sample.headers, salt_from_env)?;
     let (masked, mapping_entries) = mask_rows(&resolved, sample);
@@ -356,8 +381,6 @@ pub fn anonymize_file(
         .collect();
     let risk_assessment = assess_bucket_risk(&resolved, &masked);
     let masked = drop_columns(masked, &drop_indices);
-
-    triplex_io::write_csv(output_path, &masked.headers, &masked.rows)?;
 
     let mapping_bytes = mapping::mapping_to_csv(&mapping_entries)?;
     match mapping_passphrase {
@@ -370,11 +393,7 @@ pub fn anonymize_file(
         None => std::fs::write(mapping_out_path, mapping_bytes)?,
     }
 
-    if let Some(profile_path) = profile_out_path {
-        mint_profile(output_path, risk_assessment, profile_path)?;
-    }
-
-    Ok(AnonymizeReport {
+    let report = AnonymizeReport {
         rows_processed: masked.rows.len(),
         columns_anonymized: resolved.iter().map(|c| c.declared.name.clone()).collect(),
         columns_dropped,
@@ -382,7 +401,8 @@ pub fn anonymize_file(
         risk_assessment,
         rows_excluded,
         warning: PSEUDONYMIZATION_WARNING,
-    })
+    };
+    Ok((masked, report))
 }
 
 /// Byte-slice counterpart to `anonymize_file`, for a caller with no

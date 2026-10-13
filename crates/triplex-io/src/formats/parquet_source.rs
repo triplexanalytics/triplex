@@ -94,7 +94,6 @@ pub fn read_parquet_schema(path: &Path) -> Result<Vec<ParquetColumnStats>> {
 /// dataset into memory; revisit with a batch-by-batch streaming writer if
 /// anonymizing very large Parquet files becomes a real use case.
 pub fn read_parquet_rows(path: &Path) -> Result<Sample> {
-    use arrow_cast::display::array_value_to_string;
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
     let file = File::open(path)?;
@@ -111,20 +110,8 @@ pub fn read_parquet_rows(path: &Path) -> Result<Sample> {
     let mut rows = Vec::new();
     for batch_result in reader {
         let batch = batch_result.map_err(|e| Error::Parquet(e.to_string()))?;
-        for row_idx in 0..batch.num_rows() {
-            let mut row = Vec::with_capacity(batch.num_columns());
-            for col_idx in 0..batch.num_columns() {
-                let array = batch.column(col_idx);
-                let value = if array.is_null(row_idx) {
-                    String::new()
-                } else {
-                    array_value_to_string(array, row_idx)
-                        .map_err(|e| Error::Parquet(e.to_string()))?
-                };
-                row.push(value);
-            }
-            rows.push(row);
-        }
+        super::arrow_ipc_source::append_rows(&batch, &mut rows)
+            .map_err(|e| Error::Parquet(e.to_string()))?;
     }
 
     Ok(Sample { headers, rows })

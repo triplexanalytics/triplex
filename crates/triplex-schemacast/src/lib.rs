@@ -288,13 +288,25 @@ pub fn infer_schema_from_bytes(bytes: &[u8], extension: &str) -> Result<SchemaCo
 pub fn read_and_profile_bytes(bytes: &[u8], extension: &str) -> Result<(SchemaContract, Vec<u8>)> {
     let sample = convert::read_full_bytes(bytes, extension)?;
     let schema = infer_schema(&sample);
+    let table_arrow = arrow_ipc_for(&sample, &schema)?;
+    Ok((schema, table_arrow))
+}
+
+fn arrow_ipc_for(sample: &Sample, schema: &SchemaContract) -> Result<Vec<u8>> {
     let column_types: Vec<triplex_io::WriteColumnType> = schema
         .columns
         .iter()
         .map(|c| convert::to_write_column_type(c.inferred_type))
         .collect();
-    let table_arrow = triplex_io::rows_to_arrow_ipc(&sample.headers, &column_types, &sample.rows)?;
-    Ok((schema, table_arrow))
+    triplex_io::rows_to_arrow_ipc(&sample.headers, &column_types, &sample.rows)
+}
+
+/// Serializes a table the engine produced (masked or synthetic rows) as
+/// Arrow IPC stream bytes, typing each column by what `infer_schema` finds
+/// in it. For a caller that wants a typed table back instead of CSV text
+/// (`packages/triplex-python`).
+pub fn sample_to_arrow_ipc(sample: &Sample) -> Result<Vec<u8>> {
+    arrow_ipc_for(sample, &infer_schema(sample))
 }
 
 /// Infers a schema from bytes and renders it as a starting `.triplex.yaml`

@@ -3,6 +3,7 @@
 //! all of them by file extension.
 
 pub(crate) mod arrow_ipc_sink;
+pub(crate) mod arrow_ipc_source;
 pub(crate) mod csv_sink;
 pub(crate) mod csv_source;
 pub(crate) mod delimited;

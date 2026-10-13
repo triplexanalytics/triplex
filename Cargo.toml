@@ -11,6 +11,7 @@ members = [
     "apps/triplex-cli",
     "apps/triplex-web",
     "apps/triplex-mcp",
+    "packages/triplex-python",
 ]
 
 [workspace.package]
