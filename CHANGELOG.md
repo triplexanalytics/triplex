@@ -18,6 +18,11 @@ and versions follow [Semantic Versioning](https://semver.org/). Versions are git
 - **Docker image.** A `Dockerfile` that builds the `triplex` CLI into a small image running as a
   non-root user. It works with `--network none`.
 
+### Fixed
+
+- **Jupyter widget.** Dialogs are centered in and sized to the widget's own box, for notebook
+  hosts such as VS Code where the cell is not the viewport.
+
 ## First public release
 
 ### Added

@@ -1970,7 +1970,7 @@ button.full-width {
   min-height: 0;
 }
 
-/* See measureFixedOrigin in widget.jsx: undoes the offset a notebook page adds to every element
+/* See measureHost in widget.jsx: undoes the offset a notebook page adds to every element
    the app positions with `position: fixed` and viewport coordinates (all set as inline styles). */
 .triplex-widget-probe {
   position: fixed;
@@ -1982,6 +1982,15 @@ button.full-width {
 
 .triplex-widget [style*="position: fixed"] {
   translate: calc(-1 * var(--triplex-fixed-x, 0px)) calc(-1 * var(--triplex-fixed-y, 0px));
+}
+
+/* See measureHost in widget.jsx: a dialog opens centered in the widget's box and no larger than
+   it, instead of centered in (and sized from) the viewport. */
+.triplex-widget dialog {
+  inset: var(--triplex-frame-top, 0px) var(--triplex-frame-right, 0px)
+    var(--triplex-frame-bottom, 0px) var(--triplex-frame-left, 0px);
+  max-width: calc(var(--triplex-frame-width, 100vw) - 2rem);
+  max-height: calc(var(--triplex-frame-height, 100vh) - 2rem);
 }
 
 /* === Tier 3: sketch dialog and parallel coordinates === */

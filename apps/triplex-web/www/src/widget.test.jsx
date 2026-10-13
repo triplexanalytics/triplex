@@ -140,6 +140,33 @@ describe("widget.render", () => {
     expect(model.set).toHaveBeenCalledWith("mapping_csv", MAPPING);
   });
 
+  it("measures its own box on each interaction, for the dialogs to open inside it", () => {
+    const { el } = show();
+    const frame = /** @type {HTMLElement} */ (el.querySelector(".triplex-widget"));
+    vi.spyOn(document.documentElement, "clientWidth", "get").mockReturnValue(1000);
+    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(5000);
+    frame.getBoundingClientRect = () =>
+      /** @type {DOMRect} */ ({
+        top: 3000,
+        left: 40,
+        right: 940,
+        bottom: 3640,
+        width: 900,
+        height: 640,
+      });
+
+    fireEvent.pointerDown(frame);
+
+    const px = (name) => frame.style.getPropertyValue(`--triplex-frame-${name}`);
+    expect(["top", "right", "bottom", "left"].map(px)).toEqual([
+      "3000px",
+      "60px",
+      "1360px",
+      "40px",
+    ]);
+    expect([px("width"), px("height")]).toEqual(["900px", "640px"]);
+  });
+
   it("stops listening and unmounts on cleanup", () => {
     const { model, el, cleanup } = show();
     act(() => cleanup());

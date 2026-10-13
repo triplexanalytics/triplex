@@ -47,20 +47,39 @@ function Host({ model }) {
     model.save_changes();
   }, [appState, exposeMapping, model]);
 
-  // JupyterLab's panels use CSS containment, which makes the panel, not the viewport, the box
-  // that `position: fixed` is measured from. The app places its menus and tooltips with viewport
-  // coordinates, so in a notebook they would open shifted by the panel's offset (off-screen, for
-  // the column menu). A fixed probe at 0,0 shows where that box really starts, and styles.css
-  // shifts every fixed element back by that much. Re-measured on each interaction because the
-  // offset changes when the notebook's own layout does (a sidebar opening, say).
+  // Two things in the app are placed against the viewport, and in a notebook the viewport is not
+  // the cell. Both are corrected in styles.css from what is measured here.
+  //
+  // 1. Menus and tooltips use `position: fixed` with viewport coordinates. JupyterLab's panels
+  //    use CSS containment, which makes the panel, not the viewport, the box those are measured
+  //    from, so they would open shifted by the panel's offset (off-screen, for the column menu).
+  //    A fixed probe at 0,0 shows where that box really starts.
+  // 2. The dialogs are native `<dialog>`s opened with `showModal()`, which centers them in the
+  //    viewport and sizes them from it. VS Code shows every cell output in one webview as tall
+  //    as the notebook, so that center is far from the cell and `vh` is far taller than the
+  //    screen. The widget's own box is where a dialog belongs.
+  //
+  // Re-measured on each interaction because both change when the notebook's own layout does (a
+  // sidebar opening, the notebook scrolling).
+  // ponytail: a dialog follows the cell only on the next interaction, not while the notebook
+  // scrolls under it; add a scroll listener on the host if that matters.
   const frame = useRef(null);
   const probe = useRef(null);
-  const measureFixedOrigin = () => {
+  const measureHost = () => {
+    const set = (name, px) => frame.current.style.setProperty(`--triplex-${name}`, `${px}px`);
     const origin = probe.current.getBoundingClientRect();
-    frame.current.style.setProperty("--triplex-fixed-x", `${origin.left}px`);
-    frame.current.style.setProperty("--triplex-fixed-y", `${origin.top}px`);
+    set("fixed-x", origin.left);
+    set("fixed-y", origin.top);
+    const box = frame.current.getBoundingClientRect();
+    const view = document.documentElement;
+    set("frame-top", box.top);
+    set("frame-left", box.left);
+    set("frame-right", view.clientWidth - box.right);
+    set("frame-bottom", view.clientHeight - box.bottom);
+    set("frame-width", box.width);
+    set("frame-height", box.height);
   };
-  useEffect(measureFixedOrigin, []);
+  useEffect(measureHost, []);
 
   const toggleExposeMapping = (event) => {
     setExposeMapping(event.target.checked);
@@ -72,8 +91,9 @@ function Host({ model }) {
     <div
       className="triplex-widget"
       ref={frame}
-      onPointerEnter={measureFixedOrigin}
-      onPointerDownCapture={measureFixedOrigin}
+      onPointerEnter={measureHost}
+      onPointerDownCapture={measureHost}
+      onKeyDownCapture={measureHost}
     >
       <div className="triplex-widget-probe" ref={probe} />
       <label className="triplex-widget-option">
