@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   axisExtent,
+  cutProblem,
   dropClass,
+  flattenDensity,
+  setDensityBin,
+  splittableColumns,
   setAxisRange,
   setClassSize,
   sketchProblem,
@@ -106,5 +110,65 @@ describe("axisExtent", () => {
     });
     expect(axisExtent(flat, 0)).toEqual([4.5, 5.5]);
     expect(axisExtent(sketch(), 1)).toEqual([0, 1]);
+  });
+});
+
+describe("redrawing a density (T3.2)", () => {
+  it("sets one bin and leaves the rest and the other classes alone", () => {
+    const before = sketch();
+    const after = setDensityBin(before, 0, 0, 1, 5);
+    expect(after.classes[0].axes[0].density).toEqual([1, 5]);
+    expect(after.classes[1]).toBe(before.classes[1]);
+    expect(before.classes[0].axes[0].density).toEqual([1, 1]);
+  });
+  it("ignores a negative or non-number weight, an unknown bin and a category axis", () => {
+    for (const weight of [-1, NaN, Infinity]) {
+      expect(setDensityBin(sketch(), 0, 0, 0, weight).classes[0].axes[0].density).toEqual([1, 1]);
+    }
+    expect(setDensityBin(sketch(), 0, 0, 7, 3).classes[0].axes[0].density).toEqual([1, 1]);
+    expect(setDensityBin(sketch(), 0, 1, 0, 3).classes[0].axes[1]).toEqual(
+      sketch().classes[0].axes[1],
+    );
+  });
+  it("never leaves a density without any weight", () => {
+    const one = setDensityBin(sketch(), 0, 0, 0, 0);
+    expect(one.classes[0].axes[0].density).toEqual([0, 1]);
+    expect(setDensityBin(one, 0, 0, 1, 0).classes[0].axes[0].density).toEqual([0, 1]);
+  });
+  it("flattens a density", () => {
+    const drawn = setDensityBin(sketch(), 0, 0, 1, 9);
+    expect(flattenDensity(drawn, 0, 0).classes[0].axes[0].density).toEqual([1, 1]);
+  });
+});
+
+describe("where a class can be split (T3.2)", () => {
+  it("offers number columns with a real range, cut at the middle", () => {
+    expect(splittableColumns(sketch(), 0)).toEqual([
+      { index: 0, name: "x", type: "numeric", at: 5 },
+    ]);
+    const point = setAxisRange(setAxisRange(sketch(), 0, 0, { min: 4 }), 0, 0, { max: 4 });
+    expect(splittableColumns(point, 0)).toEqual([]);
+  });
+  it("offers a category column only when at least two values are present", () => {
+    const mixed = sketch();
+    mixed.classes[0].axes[1].shares = [2, 1];
+    expect(splittableColumns(mixed, 0)[1]).toEqual({
+      index: 1,
+      name: "kind",
+      type: "categorical",
+      values: [
+        { position: 0, label: "a" },
+        { position: 1, label: "b" },
+      ],
+    });
+    expect(splittableColumns(sketch(), 9)).toEqual([]);
+  });
+  it("checks a typed cut against the class's range", () => {
+    const axis = sketch().classes[0].axes[0];
+    expect(cutProblem(axis, "5")).toBeNull();
+    expect(cutProblem(axis, "")).toMatch(/Enter a number/);
+    expect(cutProblem(axis, "abc")).toMatch(/Enter a number/);
+    expect(cutProblem(axis, "0")).toMatch(/between 0 and 10/);
+    expect(cutProblem(axis, "10")).toMatch(/between 0 and 10/);
   });
 });

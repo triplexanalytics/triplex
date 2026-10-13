@@ -8,6 +8,9 @@ and versions follow [Semantic Versioning](https://semver.org/). Versions are git
 
 ### Added
 
+- **Sketch steering in the web UI.** In the Sketch dialog a class can be split in two along a
+  column, its spread on a number column redrawn by dragging across the bars, and a new class
+  added by hand. A downloaded sketch can be loaded back.
 - **Python package.** `import triplex` runs the engine in plain Python, with no browser and no
   subprocess: `infer_schema`, `validate`, `convert`, `anonymize` and `synthesize`. Tables go in
   as a file path, a pandas or Polars DataFrame or a pyarrow Table. Built from source for now; not

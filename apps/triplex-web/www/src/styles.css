@@ -2082,3 +2082,45 @@ button.full-width {
   gap: 0.35rem;
   align-items: center;
 }
+
+/* === Tier 3, slice T3.2: split, shape, add and load === */
+.sketch-shape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.sketch-shape fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  max-width: 360px;
+}
+.sketch-row {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+.sketch-classes tfoot td {
+  border-top: 2px solid var(--border);
+}
+.density-editor svg {
+  display: block;
+  border-bottom: 1px solid var(--text-muted, #667085);
+  cursor: crosshair;
+  touch-action: none;
+}
+.density-editor rect:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.density-editor-range {
+  display: flex;
+  justify-content: space-between;
+  width: 320px;
+  font-size: 11px;
+  color: var(--text-muted, #667085);
+}
+.sketch-load input {
+  margin-left: 0.5rem;
+}

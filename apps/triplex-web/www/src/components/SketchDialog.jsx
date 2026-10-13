@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import ParallelCoordinates from "./ParallelCoordinates";
-import { classColor } from "../state/sketchEdit";
+import DensityEditor from "./DensityEditor";
+import {
+  DEFAULT_MIN_CLASS_SIZE,
+  classColor,
+  cutProblem,
+  splittableColumns,
+} from "../state/sketchEdit";
 
 /** @param {{ label: string, hint?: string, error?: string, children: any }} props */
 function Field({ label, hint, error, children }) {
@@ -17,11 +23,17 @@ const BUSY_LABEL = {
   proposing: "Proposing a sketch…",
   merging: "Merging…",
   generating: "Generating…",
+  splitting: "Splitting…",
+  adding: "Adding…",
+  loading: "Loading…",
 };
 
-/** The classes of the sketch: pick one to steer, change its size, drop it or merge it. */
+/** The classes of the sketch: pick one to steer, change its size, drop it or merge it, or add a
+ * new one by hand. */
 function ClassList({ s }) {
   const [mergeInto, setMergeInto] = useState("");
+  const [newSize, setNewSize] = useState(String(DEFAULT_MIN_CLASS_SIZE));
+  const newSizeOk = /^\d+$/.test(newSize.trim());
   const { sketch, selectedClass } = s;
   const others = sketch.classes.map((c, i) => ({ c, i })).filter(({ i }) => i !== selectedClass);
   return (
@@ -94,7 +106,158 @@ function ClassList({ s }) {
           </tr>
         ))}
       </tbody>
+      <tfoot>
+        <tr>
+          <td>New class</td>
+          <td>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={newSize}
+              aria-label="Rows in the new class"
+              onChange={(e) => setNewSize(e.target.value)}
+            />
+          </td>
+          <td>
+            <button
+              type="button"
+              disabled={!newSizeOk || !!s.busy}
+              title="Adds a class as wide as the whole sketch, for you to narrow"
+              onClick={() => s.addClass(Number(newSize))}
+            >
+              Add a class
+            </button>
+          </td>
+        </tr>
+      </tfoot>
     </table>
+  );
+}
+
+/** Split the selected class in two along a column, and redraw its density on a number column. */
+function ShapePanel({ s }) {
+  const { sketch, selectedClass } = s;
+  const cls = sketch.classes[selectedClass];
+  const splittable = splittableColumns(sketch, selectedClass);
+  const [splitColumn, setSplitColumn] = useState("");
+  const [cut, setCut] = useState("");
+  const [shapeColumn, setShapeColumn] = useState("");
+  if (!cls) return null;
+
+  const chosen = splittable.find((c) => String(c.index) === splitColumn) ?? splittable[0];
+  const chosenAxis = chosen ? cls.axes[chosen.index] : null;
+  const cutValue =
+    chosen?.type === "numeric"
+      ? cut === ""
+        ? String(chosen.at)
+        : cut
+      : cut || String(chosen?.values[0].position ?? "");
+  const problem = chosen?.type === "numeric" ? cutProblem(chosenAxis, cutValue) : null;
+  const doSplit = async () => {
+    const done = await s.split(
+      selectedClass,
+      chosen.index,
+      chosen.type === "numeric" ? { at: Number(cutValue) } : { values: [Number(cutValue)] },
+    );
+    if (done) setCut("");
+  };
+
+  const shapeable = sketch.columns
+    .map((column, i) => ({ column, axis: cls.axes[i], i }))
+    .filter(({ axis }) => axis.type === "numeric" && axis.null_share < 1 && axis.min < axis.max);
+  const shaped = shapeable.find(({ i }) => String(i) === shapeColumn) ?? shapeable[0];
+
+  return (
+    <div className="sketch-shape">
+      <fieldset>
+        <legend>Split {cls.name}</legend>
+        {chosen ? (
+          <>
+            <div className="sketch-row">
+              <select
+                value={String(chosen.index)}
+                aria-label="Column to split along"
+                onChange={(e) => {
+                  setSplitColumn(e.target.value);
+                  setCut("");
+                }}
+              >
+                {splittable.map((c) => (
+                  <option key={c.index} value={c.index}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {chosen.type === "numeric" ? (
+                <input
+                  type="number"
+                  step="any"
+                  value={cutValue}
+                  aria-label="Value to cut at"
+                  onChange={(e) => setCut(e.target.value)}
+                />
+              ) : (
+                <select
+                  value={cutValue}
+                  aria-label="Value to split off"
+                  onChange={(e) => setCut(e.target.value)}
+                >
+                  {chosen.values.map((v) => (
+                    <option key={v.position} value={v.position}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button type="button" disabled={!!problem || !!s.busy} onClick={doSplit}>
+                Split
+              </button>
+            </div>
+            <p className="synth-hint">
+              {problem ??
+                (chosen.type === "numeric"
+                  ? "Two classes: below and above the cut. The data generated stays the same until you move one of them."
+                  : "Two classes: this value, and the rest. The data generated stays the same until you change one of them.")}
+            </p>
+          </>
+        ) : (
+          <p className="synth-hint">This class has nothing to split along.</p>
+        )}
+      </fieldset>
+      {shaped && (
+        <fieldset>
+          <legend>Shape of {cls.name}</legend>
+          <div className="sketch-row">
+            <select
+              value={String(shaped.i)}
+              aria-label="Column whose shape to redraw"
+              onChange={(e) => setShapeColumn(e.target.value)}
+            >
+              {shapeable.map(({ column, i }) => (
+                <option key={i} value={i}>
+                  {column.name}
+                </option>
+              ))}
+            </select>
+            <button type="button" onClick={() => s.flatten(selectedClass, shaped.i)}>
+              Make flat
+            </button>
+          </div>
+          <DensityEditor
+            density={shaped.axis.density}
+            min={shaped.axis.min}
+            max={shaped.axis.max}
+            color={classColor(selectedClass)}
+            label={`How ${shaped.column.name} is spread inside ${cls.name}: drag across the bars to redraw`}
+            onChange={(bin, weight) => s.redraw(selectedClass, shaped.i, bin, weight)}
+          />
+          <p className="synth-hint">
+            Drag across the bars to redraw how values are spread over the class&apos;s range.
+          </p>
+        </fieldset>
+      )}
+    </div>
   );
 }
 
@@ -248,9 +411,22 @@ export default function SketchDialog({
           <button type="button" onClick={s.propose} disabled={blocked || !!s.busy}>
             {s.sketch ? "Propose again" : "Propose a sketch"}
           </button>
+          <label className="sketch-load">
+            Load a sketch (.json)
+            <input
+              type="file"
+              accept=".json,application/json"
+              disabled={!!s.busy}
+              onChange={(e) => {
+                const picked = e.target.files?.[0];
+                if (picked) s.loadSketch(picked);
+                e.target.value = "";
+              }}
+            />
+          </label>
           {s.sketch && (
             <span className="synth-hint">
-              Proposing again replaces the sketch and your changes.
+              Proposing again or loading a sketch replaces the sketch and your changes.
             </span>
           )}
         </div>
@@ -276,6 +452,7 @@ export default function SketchDialog({
             <div className="sketch-panels">
               <ClassList s={s} />
               <RangeTable s={s} />
+              <ShapePanel key={s.sketch.classes[s.selectedClass]?.name} s={s} />
             </div>
             <div className="synth-run">
               <button

@@ -1,14 +1,23 @@
 import { useCallback, useMemo, useState } from "react";
 import { downloadBlob } from "../utils";
 import { profileFile } from "../state/profileClient";
-import { mergeSketchClasses, proposeSketch, runSynthesizeSketch } from "../state/synthesisClient";
+import {
+  addSketchClass,
+  mergeSketchClasses,
+  proposeSketch,
+  runSynthesizeSketch,
+  splitSketchClass,
+  validateSketch,
+} from "../state/synthesisClient";
 import { DEFAULT_MIN_CATEGORY_COUNT, validateCommon } from "../state/synthesisConfig";
 import {
   DEFAULT_CLASSES,
   DEFAULT_MIN_CLASS_SIZE,
   DEFAULT_SKETCH_BINS,
   dropClass,
+  flattenDensity,
   setAxisRange,
+  setDensityBin,
   setClassSize,
   sketchProblem,
   validateSketchSettings,
@@ -30,7 +39,7 @@ export function useSketch({ fileBytes, extension, removedRowIndices, removedColu
   const [sketch, setSketch] = useState(null);
   const [selectedClass, setSelectedClass] = useState(0);
   const [result, setResult] = useState(null);
-  const [busy, setBusy] = useState(null); // "proposing" | "merging" | "generating" | null
+  const [busy, setBusy] = useState(null); // "proposing" | "merging" | "generating" | ... | null
   const [error, setError] = useState("");
 
   const settingErrors = useMemo(
@@ -110,6 +119,48 @@ export function useSketch({ fileBytes, extension, removedRowIndices, removedColu
     [sketch, attempt],
   );
 
+  // Slice T3.2: split a class, add one by hand, redraw a density, load a saved sketch.
+  const split = useCallback(
+    (classIndex, columnIndex, cut) => {
+      if (!sketch) return false;
+      return attempt("splitting", async () => {
+        setSketch(JSON.parse(await splitSketchClass(sketch, classIndex, columnIndex, cut)));
+        setSelectedClass(classIndex);
+      });
+    },
+    [sketch, attempt],
+  );
+  const addClass = useCallback(
+    (size) => {
+      if (!sketch) return false;
+      return attempt("adding", async () => {
+        const next = JSON.parse(await addSketchClass(sketch, size));
+        setSketch(next);
+        setSelectedClass(next.classes.length - 1);
+      });
+    },
+    [sketch, attempt],
+  );
+  const redraw = useCallback(
+    (classIndex, columnIndex, bin, weight) =>
+      edit((s) => setDensityBin(s, classIndex, columnIndex, bin, weight)),
+    [edit],
+  );
+  const flatten = useCallback(
+    (classIndex, columnIndex) => edit((s) => flattenDensity(s, classIndex, columnIndex)),
+    [edit],
+  );
+  /** Replaces the sketch with one read from a file the user picked. The engine checks it here;
+   * whether its columns fit the loaded data is checked when generating. */
+  const loadSketch = useCallback(
+    (file) =>
+      attempt("loading", async () => {
+        setSketch(JSON.parse(await validateSketch(await file.text())));
+        setSelectedClass(0);
+      }),
+    [attempt],
+  );
+
   const generate = useCallback(() => {
     if (!fileBytes || !sketch || problem || settingErrors.length > 0) return false;
     return attempt("generating", async () => {
@@ -171,6 +222,11 @@ export function useSketch({ fileBytes, extension, removedRowIndices, removedColu
     resizeClass,
     removeClass,
     merge,
+    split,
+    addClass,
+    redraw,
+    flatten,
+    loadSketch,
     generate,
     busy,
     result,

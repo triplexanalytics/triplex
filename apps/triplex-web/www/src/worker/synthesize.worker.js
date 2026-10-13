@@ -79,6 +79,17 @@ self.onmessage = async (event) => {
       result = { synthetic_csv: output.synthetic_csv, report_json: output.report_json };
     } else if (type === "mergeSketchClasses") {
       result = wasm.merge_sketch_classes(JSON.stringify(payload.sketch), payload.a, payload.b);
+    } else if (type === "splitSketchClass") {
+      result = wasm.split_sketch_class(
+        JSON.stringify(payload.sketch),
+        payload.classIndex,
+        payload.columnIndex,
+        JSON.stringify(payload.split),
+      );
+    } else if (type === "addSketchClass") {
+      result = wasm.add_sketch_class(JSON.stringify(payload.sketch), payload.size);
+    } else if (type === "validateSketch") {
+      result = wasm.validate_sketch(payload.text);
     } else if (type === "suggestDomains") {
       result = wasm.suggest_synthesis_domains(payload.bytes, payload.extension);
     } else {

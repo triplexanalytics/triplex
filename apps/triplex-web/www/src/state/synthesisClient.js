@@ -98,3 +98,22 @@ export function runSynthesizeSketch(payload) {
 export function mergeSketchClasses(sketch, a, b) {
   return client.request("mergeSketchClasses", { sketch, a, b });
 }
+
+/** Tier 3 steering (T3.2): cuts a class in two along a column. `split` is `{ at: number }` for a
+ * number column or `{ values: number[] }` (value positions) for a category column. Resolves to
+ * the new sketch as a JSON string. */
+export function splitSketchClass(sketch, classIndex, columnIndex, split) {
+  return client.request("splitSketchClass", { sketch, classIndex, columnIndex, split });
+}
+
+/** Tier 3 steering (T3.2): adds a class of `size` rows that starts as wide as the sketch.
+ * Resolves to the new sketch as a JSON string; the class is the last one. */
+export function addSketchClass(sketch, size) {
+  return client.request("addSketchClass", { sketch, size });
+}
+
+/** Tier 3 (T3.2): checks the text of a sketch file. Resolves to the sketch as a JSON string, or
+ * rejects with the reason it cannot be used. */
+export function validateSketch(text) {
+  return client.request("validateSketch", { text });
+}

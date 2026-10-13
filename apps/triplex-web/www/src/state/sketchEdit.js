@@ -88,6 +88,66 @@ export function dropClass(sketch, classIndex) {
   return { ...sketch, classes: sketch.classes.filter((_, i) => i !== classIndex) };
 }
 
+const withAxis = (sketch, classIndex, columnIndex, change) =>
+  withClass(sketch, classIndex, (c) => ({
+    ...c,
+    axes: c.axes.map((axis, i) => (i === columnIndex ? change(axis) : axis)),
+  }));
+
+/** Redraws one bin of a class's density on a number axis (slice T3.2). A weight below 0 or not a
+ * number is ignored, and so is a change that would leave the density without any weight. */
+export function setDensityBin(sketch, classIndex, columnIndex, bin, weight) {
+  if (!Number.isFinite(weight) || weight < 0) return sketch;
+  return withAxis(sketch, classIndex, columnIndex, (axis) => {
+    if (axis.type !== "numeric" || bin < 0 || bin >= axis.density.length) return axis;
+    const density = axis.density.map((w, i) => (i === bin ? weight : w));
+    return density.some((w) => w > 0) ? { ...axis, density } : axis;
+  });
+}
+
+/** Makes a class's density on a number axis flat (uniform over its range). */
+export function flattenDensity(sketch, classIndex, columnIndex) {
+  return withAxis(sketch, classIndex, columnIndex, (axis) =>
+    axis.type === "numeric" ? { ...axis, density: axis.density.map(() => 1) } : axis,
+  );
+}
+
+/** The columns a class can be split along, each with a default cut: a number column whose range
+ * is not a single point (cut at the middle), a category column with at least two values present
+ * (cut off the first present value). */
+export function splittableColumns(sketch, classIndex) {
+  const cls = sketch?.classes[classIndex];
+  if (!cls) return [];
+  return sketch.columns.flatMap((column, i) => {
+    const axis = cls.axes[i];
+    if (axis.null_share >= 1) return [];
+    if (axis.type === "numeric") {
+      if (!(axis.min < axis.max)) return [];
+      return [{ index: i, name: column.name, type: "numeric", at: (axis.min + axis.max) / 2 }];
+    }
+    const present = axis.shares.map((share, k) => (share > 0 ? k : -1)).filter((k) => k >= 0);
+    if (present.length < 2) return [];
+    return [
+      {
+        index: i,
+        name: column.name,
+        type: "categorical",
+        values: present.map((k) => ({ position: k, label: column.values[k] })),
+      },
+    ];
+  });
+}
+
+/** Why a typed cut on a number axis cannot be used, or null. */
+export function cutProblem(axis, at) {
+  const value = Number(at);
+  if (String(at ?? "").trim() === "" || !Number.isFinite(value)) return "Enter a number to cut at.";
+  if (!(value > axis.min && value < axis.max)) {
+    return `The cut must lie between ${axis.min} and ${axis.max}.`;
+  }
+  return null;
+}
+
 /** Why the sketch cannot be generated from, or null. The engine checks again and in more detail. */
 export function sketchProblem(sketch) {
   if (!sketch || sketch.classes.length === 0) return "Propose a sketch first.";
