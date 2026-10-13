@@ -6,6 +6,11 @@ and versions follow [Semantic Versioning](https://semver.org/). Versions are git
 
 ## [Unreleased]
 
+### Added
+
+- **Docker image.** A `Dockerfile` that builds the `triplex` CLI into a small image running as a
+  non-root user. It works with `--network none`.
+
 ## First public release
 
 ### Added

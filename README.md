@@ -73,6 +73,19 @@ Run `triplex` without arguments for the full command list, including `convert`,
 write three files: a deterministic audit JSON, a standalone offline HTML report and a Python
 script that reproduces the numbers with Polars.
 
+## Docker
+
+```sh
+docker build -t triplex .
+docker run --rm --network none --user "$(id -u):$(id -g)" -v "$PWD:/data" \
+  triplex schema tests/fixtures/sample.csv
+```
+
+The image holds only the `triplex` binary and runs as a non-root user. `--network none` lets
+Docker enforce what the tool already does: it makes no network request. `--user` makes the
+output files belong to you. Add `--build-arg TRIPLEX_VERSION=<version>` to set what
+`triplex --version` reports.
+
 ## Web UI
 
 The same engine compiled to WebAssembly, with a table view, per-column anonymization, risk
