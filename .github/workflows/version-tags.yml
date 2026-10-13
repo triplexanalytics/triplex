@@ -1,0 +1,37 @@
+name: version-tags
+
+# Tags every merge to main with its per-package version. The tag is the
+# version: nothing is committed back to main, so open pull requests never
+# conflict over a version line.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+# One run at a time, so two quick merges can't both compute the same tag.
+concurrency: version-tags
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history and tags; the script walks from the last tag
+      - run: python3 scripts/version_tags.py --self-test
+      - run: python3 scripts/version_tags.py --apply
+      - run: git push origin --tags
+      # The README's version badges are images on the `badges` branch: one
+      # commit, replaced on every run, so nothing is committed to main.
+      - name: Publish version badges
+        run: |
+          python3 scripts/version_tags.py --badges "$RUNNER_TEMP/badges"
+          cd "$RUNNER_TEMP/badges"
+          git init -q -b badges
+          git add .
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Version badges for $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" badges

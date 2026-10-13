@@ -16,10 +16,16 @@ issue.
 
 ## Pull requests
 
-Triplex is developed in a separate repository and published here, so a pull request cannot be
-merged directly. A good pull request is still useful: we review it, apply the change upstream
-and credit you in the commit. For anything larger than a small fix, open an issue first so we
-can agree on the approach.
+Pull requests are welcome. For anything larger than a small fix, open an issue first so we can
+agree on the approach.
+
+- Give the pull request a conventional-commit title, for example `fix(io): reject ragged rows`.
+  Pull requests are squashed, so the title becomes the commit on `main` and decides the version.
+- Keep engine changes (Rust) and web UI changes in separate pull requests.
+- Add an entry under "Unreleased" in [CHANGELOG.md](CHANGELOG.md) when a user can notice the
+  change.
+
+If you work with a coding agent, [AGENTS.md](AGENTS.md) holds the rules it should follow.
 
 Before you send one:
 
