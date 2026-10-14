@@ -3,6 +3,8 @@ name = "triplex-python"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# Shipped as the web UI and as Python wheels, not as a crate.
+publish = false
 
 [lib]
 # The extension module `import triplex` loads; python/triplex/__init__.py is

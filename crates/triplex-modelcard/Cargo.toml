@@ -3,6 +3,12 @@ name = "triplex-modelcard"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Fairness and slice metrics for a binary classifier, computed from a predictions file, with a deterministic report."
+readme = "README.md"
+keywords = ["fairness", "machine-learning", "metrics", "model-card", "audit"]
+categories = ["science"]
 
 [dependencies]
 triplex-core = { workspace = true }

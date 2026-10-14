@@ -1,8 +1,14 @@
 [package]
-name = "triplex-cli"
+name = "triplex"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "The triplex command-line tool: schema contracts, pseudonymization, synthetic data, privacy-risk scoring and drift checks on local files."
+readme = "README.md"
+keywords = ["privacy", "anonymization", "schema", "synthetic-data", "cli"]
+categories = ["command-line-utilities", "science"]
 
 [[bin]]
 name = "triplex"

@@ -1384,6 +1384,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "triplex"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "triplex-anonymizer",
+ "triplex-driftguard",
+ "triplex-modelcard",
+ "triplex-schemacast",
+]
+
+[[package]]
 name = "triplex-anonymizer"
 version = "0.0.0"
 dependencies = [
@@ -1400,17 +1411,6 @@ dependencies = [
  "triplex-core",
  "triplex-datasetcard",
  "triplex-io",
- "triplex-schemacast",
-]
-
-[[package]]
-name = "triplex-cli"
-version = "0.0.0"
-dependencies = [
- "serde_json",
- "triplex-anonymizer",
- "triplex-driftguard",
- "triplex-modelcard",
  "triplex-schemacast",
 ]
 

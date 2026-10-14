@@ -3,6 +3,12 @@ name = "triplex-mcp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Local MCP server (stdio) that lets AI agents infer and validate Triplex schema contracts on local files."
+readme = "README.md"
+keywords = ["mcp", "schema", "validation", "agents", "privacy"]
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "triplex-mcp"

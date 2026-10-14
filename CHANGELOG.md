@@ -26,6 +26,13 @@ and `jupyter-v*` for the Jupyter widget.
 - **Docker image.** A `Dockerfile` that builds the `triplex` CLI into a small image running as a
   non-root user. It works with `--network none`.
 
+### Changed
+
+- **The command-line tool's Cargo package is now called `triplex`**, so it can be installed with
+  `cargo install triplex` once published. Build it with `cargo build --release -p triplex`; the
+  binary is still `triplex`. Every crate now carries the metadata crates.io needs, and
+  `triplex --version` reports the published version when built from crates.io.
+
 ### Fixed
 
 - **Jupyter widget.** Dialogs are centered in and sized to the widget's own box, for notebook

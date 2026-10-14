@@ -3,6 +3,12 @@ name = "triplex-anonymizer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Local pseudonymization with a separate mapping file, and synthetic tabular data with fidelity and leakage reports."
+readme = "README.md"
+keywords = ["privacy", "anonymization", "pseudonymization", "synthetic-data", "gdpr"]
+categories = ["science", "cryptography"]
 
 [dependencies]
 triplex-core = { workspace = true }

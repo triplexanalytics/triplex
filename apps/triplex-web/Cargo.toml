@@ -3,6 +3,8 @@ name = "triplex-web"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# Shipped as the web UI and as Python wheels, not as a crate.
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -21,6 +21,8 @@ members = [
 version = "0.0.0"
 edition = "2021"
 license = "Apache-2.0"
+repository = "https://github.com/triplexanalytics/triplex"
+homepage = "https://triplexanalytics.io"
 
 # Single source of truth for every dependency shared by 2+ workspace
 # members, so a new crate (DriftGuard, ModelCard, ...) never has to guess a
@@ -28,14 +30,18 @@ license = "Apache-2.0"
 # `foo = { workspace = true }` (plus any extra `features` it alone needs);
 # a dependency only one crate uses stays pinned locally in that crate's own
 # Cargo.toml instead of moving here.
+#
+# The internal crates carry `version` next to `path` because crates.io accepts
+# no path-only dependency. Like the package version above, it is a placeholder:
+# the release workflow writes the tag's version into both before publishing.
 [workspace.dependencies]
-triplex-core = { path = "crates/triplex-core" }
-triplex-io = { path = "crates/triplex-io" }
-triplex-schemacast = { path = "crates/triplex-schemacast" }
-triplex-anonymizer = { path = "crates/triplex-anonymizer" }
-triplex-datasetcard = { path = "crates/triplex-datasetcard" }
-triplex-driftguard = { path = "crates/triplex-driftguard" }
-triplex-modelcard = { path = "crates/triplex-modelcard" }
+triplex-core = { path = "crates/triplex-core", version = "0.0.0" }
+triplex-io = { path = "crates/triplex-io", version = "0.0.0" }
+triplex-schemacast = { path = "crates/triplex-schemacast", version = "0.0.0" }
+triplex-anonymizer = { path = "crates/triplex-anonymizer", version = "0.0.0" }
+triplex-datasetcard = { path = "crates/triplex-datasetcard", version = "0.0.0" }
+triplex-driftguard = { path = "crates/triplex-driftguard", version = "0.0.0" }
+triplex-modelcard = { path = "crates/triplex-modelcard", version = "0.0.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml_ng = "0.10.0"

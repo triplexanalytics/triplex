@@ -10,7 +10,7 @@ FROM rust:1-slim-bookworm AS build
 ARG TRIPLEX_VERSION=
 WORKDIR /src
 COPY . .
-RUN cargo build --release --locked -p triplex-cli
+RUN cargo build --release --locked -p triplex
 
 FROM gcr.io/distroless/cc-debian12:nonroot
 COPY --from=build /src/target/release/triplex /usr/local/bin/triplex

@@ -3,6 +3,12 @@ name = "triplex-io"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Local file I/O for Triplex: CSV, TSV, JSON Lines and Parquet, read from a path or from bytes in memory, never over a network."
+readme = "README.md"
+keywords = ["csv", "parquet", "arrow", "privacy"]
+categories = ["encoding", "parser-implementations"]
 
 [dependencies]
 triplex-core = { workspace = true }
