@@ -15,7 +15,7 @@ export default function Navbar({
   columnCount,
   activeTier,
   onSelectTier,
-  tier2Enabled,
+  tierDisabledReasons,
   syntheticActive = false,
   generatedNoun = "synthetic",
   canCompare = false,
@@ -62,7 +62,11 @@ export default function Navbar({
         {rowCount !== null &&
           ` (${rowCount.toLocaleString()} rows / ${columnCount.toLocaleString()} columns)`}
       </span>
-      <TierPicker activeTier={activeTier} onSelectTier={onSelectTier} tier2Enabled={tier2Enabled} />
+      <TierPicker
+        activeTier={activeTier}
+        onSelectTier={onSelectTier}
+        disabledReasons={tierDisabledReasons}
+      />
       <div className="spacer" />
       <button
         type="button"

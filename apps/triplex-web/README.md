@@ -76,5 +76,16 @@ whatever `triplex-anonymizer::AnonymizeMethod::ALL` currently implements
 (just `token_hmac` today). Tier 2 ("Synthetic Data Generation") opens a
 dialog (standard Gaussian copula, or differentially private with a
 user-declared epsilon and public bounds) and the result becomes a Synthetic
-tab beside Original. Tier 3 is shown in the tier
-picker but disabled.
+tab beside Original. Tier 3 ("Pattern-persistent Data Generation") opens a
+sketch dialog: propose classes from the data, steer them on parallel
+coordinates, generate; the result becomes a Sketched tab.
+
+## Generator extensions
+
+Tiers 2 and 3 are generator extensions. Each one adds a dialog that produces
+a new table from the loaded one, and a dataset tab for the result. The app
+knows them only through the contract in `www/src/extensionApi.js`;
+`www/src/extensions.js` lists the ones this build ships. Another build can
+replace that list through a Vite alias on the specifier `./extensions`, the
+same way the widget build swaps `./workers`. With an empty list the app still
+runs, and Tiers 2 and 3 are shown but disabled.
