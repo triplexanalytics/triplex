@@ -18,11 +18,22 @@ maturin develop --release
 import pandas as pd
 import triplex
 
-df = pd.read_csv("customers.csv")
+# 1. Check the raw export against the contract you keep in version control.
+raw = pd.read_csv("customers.csv")
+report = triplex.validate(raw, "customers.triplex.yaml")
+if not report["valid"]:
+    raise SystemExit(report["errors"])
 
+# 2. Your own pandas work: clean, filter, derive, drop.
+df = raw.dropna(subset=["email"])
+df = df[df["plan"] != "free"]
+df["age_band"] = (df["age"] // 10) * 10
+df = df.drop(columns=["signup_date"])
+
+# 3. See what the table holds now: types, null rates, likely identifiers.
 schema = triplex.infer_schema(df)
-report = triplex.validate(df, "customers.triplex.yaml")
 
+# 4. Generate a synthetic copy for tests or a demo.
 run = triplex.synthesize(df, rows=1000, seed=1)
 synthetic = run.table.to_pandas()
 run.report["leakage"]

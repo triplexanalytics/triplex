@@ -2,7 +2,8 @@
 
 Notable changes to Triplex. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and versions follow [Semantic Versioning](https://semver.org/). Versions are git tags:
-`workspace-v*` for the engine and CLI, `web-v*` for the web UI.
+`workspace-v*` for the engine and CLI, `web-v*` for the web UI, `python-v*` for the Python package
+and `jupyter-v*` for the Jupyter widget.
 
 ## [Unreleased]
 

@@ -39,7 +39,7 @@ and a Python script that reproduces the numbers with Polars.
 
 ## Before you edit
 
-1. Read the code you are about to change and the README of its crate, app or package.
+1. Read the code you are about to change and, where there is one, the README of its app or package.
 2. State the objective, the files you expect to touch, the tests you will add or run, and what
    you are unsure about.
 3. Stop and ask before changing scope, security behavior, licensing, a public API, a file format
@@ -106,9 +106,10 @@ Everything in this repository is public and should read as finished work.
   `feat(web): compare dialog` or `fix(io): reject ragged rows`. Pull requests are squashed, so
   the title becomes the commit on `main`, and it decides the version.
 - Versions are git tags created by CI on every merge to `main`: `workspace-v*` for the engine
-  and CLI, `web-v*` for the web UI. A `feat` title or a breaking change (`!`) raises the minor
-  version, anything else the patch version. Never edit a `version` field by hand; `Cargo.toml`
-  and `package.json` hold a `0.0.0` placeholder on purpose.
+  and CLI, `web-v*` for the web UI, `python-v*` and `jupyter-v*` for the two Python packages. A
+  `feat` title or a breaking change (`!`) raises the minor version, anything else the patch
+  version. Never edit a `version` field by hand; `Cargo.toml`, `package.json` and
+  `pyproject.toml` hold a `0.0.0` placeholder on purpose.
 - Keep engine changes (Rust: `crates/`, `apps/*/src`) and UI changes (`apps/*/www`, Python UI
   code) in separate pull requests. When a UI change needs new engine surface, open the engine
   pull request first and stack the UI one on top of it.

@@ -34,6 +34,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 make -C apps/triplex-web test
+(cd packages/triplex-python && pip install ".[dev]" && python -m pytest tests)
 ```
 
 A change that affects a privacy property needs a test that demonstrates it.
