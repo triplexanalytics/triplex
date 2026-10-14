@@ -14,7 +14,8 @@ and versions follow [Semantic Versioning](https://semver.org/). Versions are git
 - **Python package.** `import triplex` runs the engine in plain Python, with no browser and no
   subprocess: `infer_schema`, `validate`, `convert`, `anonymize` and `synthesize`. Tables go in
   as a file path, a pandas or Polars DataFrame or a pyarrow Table. Built from source for now; not
-  on PyPI yet.
+  on PyPI yet. `draft_contract` returns a starting contract for a table, and `validate` takes a
+  contract as a `.triplex.yaml` path or as a dict.
 - **Docker image.** A `Dockerfile` that builds the `triplex` CLI into a small image running as a
   non-root user. It works with `--network none`.
 

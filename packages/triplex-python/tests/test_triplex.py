@@ -47,6 +47,33 @@ def test_validate_reports_a_missing_column():
     assert not report["valid"] and report["errors"]
 
 
+def test_a_draft_contract_holds_every_column_and_validates_its_table(tmp_path):
+    contract = triplex.draft_contract(SAMPLE, output=tmp_path / "sample.triplex.yaml")
+    inferred = triplex.infer_schema(SAMPLE)
+    assert [(c["name"], c["type"]) for c in contract["columns"]] == columns(inferred)
+    assert all(c["required"] for c in contract["columns"])
+    assert triplex.validate(SAMPLE, contract)["valid"]
+    assert triplex.validate(SAMPLE, tmp_path / "sample.triplex.yaml")["valid"]
+
+
+def test_a_contract_dict_catches_what_a_transformation_changed():
+    frame = pd.read_csv(SAMPLE)
+    contract = triplex.draft_contract(frame)
+    assert triplex.validate(frame, contract)["valid"]
+    report = triplex.validate(frame.drop(columns=["price"]), contract)
+    assert not report["valid"] and report["errors"]
+
+
+def test_an_inferred_schema_is_not_taken_for_a_contract():
+    with pytest.raises(TypeError, match="draft_contract"):
+        triplex.validate(SAMPLE, triplex.infer_schema(SAMPLE))
+
+
+def test_a_malformed_contract_dict_is_an_engine_error():
+    with pytest.raises(triplex.TriplexError):
+        triplex.validate(SAMPLE, {"version": 1, "columns": [{"name": "id"}]})
+
+
 def test_convert_writes_the_other_format(tmp_path):
     report = triplex.convert(SAMPLE, tmp_path / "sample.jsonl")
     assert report["rows_converted"] == 4

@@ -21,6 +21,7 @@ __all__ = [
     "TriplexError",
     "anonymize",
     "convert",
+    "draft_contract",
     "infer_schema",
     "synthesize",
     "validate",
@@ -95,13 +96,42 @@ def infer_schema(data, *, sample_rows=SAMPLE_ROWS, delimiter=None):
     return json.loads(_native.infer_schema(path, ipc, sample_rows, delimiter))
 
 
-def validate(data, contract, *, sample_rows=SAMPLE_ROWS, delimiter=None):
-    """Check `data` against the `.triplex.yaml` contract at `contract`.
+def draft_contract(data, *, output=None, sample_rows=SAMPLE_ROWS, delimiter=None):
+    """A starting contract for `data`: every column with the type found in it, all required.
 
-    Returns the validation report: `{"valid": bool, "errors": [...]}`.
+    Returns the contract as a dict, which `validate` accepts. `output` also writes it as a
+    `.triplex.yaml` file. A draft only describes the table it was made from: add the limits you
+    expect (null rate, value range, mean, pattern) before you rely on it.
     """
     path, ipc = _input(data)
-    return json.loads(_native.validate(contract, path, ipc, sample_rows, delimiter))
+    contract, yaml = _native.draft_contract(path, ipc, sample_rows, delimiter)
+    if output is not None:
+        with open(output, "w", encoding="utf-8") as file:
+            file.write(yaml)
+    return json.loads(contract)
+
+
+def validate(data, contract, *, sample_rows=SAMPLE_ROWS, delimiter=None):
+    """Check `data` against `contract`: a `.triplex.yaml` path, or a contract as a dict.
+
+    A dict is what `draft_contract` returns, or the same shape built or edited in Python.
+    Returns the validation report: `{"valid": bool, "errors": [...]}`.
+    """
+    if isinstance(contract, dict):
+        if any("inferred_type" in column for column in contract.get("columns", ())):
+            # The two dicts look alike, but an inferred schema describes one table as it is and
+            # sets no expectation to check against.
+            raise TypeError(
+                "this is an inferred schema, not a contract; "
+                "pass triplex.draft_contract(data) to check against the same columns and types"
+            )
+        contract_path, contract_text = None, json.dumps(contract)
+    else:
+        contract_path, contract_text = os.fspath(contract), None
+    path, ipc = _input(data)
+    return json.loads(
+        _native.validate(contract_path, contract_text, path, ipc, sample_rows, delimiter)
+    )
 
 
 def convert(input, output, *, input_delimiter=None, output_delimiter=None):

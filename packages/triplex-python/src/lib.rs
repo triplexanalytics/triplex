@@ -95,17 +95,49 @@ fn infer_schema(
         .map_err(|e| py_err(py, e))
 }
 
+/// The starting contract for a table, as `(json, yaml)`: the JSON for the
+/// Python dict, the YAML for the file the user edits and commits. The same
+/// draft the web UI's "Download contract" produces.
 #[pyfunction]
-#[pyo3(signature = (contract, path, ipc, sample_rows, delimiter))]
+#[pyo3(signature = (path, ipc, sample_rows, delimiter))]
+fn draft_contract(
+    py: Python<'_>,
+    path: Option<PathBuf>,
+    ipc: Option<&[u8]>,
+    sample_rows: usize,
+    delimiter: Option<char>,
+) -> PyResult<(String, String)> {
+    infer(path.as_deref(), ipc, sample_rows, delimiter)
+        .and_then(|inferred| {
+            let declared = triplex_schemacast::to_declared_contract(&inferred);
+            let yaml =
+                serde_yaml_ng::to_string(&declared).map_err(|e| Error::Yaml(e.to_string()))?;
+            Ok((json(&declared)?, yaml))
+        })
+        .map_err(|e| py_err(py, e))
+}
+
+/// `contract_path` is a `.triplex.yaml` file; `contract_text` is a contract
+/// the caller holds in memory, as YAML or JSON text. Exactly one is given.
+#[pyfunction]
+#[pyo3(signature = (contract_path, contract_text, path, ipc, sample_rows, delimiter))]
 fn validate(
     py: Python<'_>,
-    contract: PathBuf,
+    contract_path: Option<PathBuf>,
+    contract_text: Option<String>,
     path: Option<PathBuf>,
     ipc: Option<&[u8]>,
     sample_rows: usize,
     delimiter: Option<char>,
 ) -> PyResult<String> {
-    triplex_schemacast::load_contract(&contract)
+    let declared = match (contract_path, contract_text) {
+        (Some(path), None) => triplex_schemacast::load_contract(&path),
+        (None, Some(text)) => triplex_schemacast::parse_contract(&text),
+        _ => Err(invalid(
+            "pass exactly one of a contract path or a contract".into(),
+        )),
+    };
+    declared
         .and_then(|declared| {
             let inferred = infer(path.as_deref(), ipc, sample_rows, delimiter)?;
             json(&triplex_schemacast::validate(&declared, &inferred))
@@ -211,6 +243,7 @@ fn synthesize<'py>(
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("TriplexError", m.py().get_type::<TriplexError>())?;
     m.add_function(wrap_pyfunction!(infer_schema, m)?)?;
+    m.add_function(wrap_pyfunction!(draft_contract, m)?)?;
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     m.add_function(wrap_pyfunction!(convert, m)?)?;
     m.add_function(wrap_pyfunction!(anonymize, m)?)?;
