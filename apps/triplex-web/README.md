@@ -2,22 +2,20 @@
 
 Browser UI over SchemaCast/Anonymizer. Everything runs
 client-side via WebAssembly: no server, no upload, no telemetry. The UI
-itself (`www/`) is a Vite + React app — the repo's first JS toolchain,
+itself (`www/`) is a Vite + React app, the repo's first JS toolchain,
 adopted because its table view uses Glide Data Grid (React-only) and its
 components must also mount inside a Python anywidget later (which expects a
 bundled JS asset anyway).
 
 ## Commands
 
-`Makefile` wraps every command below — `make help` lists them. One-time
+`Makefile` wraps every command below; `make help` lists them. One-time
 setup, then day-to-day work is just `make dev` / `make build` / `make test`.
-The repo root also has a `Makefile` that fans the same targets out across
-every app that has one (just this one today) — `make test` from the repo
-root runs this app's tests too.
+From the repo root, run them as `make -C apps/triplex-web <target>`.
 
 ## Build
 
-One-time setup — `make setup`, or by hand:
+One-time setup: `make setup`, or by hand:
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -26,11 +24,11 @@ cd www && npm install
 ```
 
 `wasm-bindgen-cli`'s version must exactly match the `wasm-bindgen` crate
-version pinned in `Cargo.toml` (and in the `Makefile`) — if that version
+version pinned in `Cargo.toml` (and in the `Makefile`). If that version
 changes, reinstall the CLI to match.
 
 Build the `.wasm` and generate its JS glue into `www/pkg/` (gitignored,
-regenerate after every Rust source change) — `make wasm`, or by hand:
+regenerate after every Rust source change): `make wasm`, or by hand:
 
 ```sh
 cargo build -p triplex-web --target wasm32-unknown-unknown --release
@@ -47,7 +45,7 @@ by hand:
 cd www && npm run dev
 ```
 
-For a production build: `make build`, then `make preview` — or
+For a production build: `make build`, then `make preview`, or
 `npm run build && npm run preview` from `www/`. Worker bundling and the wasm
 asset URL are genuinely different code paths between dev and build, so check
 both after any change to `src/worker/` or `src/wasm.js`.
@@ -68,12 +66,12 @@ output.
 
 ## Scope
 
-`.csv`/`.tsv`/`.jsonl` only — `.parquet` input isn't supported here. Its
+`.csv`/`.tsv`/`.jsonl` only: `.parquet` input isn't supported here. Its
 codecs (zstd/snap) need a C toolchain that `wasm32-unknown-unknown` doesn't
 have; see `crates/triplex-io/Cargo.toml` for the per-target dependency
 split that keeps native builds (the CLI) unaffected.
 
-Tier 1 ("Basic Anonymization") — one algorithm per column, picked from
+Tier 1 ("Basic Anonymization"): one algorithm per column, picked from
 whatever `triplex-anonymizer::AnonymizeMethod::ALL` currently implements
 (just `token_hmac` today). Tier 2 ("Synthetic Data Generation") opens a
 dialog (standard Gaussian copula, or differentially private with a

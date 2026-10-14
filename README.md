@@ -102,6 +102,19 @@ See [apps/triplex-web/README.md](apps/triplex-web/README.md) for the build steps
 targets. The UI also runs as a Jupyter widget:
 [packages/triplex-jupyter](packages/triplex-jupyter/README.md).
 
+## Python
+
+The engine also runs in plain Python, with no browser and no subprocess:
+
+```python
+import triplex
+
+schema = triplex.infer_schema("tests/fixtures/sample.csv")
+run = triplex.synthesize("tests/fixtures/sample.customers.csv", rows=1000, seed=1)
+```
+
+It is built from source for now. See [packages/triplex-python](packages/triplex-python/README.md).
+
 ## Documentation
 
 Guides, the glossary and the evaluation of each product are on
@@ -116,6 +129,7 @@ Guides, the glossary and the evaluation of each product are on
 | `apps/triplex-cli` | The `triplex` command-line tool |
 | `apps/triplex-web` | WebAssembly bindings (`src/`) and the React UI (`www/`) |
 | `apps/triplex-mcp` | Local MCP server over SchemaCast, stdio only |
+| `packages/triplex-python` | Python bindings: `import triplex` |
 | `packages/triplex-jupyter` | The web UI as a Jupyter widget |
 | `tests/fixtures/` | Synthetic test data only |
 
@@ -126,6 +140,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 make -C apps/triplex-web test
+(cd packages/triplex-python && pip install ".[dev]" && python -m pytest tests)
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or a pull request, and
@@ -133,8 +148,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or a pull request
 
 ## Versioning
 
-Versions are git tags: `workspace-v*` for the engine and CLI, `web-v*` for the web UI. The
-`version` fields in `Cargo.toml` and `package.json` are placeholders. Notable changes are listed
+Versions are git tags: `workspace-v*` for the engine and CLI, `web-v*` for the web UI, `python-v*` for the Python
+package and `jupyter-v*` for the Jupyter widget. The
+`version` fields in `Cargo.toml`, `package.json` and `pyproject.toml` are placeholders. Notable changes are listed
 in [CHANGELOG.md](CHANGELOG.md).
 
 ## License

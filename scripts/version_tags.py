@@ -24,11 +24,18 @@ import sys
 # part of the Rust workspace that otherwise owns apps/.
 PACKAGES = [
     ("web", ("apps/triplex-web/www/",)),
+    ("python", ("packages/triplex-python/",)),
+    ("jupyter", ("packages/triplex-jupyter/",)),
     ("workspace", ("crates/", "apps/", "Cargo.toml", "Cargo.lock")),
 ]
 
 # Label on each package's README badge.
-BADGE_LABELS = {"workspace": "engine + CLI", "web": "web UI"}
+BADGE_LABELS = {
+    "workspace": "engine + CLI",
+    "web": "web UI",
+    "python": "Python",
+    "jupyter": "Jupyter widget",
+}
 
 SUBJECT = re.compile(r"^(\w+)(\([^)]*\))?(!)?:")
 
@@ -115,7 +122,8 @@ def self_test():
     assert package_of("apps/triplex-web/src/lib.rs") == "workspace"
     assert package_of("crates/triplex-core/src/lib.rs") == "workspace"
     assert package_of("README.md") is None
-    assert package_of("packages/triplex-python/src/lib.rs") is None
+    assert package_of("packages/triplex-python/src/lib.rs") == "python"
+    assert package_of("packages/triplex-jupyter/pyproject.toml") == "jupyter"
     assert bump((0, 3, 2), "feat(web): compare dialog") == (0, 4, 0)
     assert bump((0, 3, 2), "fix(web): disable the tier picker") == (0, 3, 3)
     assert bump((0, 3, 2), "refactor(io)!: rename the sink trait") == (0, 4, 0)
