@@ -42,10 +42,15 @@ run.report["leakage"]
 | Function | What it does |
 |---|---|
 | `infer_schema(data)` | The inferred schema as a dict |
-| `validate(data, contract)` | Checks `data` against a `.triplex.yaml` contract; returns `{"valid": ..., "errors": [...]}` |
+| `draft_contract(data, output=...)` | A starting contract: every column with its type, all required. Returns a dict; `output` also writes it as `.triplex.yaml` |
+| `validate(data, contract)` | Checks `data` against a contract (a `.triplex.yaml` path or a dict); returns `{"valid": ..., "errors": [...]}` |
 | `convert(input, output)` | Converts a file between `.csv`, `.tsv`, `.jsonl` and `.parquet`, by extension |
 | `anonymize(data, recipe, mapping_out=...)` | Masks the columns a `.triplex.yaml` recipe declares |
 | `synthesize(data, rows=..., seed=..., method=...)` | Generates a synthetic table; `method` is `"copula"` (default), `"bayes-net"` or `"marginals"` |
+
+A contract is what you expect the data to be; an inferred schema is what one table holds right
+now. `draft_contract` gives you a first contract to edit (add null-rate, range, mean or pattern
+limits) and commit. Passing the dict from `infer_schema` to `validate` is an error.
 
 `data` is a file path, a pandas or Polars DataFrame, a pyarrow Table, or anything else Arrow can
 read. `anonymize` and `synthesize` read `.csv` and `.parquet` paths; `infer_schema` and
