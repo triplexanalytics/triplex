@@ -7,11 +7,7 @@ import { glossaryUrl, METHOD_GLOSSARY } from "./glossary";
 // vitest runs from apps/triplex-web/www; paths are relative to it.
 const read = (rel) => readFileSync(resolve(process.cwd(), "src/state", rel), "utf8");
 
-const LINK_FILES = [
-  "riskExplanations.jsx",
-  "../components/ColumnMenu.jsx",
-  "../components/SynthesizeForm.jsx",
-];
+const LINK_FILES = ["riskExplanations.jsx", "../components/ColumnMenu.jsx"];
 
 // Glossary pages the app may link to. Add a slug here only once its page is live on the docs
 // site, so a new or misspelled term fails this test instead of shipping a dead link.

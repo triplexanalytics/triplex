@@ -186,14 +186,10 @@ export default function App({ initialFile = null, onHostState = null, extensions
     });
   };
   const dialogGenerator = openDialog ? generatorById[openDialog] : null;
+  // Generator tiers this build has no extension for are shown as links to Triplex Pro.
+  const proTiers = [2, 3].filter((tier) => !extensions.some((e) => e.tier === tier));
   const tierDisabledReasons = Object.fromEntries(
-    [2, 3].map((tier) => [
-      tier,
-      tierDisabledReason(
-        extensions.find((e) => e.tier === tier),
-        host,
-      ),
-    ]),
+    extensions.map((ext) => [ext.tier, tierDisabledReason(ext, host)]),
   );
   const handleColumnHover = useCallback((name) => {
     setHoverNames(name ? { rowName: name, colName: name } : null);
@@ -341,6 +337,8 @@ export default function App({ initialFile = null, onHostState = null, extensions
         activeTier={generated?.ext.tier ?? 1}
         onSelectTier={handleSelectTier}
         tierDisabledReasons={tierDisabledReasons}
+        proTiers={proTiers}
+        canGenerate={generators.length > 0}
         syntheticActive={showingGenerated}
         generatedNoun={generated?.ext.noun ?? "synthetic"}
         canCompare={!!compared}
@@ -359,18 +357,20 @@ export default function App({ initialFile = null, onHostState = null, extensions
         {file.sample && (
           <Suspense fallback={<LoadingOverlay label="Loading…" />}>
             <div className="dataset-view" style={{ maxWidth: tableWidth ?? undefined }}>
-              <DatasetTabs
-                active={shownKey}
-                onSelect={selectDataset}
-                datasets={[
-                  { id: "original", label: "Original", disabledReason: null },
-                  ...generators.map((g) => ({
-                    id: g.key,
-                    label: g.label,
-                    disabledReason: g.result ? null : g.ext.emptyHint,
-                  })),
-                ]}
-              />
+              {generators.length > 0 && (
+                <DatasetTabs
+                  active={shownKey}
+                  onSelect={selectDataset}
+                  datasets={[
+                    { id: "original", label: "Original", disabledReason: null },
+                    ...generators.map((g) => ({
+                      id: g.key,
+                      label: g.label,
+                      disabledReason: g.result ? null : g.ext.emptyHint,
+                    })),
+                  ]}
+                />
+              )}
               <div className="dataset-table">
                 <TableTab
                   key={shownKey}

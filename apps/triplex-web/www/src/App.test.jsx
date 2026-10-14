@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { EXTENSION_API_VERSION } from "./extensionApi";
+import { EXTENSIONS } from "./extensions";
+import { PRO_INFO_URL } from "./components/TierPicker.const";
 
 // No wasm in jsdom: the app renders its empty state, which is all these tests need.
 vi.mock("./hooks/useWasm", () => ({ useWasm: () => ({ wasm: null, methods: [] }) }));
@@ -12,12 +14,19 @@ afterEach(cleanup);
 const tierButton = (name) => screen.getByRole("button", { name: new RegExp(name) });
 
 describe("App with generator extensions", () => {
-  it("runs with no extensions: generator tiers are disabled, not missing", () => {
+  it("runs with no extensions: generator tiers link to Triplex Pro", () => {
     render(<App extensions={[]} />);
     for (const name of ["Synthetic Data Generation", "Pattern-persistent Data Generation"]) {
-      expect(tierButton(name)).toHaveProperty("disabled", true);
-      expect(tierButton(name)).toHaveProperty("title", "Not available in this build");
+      const link = screen.getByRole("link", { name: new RegExp(name) });
+      expect(link.getAttribute("href")).toBe(PRO_INFO_URL);
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.textContent).toMatch(/Part of Triplex Pro/);
     }
+    expect(screen.queryByRole("button", { name: "Compare datasets" })).toBeNull();
+  });
+
+  it("this build ships no generator extensions", () => {
+    expect(EXTENSIONS).toEqual([]);
   });
 
   it("calls each extension's hook with the loaded file", () => {
@@ -46,10 +55,11 @@ describe("App with generator extensions", () => {
     render(<App extensions={[fake]} />);
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.at(-1)).toMatchObject({ sample: null, fileBytes: null });
-    // Tier 2 has an extension but no file yet; tier 3 has none in this build.
+    // Tier 2 has an extension but no file yet; tier 3 has none, so it links to Triplex Pro.
     expect(tierButton("Synthetic Data Generation").title).toMatch(/Load a file/);
-    expect(tierButton("Pattern-persistent Data Generation").title).toBe(
-      "Not available in this build",
-    );
+    expect(
+      screen.getByRole("link", { name: /Pattern-persistent Data Generation/ }).getAttribute("href"),
+    ).toBe(PRO_INFO_URL);
+    expect(screen.getByRole("button", { name: "Compare datasets" })).toBeTruthy();
   });
 });

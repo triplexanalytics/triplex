@@ -16,6 +16,8 @@ export default function Navbar({
   activeTier,
   onSelectTier,
   tierDisabledReasons,
+  proTiers,
+  canGenerate = true,
   syntheticActive = false,
   generatedNoun = "synthetic",
   canCompare = false,
@@ -66,16 +68,20 @@ export default function Navbar({
         activeTier={activeTier}
         onSelectTier={onSelectTier}
         disabledReasons={tierDisabledReasons}
+        proTiers={proTiers}
       />
       <div className="spacer" />
-      <button
-        type="button"
-        onClick={onCompare}
-        disabled={!canCompare}
-        title={canCompare ? undefined : "Generate synthetic data first (Tier 2 card)"}
-      >
-        Compare datasets
-      </button>
+      {/* Compare sets a generated table beside the original; without a generator there is none. */}
+      {canGenerate && (
+        <button
+          type="button"
+          onClick={onCompare}
+          disabled={!canCompare}
+          title={canCompare ? undefined : "Generate synthetic data first (Tier 2 card)"}
+        >
+          Compare datasets
+        </button>
+      )}
       {syntheticActive ? (
         <details className="download-menu" ref={detailsRef}>
           <summary className="primary">Download {generatedNoun} data</summary>

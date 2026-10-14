@@ -26,3 +26,7 @@ export const TIERS = [
     lockStrength: 3,
   },
 ];
+
+// Where a tier this build has no extension for points to. Opened by the user's click in a new
+// tab; the app itself requests nothing from it.
+export const PRO_INFO_URL = "https://triplexanalytics.io/docs/web.html";

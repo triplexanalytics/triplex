@@ -1,7 +1,8 @@
 # triplex-jupyter
 
 The Triplex Analytics web UI as a Jupyter widget: inspect a table, write its contract, anonymize
-it or generate synthetic data, and read the results back in Python.
+it, and read the results back in Python. The synthesis dialogs are part of Triplex Pro, a paid
+extension; for synthetic data from Python, use `triplex.synthesize` in the `triplex` package.
 
 Not published yet. Install from a source checkout (needs the Rust and Node toolchains that
 `apps/triplex-web` uses, see its README):
@@ -31,7 +32,7 @@ Work in the UI, then read what you produced in a later cell:
 |---|---|
 | `w.contract_yaml`, `w.recipe_yaml` | The `.triplex.yaml` texts, the same ones the `triplex` CLI reads |
 | `w.masked_csv`, `w.anonymize_report` | Output (CSV bytes) and report (dict) of the last anonymize run |
-| `w.synthetic_csv`, `w.synthesis_report` | Output (CSV bytes) and report (dict) of the last synthesis run |
+| `w.synthetic_csv`, `w.synthesis_report` | Output (CSV bytes) and report (dict) of the last synthesis run. Filled only by a widget bundle built with Triplex Pro |
 | `w.mapping_csv` | The mapping file of the last anonymize run (CSV bytes). Empty unless you opted in, see below |
 
 ```python

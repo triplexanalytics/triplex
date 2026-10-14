@@ -65,7 +65,8 @@ class TriplexWidget(anywidget.AnyWidget):
 
     - `recipe_yaml`, `contract_yaml`: the `.triplex.yaml` texts the CLI also reads.
     - `masked_csv`, `anonymize_report`: output and report of the last anonymize run.
-    - `synthetic_csv`, `synthesis_report`: output and report of the last synthesis run.
+    - `synthetic_csv`, `synthesis_report`: output and report of the last synthesis run. Only a
+      widget bundle built with Triplex Pro has the synthesis dialog that fills them.
 
     The mapping file reverses the pseudonyms, so it stays in the browser tab by default. It is
     sent to the kernel, as `mapping_csv`, only after an explicit opt-in: `expose_mapping=True`
