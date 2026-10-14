@@ -24,7 +24,7 @@ All products share one Rust engine with Arrow-compatible data contracts.
 | Product | What it does | Status |
 |---|---|---|
 | **SchemaCast** | Schema inference, `.triplex.yaml` contracts, validation, pattern checks, format conversion | Available |
-| **Anonymizer** | Pseudonymization with a separate mapping file (Tier 1). Synthetic data from a Gaussian copula, a Bayesian network or independent marginals, optionally differentially private (Tier 2). Sketch-based synthesis you steer on parallel coordinates (Tier 3) | Tier 1 and Tier 2 available, Tier 3 in early form |
+| **Anonymizer** | Pseudonymization with a separate mapping file (Tier 1). Synthetic data from a Gaussian copula, a Bayesian network or independent marginals, optionally differentially private (Tier 2). Sketch-based synthesis from a sketch of the data as classes, which you can edit as a file (Tier 3) | Tier 1 and Tier 2 available, Tier 3 in early form |
 | **DatasetCard** | Privacy-risk scoring per dataset, column and record: k-anonymity, l-diversity, t-closeness and related models | Available |
 | **DriftGuard** | Schema-regression and statistical-drift check between a baseline and a candidate, built for CI | Available |
 | **ModelCard** | Fairness and slice metrics for a binary classifier, from a predictions file | First version available |
