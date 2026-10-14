@@ -55,8 +55,8 @@ export function runSynthesizeBayes({
   });
 }
 
-/** Differentially private synthesis. `config` is the `synthesize:` block's JSON shape (see
- * synthesisConfig.js `buildDpConfig`). Resolves to `{ synthetic_csv, report_json }`. */
+/** Differentially private synthesis. `config` is the `synthesize:` block's JSON shape, as in a
+ * `.triplex.yaml` recipe. Resolves to `{ synthetic_csv, report_json }`. */
 export function runSynthesizeDp({
   bytes,
   extension,
@@ -77,8 +77,8 @@ export function runSynthesizeDp({
   });
 }
 
-/** Resolves to a JSON string: per-column domain suggestions READ FROM THE DATA (so not public
- * bounds; see synthesisConfig.js). */
+/** Resolves to a JSON string: per-column domain suggestions READ FROM THE DATA, so not public
+ * bounds: a caller must not use them as the public domains of a differentially private run. */
 export function suggestDomains(bytes, extension) {
   return client.request("suggestDomains", { bytes, extension });
 }

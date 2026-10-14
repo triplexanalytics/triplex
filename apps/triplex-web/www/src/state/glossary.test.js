@@ -10,7 +10,6 @@ const read = (rel) => readFileSync(resolve(process.cwd(), "src/state", rel), "ut
 const LINK_FILES = [
   "riskExplanations.jsx",
   "../components/ColumnMenu.jsx",
-  "../components/SynthesizeForm.jsx",
 ];
 
 // Glossary pages the app may link to. Add a slug here only once its page is live on the docs

@@ -7,11 +7,17 @@ and `jupyter-v*` for the Jupyter widget.
 
 ## [Unreleased]
 
+### Removed
+
+- **Synthesize and Sketch dialogs in the web UI and the Jupyter widget.** They move to Triplex
+  Pro, a paid extension; their tier cards now link to where it is described. Synthetic data
+  stays open source in the engine, the `triplex synthesize` command and the Python package.
+  Versions of the web UI released before this change remain available under Apache-2.0.
+
 ### Added
 
-- **Sketch steering in the web UI.** In the Sketch dialog a class can be split in two along a
-  column, its spread on a number column redrawn by dragging across the bars, and a new class
-  added by hand. A downloaded sketch can be loaded back.
+- **Extension slot in the web UI.** Tiers 2 and 3 are generator extensions behind one contract,
+  chosen at build time, so another build can add dialogs without changing the app.
 - **Python package.** `import triplex` runs the engine in plain Python, with no browser and no
   subprocess: `infer_schema`, `validate`, `convert`, `anonymize` and `synthesize`. Tables go in
   as a file path, a pandas or Polars DataFrame or a pyarrow Table. Built from source for now; not

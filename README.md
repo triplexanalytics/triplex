@@ -90,8 +90,9 @@ output files belong to you. Add `--build-arg TRIPLEX_VERSION=<version>` to set w
 
 ## Web UI
 
-The same engine compiled to WebAssembly, with a table view, per-column anonymization, risk
-analysis and synthesis.
+The same engine compiled to WebAssembly, with a table view, per-column anonymization and risk
+analysis. The Synthesize and Sketch dialogs are part of Triplex Pro, a paid extension; synthetic
+data is available in the CLI and the Python package.
 
 ```sh
 make -C apps/triplex-web setup   # one time: wasm target, wasm-bindgen CLI, npm dependencies
