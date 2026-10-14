@@ -1,11 +1,11 @@
 import LockIcon from "./LockIcon";
 import { TIERS } from "./TierPicker.const";
 
-/** Tier 1 (masking) is the default view; Tier 2 (synthetic data) opens the synthesis dialog and
- * Tier 3 (sketch-based synthesis) the sketch dialog. Both are enabled once a file is loaded
- * (`tier2Enabled`). */
-export default function TierPicker({ activeTier = 1, onSelectTier, tier2Enabled = false }) {
-  const isEnabled = (id) => id === 1 || tier2Enabled;
+/** Tier 1 (masking) is the default view; Tiers 2 and 3 open the dialog of the generator
+ * extension for that tier. `disabledReasons` maps a tier to why it cannot be used right now (no
+ * file loaded, no extension for it in this build); a tier without an entry is enabled. */
+export default function TierPicker({ activeTier = 1, onSelectTier, disabledReasons = {} }) {
+  const isEnabled = (id) => !disabledReasons[id];
   return (
     <div className="tier-picker">
       {TIERS.map((tier) => (
@@ -16,11 +16,7 @@ export default function TierPicker({ activeTier = 1, onSelectTier, tier2Enabled 
           disabled={!isEnabled(tier.id)}
           aria-pressed={tier.id === activeTier}
           onClick={() => onSelectTier?.(tier.id)}
-          title={
-            tier.id !== 1 && !tier2Enabled
-              ? "Load a file to generate data from it"
-              : `${tier.caption}. ${tier.reversibility}.`
-          }
+          title={disabledReasons[tier.id] ?? `${tier.caption}. ${tier.reversibility}.`}
         >
           <span className="tier-head">
             <LockIcon strength={tier.lockStrength} />

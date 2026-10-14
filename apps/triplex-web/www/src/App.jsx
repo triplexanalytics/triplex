@@ -4,15 +4,13 @@ import { useProfiledFile } from "./hooks/useProfiledFile";
 import { useAnonymize } from "./hooks/useAnonymize";
 import { useDatasetAnalysis } from "./hooks/useDatasetAnalysis";
 import { useHistory } from "./hooks/useHistory";
-import { useSynthesize } from "./hooks/useSynthesize";
-import { useSketch } from "./hooks/useSketch";
 import { withColumnType } from "./state/yamlBuilder";
 import Navbar from "./components/Navbar";
 import DatasetTabs from "./components/DatasetTabs";
-import SynthesizeDialog from "./components/SynthesizeDialog";
-import SketchDialog from "./components/SketchDialog";
 import Dropzone from "./components/Dropzone";
 import LoadingOverlay from "./components/LoadingOverlay";
+import { EXTENSIONS } from "./extensions";
+import { tierDisabledReason } from "./extensionApi";
 
 // Code-split, not eagerly bundled with the app shell: TableTab alone pulls
 // in @glideapps/glide-data-grid, and AnalysisOverlay's own two inner tabs
@@ -30,7 +28,6 @@ const CompareDialog = lazy(() => import("./components/CompareDialog"));
 const NO_ROWS = new Set();
 const NO_RECIPE = { columns: [] };
 const NO_PATTERN_CHECKS = {};
-const TIER_OF_DATASET = { original: 1, synthetic: 2, sketched: 3 };
 
 /** Composition root only: wires the three hooks together and renders. Every
  * actual behavior (wasm lifecycle, file/contract/recipe state, the
@@ -40,8 +37,9 @@ const TIER_OF_DATASET = { original: 1, synthetic: 2, sketched: 3 };
  * Both props are for a host that embeds the app (the Jupyter widget, `widget.jsx`); the
  * standalone page passes neither. `initialFile` is a `File` loaded as if the user had dropped
  * it. `onHostState` is called with the artifacts the user has produced so far, whenever one of
- * them changes. */
-export default function App({ initialFile = null, onHostState = null }) {
+ * them changes. `extensions` defaults to this build's generator extensions (`extensions.js`);
+ * tests pass their own. It must not change while the app is mounted. */
+export default function App({ initialFile = null, onHostState = null, extensions = EXTENSIONS }) {
   const { wasm, methods } = useWasm();
   const file = useProfiledFile(wasm);
   const anonymize = useAnonymize({
@@ -55,63 +53,43 @@ export default function App({ initialFile = null, onHostState = null }) {
     removedRowIndices: file.removedRowIndices,
   });
   const original = useDatasetAnalysis(wasm, file.sample, file.profile, file.removedRowIndices);
-  // Idle until a synthesis run exists (all four hooks accept a null sample).
   const history = useHistory();
-  const synthesis = useSynthesize({
+  // What every generator extension sees of the loaded file.
+  const host = {
     fileBytes: file.fileBytes,
-    extension: file.extension,
-    headers: file.sample?.headers,
-    totalRows: file.sample?.rowCount ?? 0,
+    fileExtension: file.extension,
+    fileName: file.fileName,
+    sample: file.sample,
     removedRowIndices: file.removedRowIndices,
     removedColumns: file.removedColumns,
-  });
-  const syntheticResult = synthesis.result;
-  const synthetic = useDatasetAnalysis(
-    wasm,
-    syntheticResult?.sample,
-    syntheticResult?.profile,
-    NO_ROWS,
-  );
-  // Tier 3: the sketch and the table generated from it.
-  const sketching = useSketch({
-    fileBytes: file.fileBytes,
-    extension: file.extension,
-    removedRowIndices: file.removedRowIndices,
-    removedColumns: file.removedColumns,
-  });
-  const sketchedResult = sketching.result;
-  const sketched = useDatasetAnalysis(
-    wasm,
-    sketchedResult?.sample,
-    sketchedResult?.profile,
-    NO_ROWS,
-  );
-  // Which dataset the Table and the panel show. A generated dataset (synthetic, Tier 2, or
-  // sketched, Tier 3) is read-only: no recipe, contract or row removal, and its analysis tabs
-  // describe the generated table.
-  const [activeDataset, setActiveDataset] = useState("original");
-  const generatedDatasets = {
-    synthetic: {
-      key: "synthetic",
-      label: "Synthetic",
-      result: syntheticResult,
-      analysis: synthetic,
-    },
-    sketched: { key: "sketched", label: "Sketched", result: sketchedResult, analysis: sketched },
   };
-  const generated = generatedDatasets[activeDataset]?.result
-    ? generatedDatasets[activeDataset]
-    : null;
+  // One generator per extension (Tier 2 synthesis, Tier 3 sketching), each with the analysis of
+  // the table it generated; idle until a run exists (the analysis hooks accept a null sample).
+  // The list is fixed for the app's lifetime, so these hooks run in the same order on every
+  // render, which is all React's rules of hooks require.
+  const generators = extensions.map((ext) => {
+    const generator = ext.useGenerator(host);
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- fixed list, see above
+    const analysis = useDatasetAnalysis(
+      wasm,
+      generator.result?.sample,
+      generator.result?.profile,
+      NO_ROWS,
+    );
+    return { ext, key: ext.id, label: ext.label, generator, result: generator.result, analysis };
+  });
+  const generatorById = Object.fromEntries(generators.map((g) => [g.key, g]));
+  // Which dataset the Table and the panel show. A generated dataset is read-only: no recipe,
+  // contract or row removal, and its analysis tabs describe the generated table.
+  const [activeDataset, setActiveDataset] = useState("original");
+  const generated = generatorById[activeDataset]?.result ? generatorById[activeDataset] : null;
   const showingGenerated = !!generated;
   const shownKey = generated?.key ?? "original";
   const [compareOpen, setCompareOpen] = useState(false);
   const view = generated?.analysis ?? original;
   const shown = generated?.result ?? file;
   // What Compare puts next to the original: the generated dataset on screen, else whichever exists.
-  const compared =
-    generated ??
-    (syntheticResult ? generatedDatasets.synthetic : null) ??
-    (sketchedResult ? generatedDatasets.sketched : null);
+  const compared = generated ?? generators.find((g) => g.result) ?? null;
   const comparedResult = compared?.result;
   const comparedAnalysis = compared?.analysis;
   const comparedLabel = compared?.label;
@@ -152,8 +130,8 @@ export default function App({ initialFile = null, onHostState = null }) {
         : null,
     [comparedResult, comparedAnalysis, comparedLabel, comparedKey],
   );
-  const [synthDialogOpen, setSynthDialogOpen] = useState(false);
-  const [sketchDialogOpen, setSketchDialogOpen] = useState(false);
+  // The id of the extension whose dialog is open, or null.
+  const [openDialog, setOpenDialog] = useState(null);
   const [tableWidth, setTableWidth] = useState(null);
   // `seq` makes a repeated request re-open a collapsed panel on the given tab.
   const [overlayRequest, setOverlayRequest] = useState({ tab: "columns", seq: 0 });
@@ -191,41 +169,32 @@ export default function App({ initialFile = null, onHostState = null }) {
     setSelectedColumn(null);
     setHoverNames(null);
   };
-  // Tier 1 shows the original; Tier 2 opens the synthesis dialog and Tier 3 the sketch dialog
-  // (also to re-run them).
+  // Tier 1 shows the original; a higher tier opens the dialog of its extension (also to re-run
+  // it).
   const handleSelectTier = (tier) => {
     if (tier === 1) selectDataset("original");
-    if (tier === 2) setSynthDialogOpen(true);
-    if (tier === 3) setSketchDialogOpen(true);
+    const ext = extensions.find((e) => e.tier === tier);
+    if (ext) setOpenDialog(ext.id);
   };
-  const handleSketchDone = () => {
-    setSketchDialogOpen(false);
-    selectDataset("sketched");
+  const handleGeneratorDone = (g) => {
+    setOpenDialog(null);
+    selectDataset(g.key);
     setOverlayRequest((r) => ({ tab: "analysis", seq: r.seq + 1 }));
-    history.log(
-      "Generate sketched data",
-      `${sketching.sketch?.classes.length ?? 0} classes`,
-      null,
-      () => {
-        sketching.clearResult();
-        selectDataset("original");
-      },
-    );
+    history.log(g.ext.history.label, g.ext.history.detail(g.generator), null, () => {
+      g.generator.clearResult();
+      selectDataset("original");
+    });
   };
-  const handleSynthesisDone = () => {
-    setSynthDialogOpen(false);
-    selectDataset("synthetic");
-    setOverlayRequest((r) => ({ tab: "analysis", seq: r.seq + 1 }));
-    history.log(
-      "Generate synthetic data",
-      synthesis.mode === "dp" ? "DP" : "standard",
-      null,
-      () => {
-        synthesis.clearResult();
-        selectDataset("original");
-      },
-    );
-  };
+  const dialogGenerator = openDialog ? generatorById[openDialog] : null;
+  const tierDisabledReasons = Object.fromEntries(
+    [2, 3].map((tier) => [
+      tier,
+      tierDisabledReason(
+        extensions.find((e) => e.tier === tier),
+        host,
+      ),
+    ]),
+  );
   const handleColumnHover = useCallback((name) => {
     setHoverNames(name ? { rowName: name, colName: name } : null);
   }, []);
@@ -301,15 +270,14 @@ export default function App({ initialFile = null, onHostState = null }) {
   const handleFile = async (uploaded) => {
     setSelectedColumn(null);
     setActiveDataset("original");
-    setSynthDialogOpen(false);
-    setSketchDialogOpen(false);
+    setOpenDialog(null);
     setCompareOpen(false);
     original.rowFilter.setRowFilter(null);
-    synthetic.rowFilter.setRowFilter(null);
-    sketched.rowFilter.setRowFilter(null);
     anonymize.reset();
-    synthesis.reset();
-    sketching.reset();
+    for (const g of generators) {
+      g.analysis.rowFilter.setRowFilter(null);
+      g.generator.reset();
+    }
     const loaded = await file.loadFile(uploaded);
     if (loaded) {
       history.log(
@@ -319,8 +287,7 @@ export default function App({ initialFile = null, onHostState = null }) {
         () => {
           file.reset();
           anonymize.reset();
-          synthesis.reset();
-          sketching.reset();
+          for (const g of generators) g.generator.reset();
           setActiveDataset("original");
           original.rowFilter.setRowFilter(null);
           history.clear();
@@ -339,6 +306,7 @@ export default function App({ initialFile = null, onHostState = null }) {
   // host can offer it, and the host decides whether it goes any further (widget.jsx sends it to
   // the kernel only when the user opted in). The salt is deliberately not here.
   const anonymizeResult = anonymize.anonymizeResult;
+  const generatedResults = generators.map((g) => g.result);
   useEffect(() => {
     if (!onHostState || !wasm) return;
     onHostState({
@@ -348,10 +316,12 @@ export default function App({ initialFile = null, onHostState = null }) {
       masked_csv: anonymizeResult?.masked_csv ?? null,
       anonymize_report_json: anonymizeResult?.report_json ?? "",
       mapping_csv: anonymizeResult?.mapping_csv ?? null,
-      synthetic_csv: syntheticResult?.csv ?? null,
-      synthesis_report_json: syntheticResult?.reportJson ?? "",
+      ...Object.assign({}, ...generators.map((g) => g.ext.hostState?.(g.result) ?? {})),
     });
-  }, [onHostState, wasm, file.recipe, file.contract, anonymizeResult, syntheticResult]);
+    // The generators are read through their results, listed one by one: the list has a fixed
+    // length, so the dependency array does too.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onHostState, wasm, file.recipe, file.contract, anonymizeResult, ...generatedResults]);
 
   const error = file.error || anonymize.error;
 
@@ -368,19 +338,15 @@ export default function App({ initialFile = null, onHostState = null }) {
         fileName={file.fileName}
         rowCount={file.sample ? file.sample.rowCount - file.removedRowIndices.size : null}
         columnCount={file.sample ? file.sample.headers.length - file.removedColumns.size : null}
-        activeTier={TIER_OF_DATASET[shownKey]}
+        activeTier={generated?.ext.tier ?? 1}
         onSelectTier={handleSelectTier}
-        tier2Enabled={!!file.sample}
+        tierDisabledReasons={tierDisabledReasons}
         syntheticActive={showingGenerated}
-        generatedNoun={shownKey === "sketched" ? "sketched" : "synthetic"}
+        generatedNoun={generated?.ext.noun ?? "synthetic"}
         canCompare={!!compared}
         onCompare={() => setCompareOpen(true)}
-        onDownloadSyntheticCsv={
-          shownKey === "sketched" ? sketching.downloadCsv : synthesis.downloadCsv
-        }
-        onDownloadSyntheticReport={
-          shownKey === "sketched" ? sketching.downloadReport : synthesis.downloadReport
-        }
+        onDownloadSyntheticCsv={generated?.generator.downloadCsv}
+        onDownloadSyntheticReport={generated?.generator.downloadReport}
       />
       <main className="main-content">
         {error && <div className="banner banner-error">{error}</div>}
@@ -396,8 +362,14 @@ export default function App({ initialFile = null, onHostState = null }) {
               <DatasetTabs
                 active={shownKey}
                 onSelect={selectDataset}
-                hasSynthetic={!!syntheticResult}
-                hasSketched={!!sketchedResult}
+                datasets={[
+                  { id: "original", label: "Original", disabledReason: null },
+                  ...generators.map((g) => ({
+                    id: g.key,
+                    label: g.label,
+                    disabledReason: g.result ? null : g.ext.emptyHint,
+                  })),
+                ]}
               />
               <div className="dataset-table">
                 <TableTab
@@ -468,6 +440,7 @@ export default function App({ initialFile = null, onHostState = null }) {
               historyEntries={history.entries}
               onUndoHistoryEntry={history.undo}
               synthesisResult={generated?.result ?? null}
+              GeneratedReport={generated?.ext.Report}
               generatedLabel={generated?.label}
               readOnly={showingGenerated}
               association={view.association}
@@ -487,22 +460,12 @@ export default function App({ initialFile = null, onHostState = null }) {
             />
           </Suspense>
         )}
-        {sketchDialogOpen && (
-          <SketchDialog
-            sketching={sketching}
-            original={file.sample}
-            excluded={file.removedRowIndices}
-            fileName={file.fileName}
-            onClose={() => setSketchDialogOpen(false)}
-            onDone={handleSketchDone}
-          />
-        )}
-        {synthDialogOpen && (
-          <SynthesizeDialog
-            synthesis={synthesis}
-            fileName={file.fileName}
-            onClose={() => setSynthDialogOpen(false)}
-            onDone={handleSynthesisDone}
+        {dialogGenerator && (
+          <dialogGenerator.ext.Dialog
+            generator={dialogGenerator.generator}
+            host={host}
+            onClose={() => setOpenDialog(null)}
+            onDone={() => handleGeneratorDone(dialogGenerator)}
           />
         )}
       </main>

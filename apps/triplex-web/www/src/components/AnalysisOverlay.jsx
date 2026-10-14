@@ -2,7 +2,6 @@ import { lazy, Suspense, useState } from "react";
 import { ChevronsRight } from "lucide-react";
 import LoadingOverlay from "./LoadingOverlay";
 import HistoryTab from "./HistoryTab";
-import SynthesisReport from "./SynthesisReport";
 
 const ColumnViewTab = lazy(() => import("./ColumnViewTab"));
 const DiversityCheckSection = lazy(() => import("./DiversityCheckSection"));
@@ -68,6 +67,7 @@ export default function AnalysisOverlay({
   historyEntries,
   onUndoHistoryEntry,
   synthesisResult,
+  GeneratedReport,
   generatedLabel,
   readOnly,
   association,
@@ -166,8 +166,8 @@ export default function AnalysisOverlay({
               onHoverNamesChange={onHoverNamesChange}
             />
           )}
-          {innerTab === "analysis" && readOnly && synthesisResult && (
-            <SynthesisReport result={synthesisResult} />
+          {innerTab === "analysis" && readOnly && synthesisResult && GeneratedReport && (
+            <GeneratedReport result={synthesisResult} />
           )}
           {innerTab === "analysis" && readOnly && (
             <h4 className="synth-matrix-heading">Risk analysis of the generated table</h4>
