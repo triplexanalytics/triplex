@@ -45,7 +45,7 @@ You need a stable [Rust toolchain](https://rustup.rs). The examples use the synt
 
 ```sh
 # Build the `triplex` binary into target/release/
-cargo build --release -p triplex-cli
+cargo build --release -p triplex
 alias triplex=target/release/triplex
 triplex --version
 

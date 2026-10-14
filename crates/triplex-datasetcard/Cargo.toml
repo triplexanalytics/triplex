@@ -3,6 +3,12 @@ name = "triplex-datasetcard"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Privacy-risk scoring for tabular datasets: k-anonymity, l-diversity, t-closeness and row-level risk, computed locally."
+readme = "README.md"
+keywords = ["privacy", "k-anonymity", "l-diversity", "risk", "statistics"]
+categories = ["science"]
 
 [dependencies]
 triplex-core = { workspace = true }

@@ -3,6 +3,12 @@ name = "triplex-driftguard"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Schema-regression and statistical-drift checks between a baseline and a candidate table, built for CI."
+readme = "README.md"
+keywords = ["drift", "schema", "data-quality", "ci", "validation"]
+categories = ["development-tools", "science"]
 
 [dependencies]
 triplex-core = { workspace = true }

@@ -23,6 +23,19 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
+  package:
+    name: package (crates.io dry run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Builds each publishable crate from the archive crates.io would receive, against the
+      # other crates' archives, so a file left out of a package or a manifest crates.io would
+      # reject fails a pull request instead of a release. triplex-web and triplex-python ship
+      # as the web UI and as Python wheels, not as crates.
+      - run: cargo package --workspace --exclude triplex-web --exclude triplex-python
+
   wasm:
     name: build (wasm32-unknown-unknown)
     runs-on: ubuntu-latest
