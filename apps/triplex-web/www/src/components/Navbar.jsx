@@ -18,6 +18,7 @@ export default function Navbar({
   tierDisabledReasons,
   proTiers,
   canGenerate = true,
+  edition = "Free",
   syntheticActive = false,
   generatedNoun = "synthetic",
   canCompare = false,
@@ -141,8 +142,8 @@ export default function Navbar({
           )}
         </>
       )}
-      {/* Unstyled placeholder only — no gating logic. */}
-      <span className="license-placeholder">License: Pro</span>
+      {/* A label for the build that is running, not a license check. */}
+      <span className="license">License: {edition}</span>
     </div>
   );
 }

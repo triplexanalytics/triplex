@@ -188,9 +188,11 @@ export default function App({ initialFile = null, onHostState = null, extensions
   const dialogGenerator = openDialog ? generatorById[openDialog] : null;
   // Generator tiers this build has no extension for are shown as links to Triplex Pro.
   const proTiers = [2, 3].filter((tier) => !extensions.some((e) => e.tier === tier));
-  const tierDisabledReasons = Object.fromEntries(
-    extensions.map((ext) => [ext.tier, tierDisabledReason(ext, host)]),
-  );
+  // Tier 1 masks the loaded file, so like the generator tiers it waits for one.
+  const tierDisabledReasons = {
+    1: file.sample ? null : "Load a file to anonymize it",
+    ...Object.fromEntries(extensions.map((ext) => [ext.tier, tierDisabledReason(ext, host)])),
+  };
   const handleColumnHover = useCallback((name) => {
     setHoverNames(name ? { rowName: name, colName: name } : null);
   }, []);
@@ -339,6 +341,7 @@ export default function App({ initialFile = null, onHostState = null, extensions
         tierDisabledReasons={tierDisabledReasons}
         proTiers={proTiers}
         canGenerate={generators.length > 0}
+        edition={extensions.length > 0 ? "Pro" : "Free"}
         syntheticActive={showingGenerated}
         generatedNoun={generated?.ext.noun ?? "synthetic"}
         canCompare={!!compared}

@@ -259,7 +259,7 @@ button.full-width {
   background: var(--surface-alt);
 }
 
-.navbar .license-placeholder {
+.navbar .license {
   font-size: 0.78rem;
   color: var(--text-faint);
   border: 1px dashed var(--border);
@@ -366,6 +366,13 @@ button.full-width {
       0% 0%,
       0% 100%;
   }
+}
+
+/* With no file loaded Tier 1 is disabled: drop the running indicator so it reads as muted. */
+.tier-option.active:disabled {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

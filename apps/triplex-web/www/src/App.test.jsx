@@ -23,6 +23,20 @@ describe("App with generator extensions", () => {
       expect(link.textContent).toMatch(/Part of Triplex Pro/);
     }
     expect(screen.queryByRole("button", { name: "Compare datasets" })).toBeNull();
+    expect(screen.getByText("License: Free")).toBeTruthy();
+  });
+
+  it("mutes Tier 1 and the downloads until a file is loaded", () => {
+    render(<App extensions={[]} />);
+    const tier1 = tierButton("Basic Anonymization");
+    expect(tier1.hasAttribute("disabled")).toBe(true);
+    expect(tier1.title).toMatch(/Load a file/);
+    for (const name of ["Download contract", "Download recipe", "Download data"]) {
+      expect(screen.getByRole("button", { name }).hasAttribute("disabled")).toBe(true);
+    }
+    expect(screen.getByRole("button", { name: "Choose file" }).hasAttribute("disabled")).toBe(
+      false,
+    );
   });
 
   it("this build ships no generator extensions", () => {
@@ -61,5 +75,6 @@ describe("App with generator extensions", () => {
       screen.getByRole("link", { name: /Pattern-persistent Data Generation/ }).getAttribute("href"),
     ).toBe(PRO_INFO_URL);
     expect(screen.getByRole("button", { name: "Compare datasets" })).toBeTruthy();
+    expect(screen.getByText("License: Pro")).toBeTruthy();
   });
 });
