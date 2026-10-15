@@ -35,6 +35,10 @@ and `jupyter-v*` for the Jupyter widget.
 
 ### Fixed
 
+- **Web UI navbar before a file is loaded.** The Basic Anonymization tier is now disabled
+  along with the download buttons until there is a file to work on.
+- **License label in the web UI.** The navbar shows "License: Free" in the open build and
+  "License: Pro" in Triplex Pro, instead of always "License: Pro".
 - **Jupyter widget.** Dialogs are centered in and sized to the widget's own box, for notebook
   hosts such as VS Code where the cell is not the viewport.
 
