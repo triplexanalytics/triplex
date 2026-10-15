@@ -5,9 +5,10 @@
 [![web UI version](https://raw.githubusercontent.com/triplexanalytics/triplex/badges/web.svg)](https://github.com/triplexanalytics/triplex/tags)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Local-first data privacy tooling: schema contracts, pseudonymization, synthetic data,
-privacy-risk scoring and drift checks. Everything runs inside your own perimeter: on your
-machine, in your CI, or in your browser through WebAssembly.
+Local-first data privacy tooling for two jobs: masking a real table, and generating a synthetic
+one that behaves like it. Around them sit schema contracts, privacy-risk scoring and drift
+checks. Everything runs inside your own perimeter: on your machine, in your CI, or in your
+browser through WebAssembly.
 
 ![The Triplex web UI showing a loaded table](assets/table.png)
 
@@ -24,10 +25,20 @@ All products share one Rust engine with Arrow-compatible data contracts.
 | Product | What it does | Status |
 |---|---|---|
 | **SchemaCast** | Schema inference, `.triplex.yaml` contracts, validation, pattern checks, format conversion | Available |
-| **Anonymizer** | Pseudonymization with a separate mapping file (Tier 1). Synthetic data from a Gaussian copula, a Bayesian network or independent marginals, optionally differentially private (Tier 2). Sketch-based synthesis from a sketch of the data as classes, which you can edit as a file (Tier 3) | Tier 1 and Tier 2 available, Tier 3 in early form |
+| **Anonymizer: masking** | Pseudonymization with a separate mapping file: tokenization, format-preserving substitution, bucketing and partial masking per column (Tier 1) | Available |
+| **Anonymizer: synthetic data** | New rows sampled from a Gaussian copula, a Bayesian network or independent marginals, optionally differentially private, with a fidelity and leakage report per run (Tier 2). Sketch-based synthesis from a sketch of the data as classes, which you can edit as a file (Tier 3) | Tier 2 available, Tier 3 in early form |
 | **DatasetCard** | Privacy-risk scoring per dataset, column and record: k-anonymity, l-diversity, t-closeness and related models | Available |
 | **DriftGuard** | Schema-regression and statistical-drift check between a baseline and a candidate, built for CI | Available |
 | **ModelCard** | Fairness and slice metrics for a binary classifier, from a predictions file | First version available |
+
+### When Faker is not enough
+
+Faker and similar libraries invent each value on its own. That works for a name in a form field,
+not for tests, demos or models that depend on how columns relate. `triplex synthesize` fits a
+model to a real table on your machine and samples new rows that keep the correlations between
+numeric columns and, with the Bayesian network, the dependencies between categories. Two limits:
+it needs a real table to learn from, and it drops identifier-like columns instead of imitating
+them, so mask those or fill them with a fake-value generator.
 
 What the output is, and is not:
 
@@ -62,6 +73,13 @@ TRIPLEX_DEMO_SALT=change-me triplex anonymize \
   --input tests/fixtures/sample.csv \
   --output out/anonymized.csv --mapping-out out/mapping.csv
 
+# Generate a synthetic copy that keeps the dependencies between columns, with a fidelity and
+# leakage report in out/synthetic/
+triplex synthesize \
+  --input tests/fixtures/sample.customers.csv \
+  --output out/customers.synthetic.csv \
+  --report-dir out/synthetic --method bayes-net --seed 7
+
 # Compare a candidate file against a baseline
 # (exit code 0 for no drift, 1 for statistical drift, 2 for a schema regression)
 triplex driftguard \
@@ -71,7 +89,7 @@ triplex driftguard \
 ```
 
 Run `triplex` without arguments for the full command list, including `convert`,
-`check-patterns`, `synthesize`, `modelcard` and `reveal-mapping`. Commands that produce a report
+`check-patterns`, `modelcard` and `reveal-mapping`. Commands that produce a report
 write three files: a deterministic audit JSON, a standalone offline HTML report and a Python
 script that reproduces the numbers with Polars.
 
