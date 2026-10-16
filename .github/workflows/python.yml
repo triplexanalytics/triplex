@@ -1,0 +1,149 @@
+name: python
+
+# Builds the Python package (`pip install triplexanalytics`, `import triplex`) for a version tag
+# the maintainer picks, tests every wheel against the repository's synthetic fixtures, and
+# uploads them to TestPyPI or PyPI. It only runs by hand (Actions > python > Run workflow); an
+# upload to PyPI also waits for approval in the `pypi` environment.
+#
+# The wheels use the stable CPython ABI (abi3), so one wheel per platform serves every Python
+# from 3.9 on. Uploads use PyPI's trusted publishing: no token is stored in the repository.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Python package tag to build, for example python-v0.2.1"
+        required: true
+      target:
+        description: "Where to upload"
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag }}
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          if [[ ! "$TAG" =~ ^python-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::expected a Python package tag such as python-v0.2.1, got '$TAG'"
+            exit 1
+          fi
+          echo "version=${TAG#python-v}" >> "$GITHUB_OUTPUT"
+
+  wheels:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-24.04
+            target: x86_64
+          - name: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64
+          - name: macos-universal2
+            runner: macos-14
+            target: universal2-apple-darwin
+          - name: windows-x64
+            runner: windows-2022
+            target: x64
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      # The repository holds a 0.0.0 placeholder; the tag is the version.
+      - name: Set the version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib
+          p = pathlib.Path("packages/triplex-python/pyproject.toml")
+          s = p.read_text()
+          assert s.count('version = "0.0.0"') == 1, "version placeholder not found"
+          p.write_text(s.replace('version = "0.0.0"', f'version = "{os.environ["VERSION"]}"'))
+          PY
+
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: packages/triplex-python
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --out dist
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test the wheel
+        working-directory: packages/triplex-python
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl pytest pyarrow pandas polars
+          python -m pytest tests
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.name }}
+          path: packages/triplex-python/dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    needs: version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Set the version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: sed -i "s/^version = \"0.0.0\"$/version = \"$VERSION\"/" packages/triplex-python/pyproject.toml
+
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: packages/triplex-python
+          command: sdist
+          args: --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: packages/triplex-python/dist/*.tar.gz
+          if-no-files-found: error
+
+  upload:
+    needs: [wheels, sdist]
+    runs-on: ubuntu-24.04
+    environment:
+      name: ${{ inputs.target }}
+      url: ${{ inputs.target == 'pypi' && 'https://pypi.org/p/triplexanalytics' || 'https://test.pypi.org/p/triplexanalytics' }}
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - run: ls -l dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: ${{ inputs.target == 'pypi' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}

@@ -3,13 +3,30 @@ requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [project]
-name = "triplex-python"
+name = "triplexanalytics"
 # Placeholder: versions are git tags created by CI, never edited by hand.
 version = "0.0.0"
 description = "Triplex Analytics in plain Python: schema contracts, anonymization and synthetic data, run locally."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9"
+keywords = ["privacy", "anonymization", "pseudonymization", "synthetic-data", "schema"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://triplexanalytics.io"
+Documentation = "https://triplexanalytics.io/docs/python.html"
+Source = "https://github.com/triplexanalytics/triplex"
+Changelog = "https://github.com/triplexanalytics/triplex/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest", "pyarrow", "pandas", "polars"]

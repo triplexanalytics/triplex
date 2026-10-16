@@ -28,6 +28,8 @@ and `jupyter-v*` for the Jupyter widget.
 
 ### Changed
 
+- **The Python package's distribution name is `triplexanalytics`.** It is what `pip install`
+  will take once the package is on PyPI; the import stays `import triplex`.
 - **The command-line tool's Cargo package is now called `triplex`**, so it can be installed with
   `cargo install triplex` once published. Build it with `cargo build --release -p triplex`; the
   binary is still `triplex`. Every crate now carries the metadata crates.io needs, and
