@@ -1,0 +1,159 @@
+name: container
+
+# Builds the `triplex` CLI image for an engine tag the maintainer picks and pushes it to the GitHub
+# Container Registry as ghcr.io/triplexanalytics/triplex. It only runs by hand (Actions >
+# container > Run workflow): a merge to main never pushes an image.
+#
+# Each platform builds on a runner of its own architecture, since compiling Rust under emulation
+# takes many times longer. Both push by digest, and a last job joins them into one multi-platform
+# image with its tags.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Engine tag to build, for example workspace-v0.43.1"
+        required: true
+      latest:
+        description: "Also tag the image as latest"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/triplexanalytics/triplex
+  TAG: ${{ inputs.tag }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check the tag
+        id: version
+        run: |
+          if [[ ! "$TAG" =~ ^workspace-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::expected an engine tag such as workspace-v0.43.1, got '$TAG'"
+            exit 1
+          fi
+          echo "version=${TAG#workspace-v}" >> "$GITHUB_OUTPUT"
+          echo "slug=${{ matrix.platform }}" | tr / - >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.description=The triplex command-line tool: schema contracts, pseudonymization, synthetic data, privacy-risk scoring and drift checks on local files.
+
+      # Built once into the local image store for the smoke test, then again from the cache to
+      # push, so an image that fails the test never reaches the registry.
+      - name: Build for the smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: TRIPLEX_VERSION=${{ steps.version.outputs.version }}
+          load: true
+          tags: triplex:smoke
+          cache-from: type=gha,scope=${{ steps.version.outputs.slug }}
+          cache-to: type=gha,mode=max,scope=${{ steps.version.outputs.slug }}
+
+      - name: Smoke test
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          got=$(docker run --rm --network none triplex:smoke --version)
+          if [ "$got" != "triplex $VERSION" ]; then
+            echo "::error::--version printed '$got', expected 'triplex $VERSION'"
+            exit 1
+          fi
+          docker run --rm --network none -v "$PWD/tests/fixtures:/data:ro" triplex:smoke \
+            schema sample.csv > /dev/null
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push by digest
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: TRIPLEX_VERSION=${{ steps.version.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ steps.version.outputs.slug }}
+          sbom: true
+
+      - name: Keep the digest for the merge job
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ steps.version.outputs.slug }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=match,pattern=workspace-v(\d+\.\d+\.\d+),group=1,value=${{ inputs.tag }}
+            type=match,pattern=workspace-v(\d+\.\d+)\.\d+,group=1,value=${{ inputs.tag }}
+            type=raw,value=latest,enable=${{ inputs.latest }}
+
+      - name: Join the platforms into one image
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          mapfile -t tags < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          args=()
+          for t in "${tags[@]}"; do args+=(-t "$t"); done
+          for d in *; do args+=("$IMAGE@sha256:$d"); done
+          docker buildx imagetools create "${args[@]}"
+
+      - name: Show the result
+        run: docker buildx imagetools inspect "$IMAGE:${TAG#workspace-v}"
