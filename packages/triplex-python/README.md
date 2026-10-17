@@ -4,7 +4,14 @@ Triplex Analytics in plain Python: infer and check schema contracts, anonymize a
 synthetic data. No notebook, no browser, no server. The engine is the same native code the
 `triplex` command line runs.
 
-Not published yet. Install from a source checkout (needs the Rust toolchain):
+```sh
+pip install triplexanalytics
+```
+
+The distribution is called `triplexanalytics`; the import is `import triplex`. Wheels cover Linux
+(x86_64 and aarch64), macOS and Windows, for Python 3.9 and later.
+
+To build from a source checkout instead (needs the Rust toolchain):
 
 ```sh
 cd packages/triplex-python

@@ -96,15 +96,17 @@ script that reproduces the numbers with Polars.
 ## Docker
 
 ```sh
-docker build -t triplex .
 docker run --rm --network none --user "$(id -u):$(id -g)" -v "$PWD:/data" \
-  triplex schema tests/fixtures/sample.csv
+  ghcr.io/triplexanalytics/triplex schema tests/fixtures/sample.csv
 ```
 
-The image holds only the `triplex` binary and runs as a non-root user. `--network none` lets
-Docker enforce what the tool already does: it makes no network request. `--user` makes the
-output files belong to you. Add `--build-arg TRIPLEX_VERSION=<version>` to set what
-`triplex --version` reports.
+The image is published for amd64 and arm64. It holds only the `triplex` binary and runs as a
+non-root user. `--network none` lets Docker enforce what the tool already does: it makes no
+network request. `--user` makes the output files belong to you, and `-v "$PWD:/data"` is the only
+folder the container can see.
+
+To build the image yourself: `docker build -t triplex .`, with
+`--build-arg TRIPLEX_VERSION=<version>` to set what `triplex --version` reports.
 
 ## Web UI
 
@@ -125,6 +127,10 @@ targets. The UI also runs as a Jupyter widget:
 
 The engine also runs in plain Python, with no browser and no subprocess:
 
+```sh
+pip install triplexanalytics
+```
+
 ```python
 import triplex
 
@@ -132,7 +138,8 @@ schema = triplex.infer_schema("tests/fixtures/sample.csv")
 run = triplex.synthesize("tests/fixtures/sample.customers.csv", rows=1000, seed=1)
 ```
 
-It is built from source for now. See [packages/triplex-python](packages/triplex-python/README.md).
+Wheels cover Linux (x86_64 and aarch64), macOS and Windows, for Python 3.9 and later. See
+[packages/triplex-python](packages/triplex-python/README.md).
 
 ## Documentation
 
