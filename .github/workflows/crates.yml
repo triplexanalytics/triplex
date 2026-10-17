@@ -1,0 +1,91 @@
+name: crates
+
+# Publishes the engine crates and the `triplex` and `triplex-mcp` binaries to crates.io for an
+# engine tag the maintainer picks. It only runs by hand (Actions > crates > Run workflow). The
+# `check` job always runs Cargo's full pre-publish checks without uploading; the `publish` job runs
+# only when "dry run" is off, and waits for approval in the `crates-io` environment.
+#
+# A crates.io version can be yanked but never deleted or reused. Crates already on crates.io at
+# this version are skipped, so a run that failed halfway can simply be run again.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Engine tag to publish, for example workspace-v0.43.1"
+        required: true
+      dry_run:
+        description: "Dry run: check everything, upload nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag }}
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      # The release script comes from this workflow's own commit, not from the tag, so an older
+      # tag can be published with the current script.
+      - uses: actions/checkout@v4
+        with:
+          path: .release-tools
+          sparse-checkout: scripts/prepare_crates_release.sh
+          sparse-checkout-cone-mode: false
+      - uses: dtolnay/rust-toolchain@stable
+      - id: prepare
+        run: .release-tools/scripts/prepare_crates_release.sh
+      - name: Dry run
+        env:
+          EXCLUDE: ${{ steps.prepare.outputs.exclude }}
+        run: |
+          # shellcheck disable=SC2086 # a list of --exclude flags, split on purpose
+          cargo publish --workspace $EXCLUDE --allow-dirty --dry-run
+
+  publish:
+    needs: check
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-24.04
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      HAS_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      # The release script comes from this workflow's own commit, not from the tag, so an older
+      # tag can be published with the current script.
+      - uses: actions/checkout@v4
+        with:
+          path: .release-tools
+          sparse-checkout: scripts/prepare_crates_release.sh
+          sparse-checkout-cone-mode: false
+      - uses: dtolnay/rust-toolchain@stable
+      - id: prepare
+        run: .release-tools/scripts/prepare_crates_release.sh
+
+      # The first publish of a crate needs an API token: the CARGO_REGISTRY_TOKEN secret of the
+      # crates-io environment. Once every crate exists and names this workflow as its trusted
+      # publisher, that secret is deleted and a short-lived token comes from GitHub instead.
+      - name: Token from crates.io trusted publishing
+        id: auth
+        if: ${{ env.HAS_TOKEN != 'true' }}
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish
+        env:
+          EXCLUDE: ${{ steps.prepare.outputs.exclude }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+        run: |
+          # shellcheck disable=SC2086 # a list of --exclude flags, split on purpose
+          cargo publish --workspace $EXCLUDE --allow-dirty
