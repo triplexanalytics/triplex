@@ -18,18 +18,12 @@ and `jupyter-v*` for the Jupyter widget.
 
 - **Extension slot in the web UI.** Tiers 2 and 3 are generator extensions behind one contract,
   chosen at build time, so another build can add dialogs without changing the app.
-- **Python package.** `import triplex` runs the engine in plain Python, with no browser and no
-  subprocess: `infer_schema`, `validate`, `convert`, `anonymize` and `synthesize`. Tables go in
-  as a file path, a pandas or Polars DataFrame or a pyarrow Table. Built from source for now; not
-  on PyPI yet. `draft_contract` returns a starting contract for a table, and `validate` takes a
-  contract as a `.triplex.yaml` path or as a dict.
-- **Docker image.** A `Dockerfile` that builds the `triplex` CLI into a small image running as a
-  non-root user. It works with `--network none`.
+- **Docker image.** `ghcr.io/triplexanalytics/triplex`, for amd64 and arm64: the `triplex` CLI
+  in a small image that runs as a non-root user and works with `--network none`. The
+  `Dockerfile` builds the same image locally.
 
 ### Changed
 
-- **The Python package's distribution name is `triplexanalytics`.** It is what `pip install`
-  will take once the package is on PyPI; the import stays `import triplex`.
 - **The command-line tool's Cargo package is now called `triplex`**, so it can be installed with
   `cargo install triplex` once published. Build it with `cargo build --release -p triplex`; the
   binary is still `triplex`. Every crate now carries the metadata crates.io needs, and
@@ -43,6 +37,19 @@ and `jupyter-v*` for the Jupyter widget.
   "License: Pro" in Triplex Pro, instead of always "License: Pro".
 - **Jupyter widget.** Dialogs are centered in and sized to the widget's own box, for notebook
   hosts such as VS Code where the cell is not the viewport.
+
+## Python package 0.2.2 - 2026-10-17
+
+The first release on PyPI: `pip install triplexanalytics`, then `import triplex`.
+
+### Added
+
+- **Python package.** Runs the engine in plain Python, with no browser and no subprocess:
+  `infer_schema`, `draft_contract`, `validate`, `convert`, `anonymize` and `synthesize`. Tables
+  go in as a file path, a pandas or Polars DataFrame or a pyarrow Table and come back as a
+  `Table` (`to_pandas()`, `to_polars()`, `to_arrow()`). `validate` takes a contract as a
+  `.triplex.yaml` path or as a dict. Wheels for Linux (x86_64 and aarch64), macOS and Windows,
+  one per platform for Python 3.9 and later.
 
 ## First public release
 
