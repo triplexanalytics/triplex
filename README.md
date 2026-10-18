@@ -51,14 +51,17 @@ What the output is, and is not:
 
 ## Quick start
 
-You need a stable [Rust toolchain](https://rustup.rs). The examples use the synthetic fixtures in
-`tests/fixtures/`.
+Install the `triplex` command from crates.io (needs a stable [Rust toolchain](https://rustup.rs)),
+or skip the toolchain and use the [Docker image](#docker). The examples use the synthetic fixtures
+in `tests/fixtures/` of this repository.
 
 ```sh
-# Build the `triplex` binary into target/release/
+cargo install triplex
+triplex --version
+
+# Or, from a checkout of this repository: build the binary into target/release/
 cargo build --release -p triplex
 alias triplex=target/release/triplex
-triplex --version
 
 # Infer a schema from a file
 triplex schema tests/fixtures/sample.csv
