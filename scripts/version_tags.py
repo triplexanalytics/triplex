@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Compute (and optionally create) the per-package version tags for HEAD.
 
-Every commit on main that touches a package bumps that package: a `feat` or breaking (`!`)
+Every commit on main that touches a package, or code the package ships (see ALSO), bumps that
+package: a `feat` or breaking (`!`)
 subject bumps the minor, anything else the patch. Tags are
 `<package>-v<major>.<minor>.<patch>` and are the only source of truth for a
 version; no file in the repo carries one.
@@ -29,6 +30,13 @@ PACKAGES = [
     ("workspace", ("crates/", "apps/", "Cargo.toml", "Cargo.lock")),
 ]
 
+# Code a package ships although another package owns it. The Python wheel compiles the engine
+# crates into itself, so an engine change is a new Python version too, not only a new engine
+# version. (apps/ holds the CLI, the web UI and the MCP server, none of which is in the wheel.)
+ALSO = {
+    "python": ("crates/", "Cargo.toml", "Cargo.lock"),
+}
+
 # Label on each package's README badge.
 BADGE_LABELS = {
     "workspace": "engine + CLI",
@@ -45,6 +53,13 @@ def package_of(path):
         if path.startswith(prefixes):
             return name
     return None
+
+
+def packages_of(path):
+    """Every package a change to `path` is part of: its owner plus any package in ALSO."""
+    found = {package_of(path)} - {None}
+    found |= {package for package, prefixes in ALSO.items() if path.startswith(prefixes)}
+    return found
 
 
 def bump(version, subject):
@@ -84,7 +99,7 @@ def plan():
                 "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-m",
                 "--first-parent", commit,
             ).splitlines()
-            if any(package_of(f) == package for f in files):
+            if any(package in packages_of(f) for f in files):
                 version = bump(version, git("log", "-1", "--format=%s", commit))
                 planned[package] = (version, commit)
     return planned
@@ -124,6 +139,12 @@ def self_test():
     assert package_of("README.md") is None
     assert package_of("packages/triplex-python/src/lib.rs") == "python"
     assert package_of("packages/triplex-jupyter/pyproject.toml") == "jupyter"
+    assert packages_of("crates/triplex-core/src/lib.rs") == {"workspace", "python"}
+    assert packages_of("Cargo.lock") == {"workspace", "python"}
+    assert packages_of("apps/triplex-cli/src/main.rs") == {"workspace"}
+    assert packages_of("packages/triplex-python/src/lib.rs") == {"python"}
+    assert packages_of("apps/triplex-web/www/src/App.jsx") == {"web"}
+    assert packages_of("README.md") == set()
     assert bump((0, 3, 2), "feat(web): compare dialog") == (0, 4, 0)
     assert bump((0, 3, 2), "fix(web): disable the tier picker") == (0, 3, 3)
     assert bump((0, 3, 2), "refactor(io)!: rename the sink trait") == (0, 4, 0)
