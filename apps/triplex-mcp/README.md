@@ -19,8 +19,11 @@ yet.
 ## Run
 
 ```sh
-cargo run -p triplex-mcp
+cargo install triplex-mcp
+triplex-mcp
 ```
+
+From a checkout of this repository: `cargo run -p triplex-mcp`.
 
 Speaks newline-delimited JSON-RPC 2.0 on stdin/stdout. Point an MCP
 client's stdio transport at this binary. No flags, no config file.

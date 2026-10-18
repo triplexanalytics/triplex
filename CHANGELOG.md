@@ -18,16 +18,6 @@ and `jupyter-v*` for the Jupyter widget.
 
 - **Extension slot in the web UI.** Tiers 2 and 3 are generator extensions behind one contract,
   chosen at build time, so another build can add dialogs without changing the app.
-- **Docker image.** `ghcr.io/triplexanalytics/triplex`, for amd64 and arm64: the `triplex` CLI
-  in a small image that runs as a non-root user and works with `--network none`. The
-  `Dockerfile` builds the same image locally.
-
-### Changed
-
-- **The command-line tool's Cargo package is now called `triplex`**, so it can be installed with
-  `cargo install triplex` once published. Build it with `cargo build --release -p triplex`; the
-  binary is still `triplex`. Every crate now carries the metadata crates.io needs, and
-  `triplex --version` reports the published version when built from crates.io.
 
 ### Fixed
 
@@ -37,6 +27,25 @@ and `jupyter-v*` for the Jupyter widget.
   "License: Pro" in Triplex Pro, instead of always "License: Pro".
 - **Jupyter widget.** Dialogs are centered in and sized to the widget's own box, for notebook
   hosts such as VS Code where the cell is not the viewport.
+
+## Engine and CLI 0.43.1 - 2026-10-17
+
+The first release on crates.io and of the container image.
+
+### Added
+
+- **crates.io.** `cargo install triplex` installs the command-line tool. The engine crates are
+  published alongside it (`triplex-core`, `triplex-io`, `triplex-schemacast`,
+  `triplex-anonymizer`, `triplex-datasetcard`, `triplex-driftguard`, `triplex-modelcard`), and
+  `triplex-mcp` is the local MCP server. `triplex --version` reports the published version.
+- **Docker image.** `ghcr.io/triplexanalytics/triplex`, for amd64 and arm64: the `triplex` CLI
+  in a small image that runs as a non-root user and works with `--network none`. The
+  `Dockerfile` builds the same image locally.
+
+### Changed
+
+- **The command-line tool's Cargo package is called `triplex`**, matching the binary. From a
+  checkout, build it with `cargo build --release -p triplex`.
 
 ## Python package 0.2.2 - 2026-10-17
 
