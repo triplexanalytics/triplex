@@ -15,8 +15,12 @@ use serde::{Deserialize, Serialize};
 use triplex_core::{Error, Result};
 
 mod ebm;
+mod generalize;
+pub mod report;
 mod suda;
 pub use ebm::ebm_scores;
+pub use generalize::{bucket_numeric, bucket_value};
+pub use report::{assess, DatasetRiskReport, RiskReportOptions};
 pub use suda::{dis_suda_scores, suda_scores, MAX_QUASI_IDENTIFIER_COLUMNS};
 
 /// Which technique computes a row's disclosure-risk score — see
@@ -102,18 +106,18 @@ pub fn k_anonymity(bucketed_values: &[String]) -> usize {
 /// rows down to exactly the group the score is about. Works identically for
 /// a single column's own buckets or a `compose_quasi_identifiers` composite
 /// (the caller decides which by what it passes in, same as `k_anonymity`
-/// itself). `None` only for an empty `bucketed_values`. Ties broken by
-/// `HashMap` iteration order — deterministic within one run, not a
-/// documented tie-break rule, since which of several equally-smallest
-/// classes gets shown first isn't a meaningful distinction here.
+/// itself). `None` only for an empty `bucketed_values`. Among equally small
+/// classes the one whose first row comes earliest wins, so the same table
+/// always names the same class (a `HashMap`'s own order differs from one map
+/// to the next).
 pub fn k_anonymity_worst_group(bucketed_values: &[String]) -> Option<String> {
-    let mut counts: HashMap<&str, usize> = HashMap::new();
-    for v in bucketed_values {
-        *counts.entry(v.as_str()).or_insert(0) += 1;
+    let mut counts: HashMap<&str, (usize, usize)> = HashMap::new();
+    for (row, v) in bucketed_values.iter().enumerate() {
+        counts.entry(v.as_str()).or_insert((0, row)).0 += 1;
     }
     counts
         .into_iter()
-        .min_by_key(|(_, count)| *count)
+        .min_by_key(|(_, (count, first_row))| (*count, *first_row))
         .map(|(key, _)| key.to_string())
 }
 
@@ -484,6 +488,20 @@ pub fn evaluate_risk_model(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worst_group_ties_go_to_the_class_seen_first() {
+        let values: Vec<String> = ["b", "a", "c", "a", "b"]
+            .iter()
+            .map(|v| v.to_string())
+            .collect();
+        // "b" and "a" both have 2 rows, "c" has 1: "c" is the smallest.
+        assert_eq!(k_anonymity_worst_group(&values).as_deref(), Some("c"));
+        let tied: Vec<String> = ["y", "x", "z"].iter().map(|v| v.to_string()).collect();
+        for _ in 0..20 {
+            assert_eq!(k_anonymity_worst_group(&tied).as_deref(), Some("y"));
+        }
+    }
 
     #[test]
     fn k_anonymity_is_the_smallest_equivalence_class_size() {

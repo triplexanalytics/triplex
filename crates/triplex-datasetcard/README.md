@@ -1,6 +1,8 @@
 # triplex-datasetcard
 
 DatasetCard: privacy-risk scoring for a table at the dataset, column and record level, independent of any anonymization recipe. Named models (k-anonymity, l-diversity, t-closeness and related measures) and row-level risk.
+`assess` builds the whole report for a table: k-anonymity of each quasi-identifier alone, in
+pairs and combined, and the rows most at risk. The `triplex risk` command prints it.
 
 Part of [Triplex](https://github.com/triplexanalytics/triplex), local-first data privacy tooling:
 everything runs where you run it, and no crate makes a network request.

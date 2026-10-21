@@ -16,11 +16,20 @@ and `jupyter-v*` for the Jupyter widget.
 
 ### Added
 
+- **`triplex risk`.** Prints, as JSON, how well a table's quasi-identifiers (an age, a postcode,
+  a plan) hide each person: k-anonymity for each column alone, for every pair and for all of them
+  together, how many rows no other row shares all values with, and the rows most at risk (SUDA,
+  or an explainable boosting model with `--rows ebm`). Reads every row. Without `--quasi` it
+  chooses the columns and lists the ones it left out and why. The same report is available to
+  Rust callers as `triplex_datasetcard::assess`.
 - **Extension slot in the web UI.** Tiers 2 and 3 are generator extensions behind one contract,
   chosen at build time, so another build can add dialogs without changing the app.
 
 ### Fixed
 
+- **The smallest group in a k-anonymity result is the same on every run.** When several groups
+  tie for smallest, the one whose first row comes earliest is named. Before, the choice could
+  change between runs of the same table.
 - **Web UI navbar before a file is loaded.** The Basic Anonymization tier is now disabled
   along with the download buttons until there is a file to work on.
 - **License label in the web UI.** The navbar shows "License: Free" in the open build and

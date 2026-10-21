@@ -16,13 +16,16 @@ triplex schema data.csv
 # Validate a file against a contract (exit code 0 on a match, 2 on a breach)
 triplex validate --schema data.contract.yaml --input data.csv
 
+# How well age, zip code and plan hide each person, alone and combined
+triplex risk --input data.csv --quasi age,zip,plan
+
 # Compare a candidate file against a baseline
 # (exit code 0 for no drift, 1 for statistical drift, 2 for a schema regression)
 triplex driftguard --baseline old.csv --candidate new.csv --out-dir drift
 ```
 
 Run `triplex` without arguments for the full command list, including `convert`, `anonymize`,
-`check-patterns`, `synthesize`, `modelcard` and `reveal-mapping`. Commands that produce a report
+`check-patterns`, `risk`, `synthesize`, `modelcard` and `reveal-mapping`. Commands that produce a report
 write three files: a deterministic audit JSON, a standalone offline HTML report and a Python
 script that reproduces the numbers with Polars.
 

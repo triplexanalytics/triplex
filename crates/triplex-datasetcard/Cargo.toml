@@ -12,6 +12,8 @@ categories = ["science"]
 
 [dependencies]
 triplex-core = { workspace = true }
+triplex-io = { workspace = true }
+triplex-schemacast = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
