@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const SAMPLE_ROWS: usize = 1000;
-const USAGE: &str = "usage:\n  triplex --version\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n  triplex modelcard --config <path.triplex.yaml> --input <path> --out-dir <dir>\n  triplex synthesize --input <path> --output <path.csv> --report-dir <dir> [--rows <n>] [--seed <n>] [--min-category-count <n>] [--method copula|bayes-net|marginals|sketch [--structure chow-liu|k-parent] [--parents <1-3>] [--bins <n>] [--classes <n>] [--min-class-size <n>]] [--sketch <path.triplex.yaml>] [--config <path.triplex.yaml> [--with-nonprivate-diagnostics]]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.\ntriplex modelcard reads the `modelcard:` block of --config (target_column, prediction_column, optional score_column, slice_by, protected_attribute, thresholds), evaluates every row of --input, writes model_card.json, report.html and reproduce.py into --out-dir, and exits 0 (pass), 1 (warning: a suppressed or undefined slice) or 2 (a fairness threshold breach). The card is a documentation aid, not a compliance claim.\ntriplex synthesize fits a Gaussian copula to --input (.csv or .parquet), or with --method bayes-net a Bayesian network (a Chow-Liu tree, or up to --parents parents per column) that also keeps categorical dependencies, or with --method marginals independent marginals (every column drawn on its own, a baseline that keeps no dependency between columns), and writes a synthetic CSV to --output, plus synthesis_report.json, report.html, reproduce.py and drift_check.json (a DriftGuard diff of the synthetic file against the original, on the synthesized columns) into --report-dir. Identifier-like columns are dropped, not synthesized. The output carries NO formal privacy guarantee; the report measures fidelity and leakage but certifies nothing. With --method sketch (Tier 3) the rows are grouped into --classes classes (default 4; a class under --min-class-size rows, default 20, is folded into the nearest one), each class is described per column by a range and a density or by a share per value, and rows are drawn class by class with every column independent inside a class. The sketch that was used is written to sketch.triplex.yaml in --report-dir; it is derived from the data, so handle it like the data. Edit that file and pass it back with --sketch to generate from the edited sketch.\ntriplex synthesize --config switches to differentially private mode: the `synthesize:` block of the config declares a required `epsilon` (no default) and each column's public bounds or category values; the fitted parameters are epsilon-DP for replacing one record with the row count public, using operating-system randomness for the noise (--seed only seeds sampling). With `method: bayesian_network` in the block (optional `structure: chow_liu|k_parent`, `max_parents`, `structure_share`) the DP model is a Bayesian network: the dependency structure is chosen by report-noisy-max and the conditional tables are noisy counts, both inside the same epsilon. With `method: independent_marginals` every column is a noisy histogram of its own and the whole epsilon goes to those histograms. It writes dp_report.json and report.html. The report holds no real-data figures unless --with-nonprivate-diagnostics is given, which adds them (and drift_check.json) under a warning that they are outside the guarantee.";
+const USAGE: &str = "usage:\n  triplex --version\n  triplex schema <path-to.csv> [--delimiter <char>]\n  triplex validate --schema <path-to.triplex.yaml> --input <path-to.csv> [--delimiter <char>]\n  triplex check-patterns --schema <path-to.triplex.yaml> --input <path>\n  triplex convert --input <path> --output <path> [--input-delimiter <char>] [--output-delimiter <char>]\n  triplex anonymize --recipe <path-to.triplex.yaml> --input <path> --output <path.csv> --mapping-out <path> [--mapping-passphrase-env <VAR>] [--exclude-rows <n,n,...>] [--profile-out <path.json>]\n  triplex reveal-mapping --mapping <path> --passphrase-env <VAR> --output <path.csv>\n  triplex driftguard (--baseline <path> | --baseline-profile <path.json>) (--candidate <path> | --candidate-profile <path.json>) --out-dir <dir> [--config <path.triplex.yaml>] [--max-null-percentage-delta <f>] [--max-mean-relative-delta <f>] [--max-type-consistency-delta <f>]\n  triplex modelcard --config <path.triplex.yaml> --input <path> --out-dir <dir>\n  triplex risk --input <path> [--quasi <col,col,...>] [--bucket-width <n>] [--rows suda|ebm] [--top <n>]\n  triplex synthesize --input <path> --output <path.csv> --report-dir <dir> [--rows <n>] [--seed <n>] [--min-category-count <n>] [--method copula|bayes-net|marginals|sketch [--structure chow-liu|k-parent] [--parents <1-3>] [--bins <n>] [--classes <n>] [--min-class-size <n>]] [--sketch <path.triplex.yaml>] [--config <path.triplex.yaml> [--with-nonprivate-diagnostics]]\n\n--delimiter/--input-delimiter/--output-delimiter apply only to a .csv path (e.g. a semicolon-delimited European export) — use \"tab\" for a literal tab, or any single character otherwise.\n--exclude-rows takes comma-separated 0-based row numbers (e.g. \"1,4,7\") to drop from the output entirely before masking.\n--profile-out writes a DriftProfile JSON (this run's output schema plus its risk_assessment, if any) for a later `triplex driftguard --baseline-profile`/`--candidate-profile` to consume.\ntriplex driftguard writes audit.json, report.html, and reproduce.py into --out-dir, and exits 0 (no drift), 1 (statistical drift only), or 2 (a schema regression: a column removed or its type changed). A --*-profile input also diffs its risk_assessment against the other side's, when both have one. --config's `.triplex.yaml` may carry an optional `driftguard:` block (max_null_percentage_delta/max_mean_relative_delta/max_type_consistency_delta) as the default layer under any --max-* flag.\ntriplex modelcard reads the `modelcard:` block of --config (target_column, prediction_column, optional score_column, slice_by, protected_attribute, thresholds), evaluates every row of --input, writes model_card.json, report.html and reproduce.py into --out-dir, and exits 0 (pass), 1 (warning: a suppressed or undefined slice) or 2 (a fairness threshold breach). The card is a documentation aid, not a compliance claim.\ntriplex risk reads every row of --input (.csv or .parquet) and prints, as JSON, how well its quasi-identifiers (columns someone could know from elsewhere, such as an age, a postcode or a plan) hide each person: k-anonymity for each column alone, for every pair, and for all of them together (with how many rows no other row shares all values with), plus the rows most at risk by SUDA or, with --rows ebm, an explainable boosting model. Numbers are counted in ranges of --bucket-width (default 10). Without --quasi it chooses whole-number and text columns and lists the ones it left out and why: detected identifiers such as IDs and email addresses, and decimal columns.\ntriplex synthesize fits a Gaussian copula to --input (.csv or .parquet), or with --method bayes-net a Bayesian network (a Chow-Liu tree, or up to --parents parents per column) that also keeps categorical dependencies, or with --method marginals independent marginals (every column drawn on its own, a baseline that keeps no dependency between columns), and writes a synthetic CSV to --output, plus synthesis_report.json, report.html, reproduce.py and drift_check.json (a DriftGuard diff of the synthetic file against the original, on the synthesized columns) into --report-dir. Identifier-like columns are dropped, not synthesized. The output carries NO formal privacy guarantee; the report measures fidelity and leakage but certifies nothing. With --method sketch (Tier 3) the rows are grouped into --classes classes (default 4; a class under --min-class-size rows, default 20, is folded into the nearest one), each class is described per column by a range and a density or by a share per value, and rows are drawn class by class with every column independent inside a class. The sketch that was used is written to sketch.triplex.yaml in --report-dir; it is derived from the data, so handle it like the data. Edit that file and pass it back with --sketch to generate from the edited sketch.\ntriplex synthesize --config switches to differentially private mode: the `synthesize:` block of the config declares a required `epsilon` (no default) and each column's public bounds or category values; the fitted parameters are epsilon-DP for replacing one record with the row count public, using operating-system randomness for the noise (--seed only seeds sampling). With `method: bayesian_network` in the block (optional `structure: chow_liu|k_parent`, `max_parents`, `structure_share`) the DP model is a Bayesian network: the dependency structure is chosen by report-noisy-max and the conditional tables are noisy counts, both inside the same epsilon. With `method: independent_marginals` every column is a noisy histogram of its own and the whole epsilon goes to those histograms. It writes dp_report.json and report.html. The report holds no real-data figures unless --with-nonprivate-diagnostics is given, which adds them (and drift_check.json) under a warning that they are outside the guarantee.";
 
 /// Exit codes: 0 success, 1
 /// non-blocking warning (`driftguard` statistical drift with no schema
@@ -811,6 +811,65 @@ fn main() -> ExitCode {
             }
             println!("{card_json}");
             ExitCode::from(report.status.exit_code())
+        }
+        Some("risk") => {
+            let Some(input) = flag_value(&args, "--input") else {
+                return usage_error();
+            };
+            let mut options = triplex_datasetcard::RiskReportOptions::default();
+            if let Some(list) = flag_value(&args, "--quasi") {
+                options.quasi_identifiers = Some(
+                    list.split(',')
+                        .map(|c| c.trim().to_string())
+                        .filter(|c| !c.is_empty())
+                        .collect(),
+                );
+            }
+            if let Some(w) = flag_value(&args, "--bucket-width") {
+                match w.parse::<u64>() {
+                    Ok(w) if w > 0 => options.bucket_width = w,
+                    _ => {
+                        eprintln!(
+                            "error: --bucket-width expects a whole number above 0, got {w:?}"
+                        );
+                        return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                    }
+                }
+            }
+            if let Some(m) = flag_value(&args, "--rows") {
+                options.row_model = match m.as_str() {
+                    "suda" => triplex_datasetcard::RowRiskModel::Suda,
+                    "ebm" => triplex_datasetcard::RowRiskModel::Ebm,
+                    other => {
+                        eprintln!("error: --rows expects suda or ebm, got {other:?}");
+                        return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                    }
+                };
+            }
+            if let Some(n) = flag_value(&args, "--top") {
+                match n.parse::<usize>() {
+                    Ok(n) => options.top_rows = n,
+                    Err(_) => {
+                        eprintln!("error: --top expects a whole number, got {n:?}");
+                        return ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR);
+                    }
+                }
+            }
+            // Every row, not a sample: k-anonymity of part of a table is not the table's.
+            let result = triplex_anonymizer::read_rows(&PathBuf::from(&input)).and_then(|sample| {
+                let schema = triplex_schemacast::infer_schema(&sample);
+                triplex_datasetcard::assess(&sample, &schema, &options)
+            });
+            match result {
+                Ok(report) => {
+                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::from(EXIT_RUNTIME_CONFIG_ERROR)
+                }
+            }
         }
         Some("driftguard") => {
             let Some(out_dir) = flag_value(&args, "--out-dir") else {

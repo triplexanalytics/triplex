@@ -92,7 +92,7 @@ triplex driftguard \
 ```
 
 Run `triplex` without arguments for the full command list, including `convert`,
-`check-patterns`, `modelcard` and `reveal-mapping`. Commands that produce a report
+`check-patterns`, `risk`, `modelcard` and `reveal-mapping`. Commands that produce a report
 write three files: a deterministic audit JSON, a standalone offline HTML report and a Python
 script that reproduces the numbers with Polars.
 
