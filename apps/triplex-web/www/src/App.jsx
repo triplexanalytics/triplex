@@ -38,8 +38,15 @@ const NO_PATTERN_CHECKS = {};
  * standalone page passes neither. `initialFile` is a `File` loaded as if the user had dropped
  * it. `onHostState` is called with the artifacts the user has produced so far, whenever one of
  * them changes. `extensions` defaults to this build's generator extensions (`extensions.js`);
- * tests pass their own. It must not change while the app is mounted. */
-export default function App({ initialFile = null, onHostState = null, extensions = EXTENSIONS }) {
+ * tests pass their own. It must not change while the app is mounted. `datasetPicker`, when a
+ * host gives one, replaces every way of loading a file (the navbar's file chooser and the drop
+ * area): the hosted demo uses it to offer its sample datasets and nothing else. */
+export default function App({
+  initialFile = null,
+  onHostState = null,
+  extensions = EXTENSIONS,
+  datasetPicker = null,
+}) {
   const { wasm, methods } = useWasm();
   const file = useProfiledFile(wasm);
   const anonymize = useAnonymize({
@@ -133,6 +140,9 @@ export default function App({ initialFile = null, onHostState = null, extensions
   // The id of the extension whose dialog is open, or null.
   const [openDialog, setOpenDialog] = useState(null);
   const [tableWidth, setTableWidth] = useState(null);
+  // Counts loaded files. The table is keyed on it: the data grid keeps state about the columns
+  // it last drew and fails on a file with different ones, so each file gets a fresh grid.
+  const [loadCount, setLoadCount] = useState(0);
   // `seq` makes a repeated request re-open a collapsed panel on the given tab.
   const [overlayRequest, setOverlayRequest] = useState({ tab: "columns", seq: 0 });
   const [selectedColumn, setSelectedColumn] = useState(null);
@@ -278,6 +288,7 @@ export default function App({ initialFile = null, onHostState = null, extensions
     }
     const loaded = await file.loadFile(uploaded);
     if (loaded) {
+      setLoadCount((n) => n + 1);
       history.log(
         "Load dataset",
         `${loaded.rowCount} rows, ${loaded.headers.length} cols`,
@@ -327,6 +338,7 @@ export default function App({ initialFile = null, onHostState = null, extensions
     <div className="app-shell" data-dataset={shownKey}>
       <Navbar
         onFileSelected={handleFile}
+        fileChooser={datasetPicker}
         onDownloadContract={file.downloadContract}
         onDownloadRecipe={file.downloadRecipe}
         onDownloadData={anonymize.downloadData}
@@ -356,7 +368,11 @@ export default function App({ initialFile = null, onHostState = null, extensions
         {file.isLoading && <LoadingOverlay label={`Reading ${file.loadingFileName}…`} />}
         {!file.isLoading && !file.sample && (
           <div className="upload-prompt">
-            <Dropzone onFileSelected={handleFile} />
+            {datasetPicker ? (
+              <p>Pick a sample dataset in the bar above.</p>
+            ) : (
+              <Dropzone onFileSelected={handleFile} />
+            )}
           </div>
         )}
         {file.sample && (
@@ -378,7 +394,7 @@ export default function App({ initialFile = null, onHostState = null, extensions
               )}
               <div className="dataset-table">
                 <TableTab
-                  key={shownKey}
+                  key={`${shownKey}-${loadCount}`}
                   sample={shown.sample}
                   profile={shown.profile}
                   methods={methods}

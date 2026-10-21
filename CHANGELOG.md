@@ -16,6 +16,12 @@ and `jupyter-v*` for the Jupyter widget.
 
 ### Added
 
+- **A demo build of the web UI.** `make -C apps/triplex-web demo` builds the app for a static
+  host: it opens on one of two synthetic sample datasets (a municipal benefits register and
+  person-level microdata, in `tests/fixtures/demo/`) and cannot load a file of one's own. A
+  content security policy limits the page to its own origin, so the browser blocks requests
+  anywhere else. Hosts that embed the app can replace the file chooser with their own control
+  (`datasetPicker`).
 - **`triplex risk`.** Prints, as JSON, how well a table's quasi-identifiers (an age, a postcode,
   a plan) hide each person: k-anonymity for each column alone, for every pair and for all of them
   together, how many rows no other row shares all values with, and the rows most at risk (SUDA,
@@ -27,6 +33,8 @@ and `jupyter-v*` for the Jupyter widget.
 
 ### Fixed
 
+- **Loading a second file in the web UI no longer blanks the page.** The table kept state from
+  the first file and failed when the new one had different columns.
 - **The smallest group in a k-anonymity result is the same on every run.** When several groups
   tie for smallest, the one whose first row comes earliest is named. Before, the choice could
   change between runs of the same table.

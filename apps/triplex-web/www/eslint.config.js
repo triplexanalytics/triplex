@@ -6,7 +6,7 @@ import globals from "globals";
 import prettier from "eslint-config-prettier";
 
 export default [
-  { ignores: ["dist", "dist-widget", "pkg"] },
+  { ignores: ["dist", "dist-widget", "dist-demo", "pkg"] },
   js.configs.recommended,
   react.configs.flat.recommended,
   react.configs.flat["jsx-runtime"],
