@@ -36,6 +36,13 @@ and `jupyter-v*` for the Jupyter widget.
 - **Recipe and contract files carry only what is set.** A written recipe lists only the
   settings its method uses, and a drafted contract no longer contains `null` entries. Files
   written the old way still read.
+- **A recipe downloaded from the web UI runs in the command line.** Keyed methods name
+  `TRIPLEX_SALT` as their salt variable (export it with the salt you typed in the browser to
+  get the same tokens); other methods name none.
+- **The web UI offers the mapping file.** After a masking run, "Download data" lists
+  "Mapping file (.csv)", set apart from the data formats, so the masking can be reversed.
+- **Menus stay inside the window.** A column's menu opened near the right or bottom edge moves
+  back into view, and the "Download data" list opens above the side panel.
 - **Web UI navbar before a file is loaded.** The Basic Anonymization tier is now disabled
   along with the download buttons until there is a file to work on.
 - **License label in the web UI.** The navbar shows "License: Free" in the open build and

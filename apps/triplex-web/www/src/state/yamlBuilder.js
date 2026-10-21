@@ -50,6 +50,16 @@ export function createEmptyRecipe() {
 /** Adds or replaces this column's entry in the recipe — one algorithm per
  * column at a time in v1 (matches `AnonymizeColumn` having no way to declare
  * more than one method per column). */
+// The environment variable a downloaded recipe names for a keyed method's salt. The browser
+// never reads it (the salt is what the user types in), but the CLI does: export it with the same
+// salt and the same recipe gives the same tokens there.
+export const RECIPE_SALT_ENV = "TRIPLEX_SALT";
+
+/** The `salt_env` a recipe column gets: the salt variable for a keyed method, none otherwise. */
+export function saltEnvFor(method) {
+  return method === "token_hmac" || method === "fpe" ? RECIPE_SALT_ENV : "";
+}
+
 export function upsertRecipeColumn(recipe, name, method, saltEnv) {
   const columns = recipe.columns.filter((c) => c.name !== name);
   columns.push({ name, method, salt_env: saltEnv });

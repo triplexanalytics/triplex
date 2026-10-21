@@ -7,6 +7,8 @@ export default function Navbar({
   onDownloadContract,
   onDownloadRecipe,
   onDownloadData,
+  onDownloadMapping,
+  canDownloadMapping = false,
   canDownloadContract,
   canDownloadRecipe,
   canDownloadData,
@@ -135,6 +137,20 @@ export default function Navbar({
                     </button>
                   </li>
                 ))}
+                {canDownloadMapping && (
+                  <li className="download-menu-separate">
+                    <button
+                      type="button"
+                      title="Reverses the masking. Keep it apart from the masked data."
+                      onClick={() => {
+                        detailsRef.current.open = false;
+                        onDownloadMapping();
+                      }}
+                    >
+                      Mapping file (.csv)
+                    </button>
+                  </li>
+                )}
               </ul>
             </details>
           ) : (

@@ -5,6 +5,7 @@ import {
   createEmptyRecipe,
   upsertRecipeColumn,
   removeRecipeColumn,
+  saltEnvFor,
 } from "../state/yamlBuilder";
 import { downloadBlob } from "../utils";
 import { timingLog } from "../state/wasmTiming";
@@ -96,7 +97,7 @@ export function useProfiledFile(wasm) {
   // a real method is itself the "no, mask it instead" signal, without
   // requiring a separate undo click first.
   const pickMethod = useCallback((columnName, method) => {
-    setRecipe((r) => upsertRecipeColumn(r, columnName, method, "unused_in_the_browser"));
+    setRecipe((r) => upsertRecipeColumn(r, columnName, method, saltEnvFor(method)));
     setRemovedColumns((s) => {
       const isDropped = s.has(columnName);
       if (method === "drop") return isDropped ? s : new Set(s).add(columnName);
