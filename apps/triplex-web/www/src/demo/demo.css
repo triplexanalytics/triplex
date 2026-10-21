@@ -15,13 +15,23 @@
 }
 
 .demo-banner {
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
   background: var(--warning-bg);
   border-bottom: 1px solid var(--warning-border);
+  border-left: 6px solid var(--warning-text);
+}
+
+.demo-banner-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.15rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--warning-text);
 }
 
 .demo-banner p {
   margin: 0;
+  max-width: 72rem;
 }
 
 .demo-banner p + p {
@@ -38,6 +48,15 @@
   align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
+}
+
+.demo-picker-note {
+  font-size: 0.78rem;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
 }
 
 .demo-small-screen {

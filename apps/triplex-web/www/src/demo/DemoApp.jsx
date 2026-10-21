@@ -69,17 +69,21 @@ export default function DemoApp({ extensions }) {
           </option>
         ))}
       </select>
+      <span className="demo-picker-note">Own files: off in the demo</span>
     </label>
   );
 
   return (
     <div className="demo">
       <div className="demo-banner" role="note">
+        <h1 className="demo-banner-title">
+          This is a demo. Loading your own files is switched off.
+        </h1>
         <p>
-          <strong>Demo on synthetic data.</strong> Everything runs in this browser tab, and the page
-          is not allowed to send data anywhere. Your own files cannot be loaded here: to work with
-          your own data, <a href={siteLink(INSTALL_URL, "install")}>install Triplex</a> and run it
-          on your machine.
+          Triplex is built so that your files stay on your own premises. A page on our website is
+          not your premises, so this demo works only on two synthetic sample datasets. To use your
+          own data, <a href={siteLink(INSTALL_URL, "install")}>install Triplex</a> and run it on
+          your own machine.
         </p>
         {pro && (
           <p>

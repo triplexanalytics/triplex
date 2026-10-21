@@ -38,6 +38,17 @@ describe("DemoApp", () => {
     await waitFor(() => expect(window.location.hash).toBe("#dataset=municipal"));
   });
 
+  it("says plainly that it is a demo and why own files are off", () => {
+    render(<DemoApp extensions={[]} />);
+    expect(
+      screen.getByRole("heading", {
+        name: "This is a demo. Loading your own files is switched off.",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText(/stay on your own premises/)).toBeTruthy();
+    expect(screen.getByText("Own files: off in the demo")).toBeTruthy();
+  });
+
   it("says Tiers 2 and 3 are Triplex Pro only when the build has them", () => {
     render(<DemoApp extensions={[]} />);
     expect(screen.queryByText(/paid extension, shown here/)).toBeNull();
