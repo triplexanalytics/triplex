@@ -124,6 +124,14 @@ export function useAnonymize({
     [anonymizeResult, fileBytes, extension],
   );
 
+  // The mapping file reverses the pseudonyms: it is offered only after a run, as a file of its own,
+  // so it can be kept apart from the masked data it unlocks.
+  const downloadMapping = useCallback(() => {
+    if (anonymizeResult?.mapping_csv) {
+      downloadBlob(anonymizeResult.mapping_csv, "mapping.csv", "text/csv");
+    }
+  }, [anonymizeResult]);
+
   // Called by App.jsx right after a new file loads: this hook has no other
   // way to know the file underneath it changed, and a stale anonymizeResult/
   // patternChecks from the previous file would otherwise linger.
@@ -143,6 +151,7 @@ export function useAnonymize({
     run,
     checkPattern,
     downloadData,
+    downloadMapping,
     reset,
   };
 }

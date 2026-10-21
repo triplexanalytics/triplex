@@ -330,6 +330,8 @@ export default function App({ initialFile = null, onHostState = null, extensions
         onDownloadContract={file.downloadContract}
         onDownloadRecipe={file.downloadRecipe}
         onDownloadData={anonymize.downloadData}
+        onDownloadMapping={anonymize.downloadMapping}
+        canDownloadMapping={!!anonymize.anonymizeResult?.mapping_csv}
         canDownloadContract={!!file.contract}
         canDownloadRecipe={file.recipe.columns.length > 0}
         canDownloadData={!!anonymize.anonymizeResult || !!file.fileBytes}

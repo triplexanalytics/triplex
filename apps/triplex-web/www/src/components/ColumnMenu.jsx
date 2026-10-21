@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   IMPUTATION_OPTIONS,
   METHOD_INFO,
@@ -7,6 +8,9 @@ import {
 import InfoTrigger from "./InfoTrigger";
 import ReadMore from "./ReadMore";
 import { METHOD_GLOSSARY } from "../state/glossary";
+
+// Space kept between the menu and the window edge.
+const MENU_MARGIN = 8;
 
 // "Read more" opens the method's glossary page on the docs site (METHOD_GLOSSARY, ReadMore.jsx).
 
@@ -33,10 +37,28 @@ export default function ColumnMenu({
   declaredAsString,
   onDeclareAsString,
 }) {
+  const menuRef = useRef(null);
+  const [pos, setPos] = useState({ x, y });
+  // Opened at the pointer, the menu can run past the window's right or bottom edge (a column
+  // near the right of the side panel, a header near the bottom). Once it has a size, it moves
+  // back inside, keeping a small margin.
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    setPos({
+      x: Math.max(MENU_MARGIN, Math.min(x, window.innerWidth - width - MENU_MARGIN)),
+      y: Math.max(MENU_MARGIN, Math.min(y, window.innerHeight - height - MENU_MARGIN)),
+    });
+  }, [x, y]);
   return (
     <>
       <div className="menu-backdrop" onClick={onClose} />
-      <div className="column-menu" style={{ position: "fixed", left: x, top: y }}>
+      <div
+        ref={menuRef}
+        className="column-menu"
+        style={{ position: "fixed", left: pos.x, top: pos.y }}
+      >
         <div className="column-menu-header">
           {columnName}
           {isLikelyIdentifier &&

@@ -231,7 +231,8 @@ button.full-width {
 
 .download-menu ul {
   position: absolute;
-  z-index: 20;
+  /* Above the analysis side panel (20), which it overlaps when open; below dialogs (40+). */
+  z-index: 30;
   top: calc(100% + 0.25rem);
   left: 0;
   min-width: 100%;
@@ -257,6 +258,13 @@ button.full-width {
 
 .download-menu li button:hover {
   background: var(--surface-alt);
+}
+
+/* The mapping file is not another format of the data: set apart from the formats above it. */
+.download-menu li.download-menu-separate {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border);
 }
 
 .navbar .license {
