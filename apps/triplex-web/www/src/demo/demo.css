@@ -1,0 +1,56 @@
+/* The hosted demo's own chrome around the app: banner, small-screen note, footer. */
+
+.demo {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.demo a {
+  color: var(--accent);
+}
+
+.demo-banner {
+  padding: 0.5rem 1rem;
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning-border);
+}
+
+.demo-banner p {
+  margin: 0;
+}
+
+.demo-banner p + p {
+  margin-top: 0.25rem;
+}
+
+.demo-app {
+  flex: 1;
+  min-height: 0;
+}
+
+.demo-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.demo-small-screen {
+  flex: 1;
+  padding: 2rem 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.demo-footer {
+  padding: 0.35rem 1rem;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}

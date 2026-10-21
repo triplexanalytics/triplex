@@ -2,8 +2,10 @@ import { useRef } from "react";
 import TierPicker from "./TierPicker";
 import { DOWNLOAD_FORMATS } from "../utils";
 
+/** `fileChooser`, when given, takes the place of the "Choose file" button and its file input. */
 export default function Navbar({
   onFileSelected,
+  fileChooser = null,
   onDownloadContract,
   onDownloadRecipe,
   onDownloadData,
@@ -48,20 +50,24 @@ export default function Navbar({
       {import.meta.env.VITE_APP_VERSION && (
         <span className="version">v{import.meta.env.VITE_APP_VERSION}</span>
       )}
-      {/* Hidden and driven by our own `fileName` state, not the browser's
-          native file-input label -- a file loaded via Dropzone (drag or its
-          own click-to-browse) never touches this input, so the native label
-          would show stale text or "No file chosen" after that path. */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".csv,.tsv,.jsonl"
-        hidden
-        onChange={(e) => e.target.files[0] && onFileSelected(e.target.files[0])}
-      />
-      <button type="button" onClick={() => fileInputRef.current?.click()}>
-        Choose file
-      </button>
+      {fileChooser ?? (
+        <>
+          {/* Hidden and driven by our own `fileName` state, not the browser's
+              native file-input label -- a file loaded via Dropzone (drag or its
+              own click-to-browse) never touches this input, so the native label
+              would show stale text or "No file chosen" after that path. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.tsv,.jsonl"
+            hidden
+            onChange={(e) => e.target.files[0] && onFileSelected(e.target.files[0])}
+          />
+          <button type="button" onClick={() => fileInputRef.current?.click()}>
+            Choose file
+          </button>
+        </>
+      )}
       <span className="file-shape">
         {fileName || "No file chosen"}
         {rowCount !== null &&

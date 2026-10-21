@@ -4,7 +4,7 @@
 
 WASM_BINDGEN_VERSION := 0.2.127
 
-.PHONY: help setup wasm dev build widget preview test clippy fmt clean
+.PHONY: help setup wasm dev build widget demo preview test clippy fmt clean
 
 help:
 	@echo "make setup    one-time toolchain setup (rustup target, wasm-bindgen-cli, npm install)"
@@ -12,11 +12,12 @@ help:
 	@echo "make dev      wasm + start the Vite dev server"
 	@echo "make build    wasm + production Vite build (www/dist/)"
 	@echo "make widget   wasm + single-file Jupyter widget build (www/dist-widget/)"
+	@echo "make demo     wasm + hosted demo build on the sample datasets (www/dist-demo/)"
 	@echo "make preview  serve the production build (run 'make build' first)"
 	@echo "make test     cargo test for this crate/deps, plus vitest for www/"
 	@echo "make clippy   cargo clippy for this crate/deps, plus eslint for www/"
 	@echo "make fmt      check formatting for this crate and www/ (does not rewrite files)"
-	@echo "make clean    remove www/pkg, www/dist, www/dist-widget, and this crate's target/ output"
+	@echo "make clean    remove www/pkg, www/dist, www/dist-widget, www/dist-demo, and this crate's target/ output"
 
 # One-time: wasm32 target for rustc, the wasm-bindgen CLI pinned to match
 # Cargo.lock's wasm-bindgen version, and this app's npm dependencies.
@@ -54,6 +55,12 @@ build: wasm
 widget: wasm
 	cd www && npm run build:widget
 
+# Rebuilds the wasm first, then the hosted demo into www/dist-demo/: the app on
+# the bundled sample datasets, with no way to load a file, plus a _headers file
+# for the static host. See www/vite.demo.config.js.
+demo: wasm
+	cd www && npm run build:demo
+
 # Serves the build from `make build` — run that first, this doesn't rebuild.
 preview:
 	cd www && npm run preview
@@ -86,5 +93,5 @@ fmt:
 # Deletes generated output only (wasm glue, Vite build, this crate's Cargo
 # target/) — never touches www/node_modules, re-run `make setup` for that.
 clean:
-	rm -rf www/pkg www/dist www/dist-widget
+	rm -rf www/pkg www/dist www/dist-widget www/dist-demo
 	cargo clean -p triplex-web

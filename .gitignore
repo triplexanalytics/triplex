@@ -15,6 +15,7 @@ credentials/
 target/
 dist/
 dist-widget/
+dist-demo/
 build/
 coverage/
 *.log

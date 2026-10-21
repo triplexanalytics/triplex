@@ -59,9 +59,14 @@ stays inside `.app-shell` (the sheet is loaded into a notebook page this app
 does not own; page-level rules go in `page.css`), and workers are created
 only in `www/src/state/workers.js`.
 
+For the hosted demo: `make demo` builds the app into `www/dist-demo/`
+(`www/vite.demo.config.js`, page `www/demo.html`, entry `www/src/demo.jsx`),
+ready for a static host: `index.html`, the assets, and a `_headers` file.
+See "Hosted demo" below.
+
 `make test`/`make clippy`/`make fmt` run against this crate and everything
 it depends on (`triplex-io`, `triplex-schemacast`, `triplex-anonymizer`).
-`make clean` removes `www/pkg`, `www/dist`, `www/dist-widget`, and this crate's `target/`
+`make clean` removes `www/pkg`, `www/dist`, `www/dist-widget`, `www/dist-demo`, and this crate's `target/`
 output.
 
 ## Scope
@@ -89,3 +94,34 @@ replace that list through a Vite alias on the specifier `./extensions`, the
 same way the widget build swaps `./workers`. This build's list is empty, so
 the tier cards for 2 and 3 become links, and the dataset tabs and the Compare
 button, which only make sense next to a generated table, are hidden.
+
+## Hosted demo
+
+A build of the same app for trying it without installing anything. It opens
+on one of two synthetic datasets and has no way to load a file of one's own:
+the file chooser and the drop area are replaced by a dataset picker
+(`datasetPicker` on `App`). A banner says so and links to the install page.
+
+- **Datasets.** `tests/fixtures/demo/municipal.csv` (a municipal benefits
+  register, 1,200 rows) and `statistical.csv` (person-level microdata, 2,000
+  rows), generated from a fixed seed by `www/src/demo/generate.js`. After a
+  change there, `npm run demo-data` rewrites both files; a test fails while
+  they disagree. Other tests check what each dataset is for: in the register,
+  postcode, birth year and sex single out most people only in combination,
+  and grouping the birth year by decade removes most of that; in the
+  microdata, income rises with education and rare combinations exist.
+- **Links.** `#dataset=statistical` opens a given dataset, so a page can link
+  straight to it. Links from the demo back to `triplexanalytics.io` carry
+  `utm_source=demo` and a `utm_content` per link; the demo itself counts
+  nothing.
+- **What the page may contact.** A content security policy
+  (`www/src/demo/contentSecurityPolicy.js`) allows only the demo's own origin,
+  so the browser blocks any request elsewhere. It is added to the built page as
+  a `<meta>` tag and written to `dist-demo/_headers` as a response header, with
+  framing forbidden and `noindex`. The dev server (`npm run dev:demo`) runs
+  without it, because it injects an inline script of its own.
+- **Small screens.** Below 900 pixels wide the app does not start; the page
+  says the demo needs a larger screen.
+- **Extensions.** `src/demo.jsx` imports `./extensions` like `App.jsx` does,
+  so a build that swaps the list gets it in the demo too. With extensions
+  present, the banner and footer say that Tiers 2 and 3 are Triplex Pro.
