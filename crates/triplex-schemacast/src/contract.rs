@@ -19,19 +19,19 @@ fn default_required() -> bool {
 /// `ColumnStatistics` — see `triplex_io::ColumnStatistics`.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct DeclaredColumnStatistics {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_null_percentage: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_type_consistency: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_value: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_value: Option<f64>,
     /// The mean must fall within `expected_mean` ± `mean_epsilon`.
     /// `mean_epsilon` defaults to 0.0 (exact match) if omitted.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_mean: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mean_epsilon: Option<f64>,
 }
 
@@ -42,12 +42,12 @@ pub struct DeclaredColumn {
     pub column_type: ColumnType,
     #[serde(default = "default_required")]
     pub required: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub statistics: Option<DeclaredColumnStatistics>,
     /// A regex every non-empty value in this column must match. Checked
     /// separately from `statistics` (see `check_patterns`) since it needs
     /// every raw value, not just aggregate stats over a sample.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,
 }
 
@@ -68,11 +68,11 @@ impl DeclaredColumn {
 /// this block, it has no opinion on what the values mean.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct DeclaredDriftGuardThresholds {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_null_percentage_delta: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_mean_relative_delta: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_type_consistency_delta: Option<f64>,
 }
 
@@ -81,11 +81,11 @@ pub struct DeclaredDriftGuardThresholds {
 /// difference, to "report only"); schemacast only parses them.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct DeclaredFairnessThresholds {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disparate_impact_min: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub equalized_odds_min: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub demographic_parity_difference_max: Option<f64>,
 }
 
@@ -93,15 +93,15 @@ pub struct DeclaredFairnessThresholds {
 /// inspected: it is carried into the card verbatim.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct DeclaredModelMetadata {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub framework: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intended_use: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub training_data: Option<String>,
 }
 
@@ -113,19 +113,19 @@ pub struct DeclaredModelMetadata {
 pub struct DeclaredModelCard {
     pub target_column: String,
     pub prediction_column: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub score_column: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub positive_label: Option<String>,
     #[serde(default)]
     pub slice_by: Vec<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protected_attribute: Option<String>,
     #[serde(default)]
     pub thresholds: DeclaredFairnessThresholds,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_slice_size: Option<usize>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_groups_per_column: Option<usize>,
     #[serde(default)]
     pub model: DeclaredModelMetadata,
@@ -139,9 +139,9 @@ pub struct DeclaredSynthesizeColumn {
     pub name: String,
     #[serde(rename = "type")]
     pub kind: DeclaredSynthesizeKind,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max: Option<f64>,
     #[serde(default)]
     pub integer: bool,
@@ -161,24 +161,24 @@ pub enum DeclaredSynthesizeKind {
 /// `triplex-anonymizer` owns the meaning.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeclaredSynthesize {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub epsilon: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marginal_share: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bins: Option<usize>,
     /// `gaussian_copula` (the default), `bayesian_network` or
     /// `independent_marginals`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
     /// For `bayesian_network`: `chow_liu` (the default) or `k_parent`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub structure: Option<String>,
     /// For `k_parent`: parents per column (1 to 3).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_parents: Option<usize>,
     /// For `bayesian_network`: share of epsilon spent choosing the structure.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub structure_share: Option<f64>,
     #[serde(default)]
     pub columns: Vec<DeclaredSynthesizeColumn>,
@@ -188,11 +188,11 @@ pub struct DeclaredSynthesize {
 pub struct DeclaredContract {
     pub version: u32,
     pub columns: Vec<DeclaredColumn>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driftguard: Option<DeclaredDriftGuardThresholds>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modelcard: Option<DeclaredModelCard>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub synthesize: Option<DeclaredSynthesize>,
 }
 

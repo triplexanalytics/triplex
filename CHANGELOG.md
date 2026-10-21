@@ -30,6 +30,12 @@ and `jupyter-v*` for the Jupyter widget.
 - **The smallest group in a k-anonymity result is the same on every run.** When several groups
   tie for smallest, the one whose first row comes earliest is named. Before, the choice could
   change between runs of the same table.
+- **A recipe needs `salt_env` only for keyed methods.** Bucketing and partial masking run
+  without a salt and without an environment variable; `token_hmac` and `fpe` without
+  `salt_env` stop with an error that names the column.
+- **Recipe and contract files carry only what is set.** A written recipe lists only the
+  settings its method uses, and a drafted contract no longer contains `null` entries. Files
+  written the old way still read.
 - **Web UI navbar before a file is loaded.** The Basic Anonymization tier is now disabled
   along with the download buttons until there is a file to work on.
 - **License label in the web UI.** The navbar shows "License: Free" in the open build and

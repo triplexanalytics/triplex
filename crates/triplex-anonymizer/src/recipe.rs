@@ -21,6 +21,12 @@ pub enum AnonymizeMethod {
 }
 
 impl AnonymizeMethod {
+    /// Whether the method is keyed by a salt (`token_hmac`, `fpe`). Only these read `salt_env`;
+    /// bucketing, partial masking and removal give the same output for anyone.
+    pub fn is_keyed(self) -> bool {
+        matches!(self, AnonymizeMethod::TokenHmac | AnonymizeMethod::Fpe)
+    }
+
     /// Every variant this build supports, in the order a UI should list
     /// them. Grows automatically as this enum grows — a caller (e.g.
     /// `apps/triplex-web`) reads this instead of hardcoding a menu that can
@@ -46,14 +52,16 @@ fn default_keep_suffix() -> usize {
     4
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 pub struct AnonymizeColumn {
     pub name: String,
     pub method: AnonymizeMethod,
     /// Name of the environment variable holding the HMAC/FPE salt — never
     /// the salt value itself, so it never sits in a `.triplex.yaml` file, a
-    /// shell history, or a process listing. Ignored by `Bucket`/`PartialMask`,
-    /// which don't key their transform.
+    /// shell history, or a process listing. Required for the keyed methods
+    /// (`token_hmac`, `fpe`); the others don't key their transform, so a
+    /// recipe may leave it out for them (it is then empty).
+    #[serde(default)]
     pub salt_env: String,
     /// `Bucket`-only: numeric generalization width, e.g. 10 turns `23` into
     /// `"20-29"`. Ignored by every other method. Defaulted (not required)
@@ -69,6 +77,31 @@ pub struct AnonymizeColumn {
     /// `keep_prefix`. Defaults to 4 (e.g. a card number's last 4 digits).
     #[serde(default = "default_keep_suffix")]
     pub keep_suffix: usize,
+}
+
+/// Written with only the settings its method uses, so a recipe file never carries a salt
+/// variable a bucketing column ignores or a bucket width a token column ignores.
+impl Serialize for AnonymizeColumn {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut st = serializer.serialize_struct("AnonymizeColumn", 5)?;
+        st.serialize_field("name", &self.name)?;
+        st.serialize_field("method", &self.method)?;
+        if self.method.is_keyed() {
+            st.serialize_field("salt_env", &self.salt_env)?;
+        }
+        if self.method == AnonymizeMethod::Bucket {
+            st.serialize_field("bucket_width", &self.bucket_width)?;
+        }
+        if self.method == AnonymizeMethod::PartialMask {
+            st.serialize_field("keep_prefix", &self.keep_prefix)?;
+            st.serialize_field("keep_suffix", &self.keep_suffix)?;
+        }
+        st.end()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -132,6 +165,52 @@ mod tests {
             keep_prefix: default_keep_prefix(),
             keep_suffix: default_keep_suffix(),
         }
+    }
+
+    #[test]
+    fn a_salt_free_method_may_leave_out_salt_env() {
+        let recipe: AnonymizeRecipe = serde_yaml_ng::from_str(
+            "version: 1\ncolumns:\n- name: age\n  method: bucket\n  bucket_width: 10\n",
+        )
+        .unwrap();
+        assert_eq!(recipe.columns[0].salt_env, "");
+    }
+
+    #[test]
+    fn a_recipe_is_written_with_only_the_settings_its_method_uses() {
+        let column = |name: &str, method| AnonymizeColumn {
+            name: name.into(),
+            method,
+            salt_env: if method.is_keyed() {
+                "TRIPLEX_SALT".into()
+            } else {
+                String::new()
+            },
+            bucket_width: default_bucket_width(),
+            keep_prefix: default_keep_prefix(),
+            keep_suffix: default_keep_suffix(),
+        };
+        let recipe = AnonymizeRecipe {
+            version: 1,
+            columns: vec![
+                column("email", AnonymizeMethod::TokenHmac),
+                column("age", AnonymizeMethod::Bucket),
+                column("card", AnonymizeMethod::PartialMask),
+                column("notes", AnonymizeMethod::Drop),
+            ],
+        };
+        let yaml = serde_yaml_ng::to_string(&recipe).unwrap();
+        assert_eq!(
+            yaml,
+            "version: 1\ncolumns:\n\
+             - name: email\n  method: token_hmac\n  salt_env: TRIPLEX_SALT\n\
+             - name: age\n  method: bucket\n  bucket_width: 10\n\
+             - name: card\n  method: partial_mask\n  keep_prefix: 0\n  keep_suffix: 4\n\
+             - name: notes\n  method: drop\n"
+        );
+        // And it reads back to the same recipe.
+        let back: AnonymizeRecipe = serde_yaml_ng::from_str(&yaml).unwrap();
+        assert_eq!(serde_yaml_ng::to_string(&back).unwrap(), yaml);
     }
 
     #[test]
