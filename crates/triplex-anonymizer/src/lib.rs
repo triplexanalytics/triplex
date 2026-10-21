@@ -170,7 +170,12 @@ fn resolve_columns<'a>(
             drop_indices.insert(header_index);
             continue;
         }
-        let salt = salt_for(declared)?;
+        // Only a keyed method needs a salt; the others give the same output for anyone.
+        let salt = if declared.method.is_keyed() {
+            salt_for(declared)?
+        } else {
+            Vec::new()
+        };
         resolved.push(ResolvedColumn {
             header_index,
             declared,
@@ -184,6 +189,12 @@ fn resolve_columns<'a>(
 /// itself is never a CLI argument, so it never lands in shell history or a
 /// process listing.
 fn salt_from_env(declared: &AnonymizeColumn) -> Result<Vec<u8>> {
+    if declared.salt_env.is_empty() {
+        return Err(Error::Validation(format!(
+            "column {:?} uses {:?}, which needs salt_env: the environment variable holding its salt",
+            declared.name, declared.method
+        )));
+    }
     std::env::var(&declared.salt_env)
         .map(String::into_bytes)
         .map_err(|_| Error::MissingEnvVar(declared.salt_env.clone()))
