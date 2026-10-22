@@ -76,9 +76,17 @@ codecs (zstd/snap) need a C toolchain that `wasm32-unknown-unknown` doesn't
 have; see `crates/triplex-io/Cargo.toml` for the per-target dependency
 split that keeps native builds (the CLI) unaffected.
 
-Tier 1 ("Basic Anonymization"): one algorithm per column, picked from
-whatever `triplex-anonymizer::AnonymizeMethod::ALL` currently implements
-(just `token_hmac` today). Tier 2 ("Synthetic Data Generation") and Tier 3
+Tier 1 ("Basic Anonymization"): one method per column, picked from whatever
+`triplex-anonymizer::AnonymizeMethod::ALL` implements (`token_hmac`, `fpe`,
+`bucket`, `partial_mask` and `drop`). "Download recipe" saves the picks as a
+`.triplex.yaml` recipe that `triplex anonymize` runs. "Open recipe", or a
+`.yaml` file dropped on the page, applies a recipe to the loaded table, in
+every build including the hosted demo: a recipe is configuration, not data.
+The engine checks it the same way the command-line tool does. A recipe never
+holds the salt, only the name of the environment variable the command-line
+tool reads it from, so keyed methods still need the salt typed in. Settings
+the column menu has no control for (a bucket width, the characters partial
+masking keeps) are kept from the recipe and written back unchanged. Tier 2 ("Synthetic Data Generation") and Tier 3
 ("Pattern-persistent Data Generation") are not part of this build: their
 cards link to Triplex Pro, a paid extension that adds both dialogs. Synthetic
 data itself is open: `triplex synthesize` in the CLI and `triplex.synthesize`
@@ -98,9 +106,10 @@ button, which only make sense next to a generated table, are hidden.
 ## Hosted demo
 
 A build of the same app for trying it without installing anything. It opens
-on one of two synthetic datasets and has no way to load a file of one's own:
-the file chooser and the drop area are replaced by a dataset picker
+on one of two synthetic datasets and has no way to load a data file of one's
+own: the file chooser and the drop area are replaced by a dataset picker
 (`datasetPicker` on `App`). A banner says so and links to the install page.
+A recipe can still be opened there, since it is configuration, not data.
 
 - **Datasets.** `tests/fixtures/demo/municipal.csv` (a municipal benefits
   register, 1,200 rows) and `statistical.csv` (person-level microdata, 2,000

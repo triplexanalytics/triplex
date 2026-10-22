@@ -27,7 +27,9 @@ export default function ColumnMenu({
   y,
   methods,
   currentMethod,
+  currentSettings = null,
   currentSalt,
+  focusSalt = false,
   onPickMethod,
   onSaltChange,
   onAnonymize,
@@ -111,12 +113,19 @@ export default function ColumnMenu({
             })}
             {methods.length === 0 && <div className="method-grid-empty">No methods available.</div>}
           </div>
+          {currentSettings && (
+            <p className="field-hint method-settings">
+              From the opened recipe: {currentSettings}. Picking a method here uses the defaults.
+            </p>
+          )}
           <div className="field">
-            <label>Salt / passphrase (one salt for the whole run)</label>
+            <label htmlFor="column-menu-salt">Salt / passphrase (one salt for the whole run)</label>
             <input
+              id="column-menu-salt"
               type="password"
               value={currentSalt}
               onChange={(e) => onSaltChange(e.target.value)}
+              autoFocus={focusSalt}
             />
             <p className="field-hint">
               Shared across every column: the same source value must map to the same token wherever

@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import TierPicker from "./TierPicker";
 import { DOWNLOAD_FORMATS } from "../utils";
+import { RECIPE_FILE_EXTENSIONS } from "../state/recipeFile";
 
 /** `fileChooser`, when given, takes the place of the "Choose file" button and its file input. */
 export default function Navbar({
@@ -8,11 +9,13 @@ export default function Navbar({
   fileChooser = null,
   onDownloadContract,
   onDownloadRecipe,
+  onOpenRecipe,
   onDownloadData,
   onDownloadMapping,
   canDownloadMapping = false,
   canDownloadContract,
   canDownloadRecipe,
+  canOpenRecipe = false,
   canDownloadData,
   fileName,
   rowCount,
@@ -38,6 +41,7 @@ export default function Navbar({
   // closes it, which covers the actual use here.
   const detailsRef = useRef(null);
   const fileInputRef = useRef(null);
+  const recipeInputRef = useRef(null);
 
   const pick = (format) => {
     if (detailsRef.current) detailsRef.current.open = false;
@@ -123,6 +127,28 @@ export default function Navbar({
         <>
           <button onClick={onDownloadContract} disabled={!canDownloadContract}>
             Download contract
+          </button>
+          {/* A recipe is configuration, not data, so it can be opened wherever the app runs,
+              including builds that replace the data file chooser. */}
+          <input
+            ref={recipeInputRef}
+            type="file"
+            accept={RECIPE_FILE_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
+            hidden
+            onChange={(e) => {
+              const chosen = e.target.files[0];
+              // Cleared so choosing the same file again (after editing it) opens it again.
+              e.target.value = "";
+              if (chosen) onOpenRecipe(chosen);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => recipeInputRef.current?.click()}
+            disabled={!canOpenRecipe}
+            title={canOpenRecipe ? undefined : "Load a data file first"}
+          >
+            Open recipe
           </button>
           <button onClick={onDownloadRecipe} disabled={!canDownloadRecipe}>
             Download recipe

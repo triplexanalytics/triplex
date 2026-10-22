@@ -4,11 +4,16 @@ import { useProfiledFile } from "./hooks/useProfiledFile";
 import { useAnonymize } from "./hooks/useAnonymize";
 import { useDatasetAnalysis } from "./hooks/useDatasetAnalysis";
 import { useHistory } from "./hooks/useHistory";
+import { useOpenRecipe } from "./hooks/useOpenRecipe";
 import { withColumnType } from "./state/yamlBuilder";
+import { isRecipeFileName } from "./state/recipeFile";
 import Navbar from "./components/Navbar";
 import DatasetTabs from "./components/DatasetTabs";
 import Dropzone from "./components/Dropzone";
 import LoadingOverlay from "./components/LoadingOverlay";
+import FileDrop from "./components/FileDrop";
+import OpenRecipeDialog from "./components/OpenRecipeDialog";
+import RecipeNotice from "./components/RecipeNotice";
 import { EXTENSIONS } from "./extensions";
 import { tierDisabledReason } from "./extensionApi";
 
@@ -39,8 +44,9 @@ const NO_PATTERN_CHECKS = {};
  * it. `onHostState` is called with the artifacts the user has produced so far, whenever one of
  * them changes. `extensions` defaults to this build's generator extensions (`extensions.js`);
  * tests pass their own. It must not change while the app is mounted. `datasetPicker`, when a
- * host gives one, replaces every way of loading a file (the navbar's file chooser and the drop
- * area): the hosted demo uses it to offer its sample datasets and nothing else. */
+ * host gives one, replaces every way of loading a data file (the navbar's file chooser and the
+ * drop area): the hosted demo uses it to offer its sample datasets and nothing else. A recipe is
+ * configuration, not data, so it can still be opened there. */
 export default function App({
   initialFile = null,
   onHostState = null,
@@ -61,6 +67,9 @@ export default function App({
   });
   const original = useDatasetAnalysis(wasm, file.sample, file.profile, file.removedRowIndices);
   const history = useHistory();
+  const recipeFile = useOpenRecipe({ wasm, file, history });
+  // Why a dropped file was not taken (a data file where the host supplies the datasets).
+  const [dropError, setDropError] = useState("");
   // What every generator extension sees of the loaded file.
   const host = {
     fileBytes: file.fileBytes,
@@ -276,6 +285,8 @@ export default function App({
     );
   };
   const handleFile = async (uploaded) => {
+    setDropError("");
+    recipeFile.reset();
     setSelectedColumn(null);
     setActiveDataset("original");
     setOpenDialog(null);
@@ -296,6 +307,7 @@ export default function App({
         () => {
           file.reset();
           anonymize.reset();
+          recipeFile.reset();
           for (const g of generators) g.generator.reset();
           setActiveDataset("original");
           original.rowFilter.setRowFilter(null);
@@ -303,6 +315,23 @@ export default function App({
         },
       );
     }
+  };
+
+  // A recipe sets methods on the original table, so that is what the page shows afterwards.
+  const handleOpenRecipe = (chosen) => {
+    setDropError("");
+    selectDataset("original");
+    recipeFile.open(chosen);
+  };
+  // A file dropped on the page: a recipe opens, a data file loads, unless the host supplies the
+  // datasets itself (the demo), where only a recipe can be dropped.
+  const handleDroppedFile = (dropped) => {
+    if (isRecipeFileName(dropped.name)) handleOpenRecipe(dropped);
+    else if (datasetPicker) {
+      setDropError(
+        "Only a recipe file (.yaml) can be dropped here. Pick a dataset in the bar above.",
+      );
+    } else handleFile(dropped);
   };
 
   useEffect(() => {
@@ -332,15 +361,28 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onHostState, wasm, file.recipe, file.contract, anonymizeResult, ...generatedResults]);
 
-  const error = file.error || anonymize.error;
+  const error = file.error || anonymize.error || recipeFile.error || dropError;
 
   return (
-    <div className="app-shell" data-dataset={shownKey}>
+    <FileDrop
+      className="app-shell"
+      data-dataset={shownKey}
+      onFile={handleDroppedFile}
+      hint={
+        file.sample
+          ? datasetPicker
+            ? "Drop a recipe (.yaml) to open it"
+            : "Drop a recipe (.yaml) to open it, or a data file to load it"
+          : null
+      }
+    >
       <Navbar
         onFileSelected={handleFile}
         fileChooser={datasetPicker}
         onDownloadContract={file.downloadContract}
         onDownloadRecipe={file.downloadRecipe}
+        onOpenRecipe={handleOpenRecipe}
+        canOpenRecipe={!!file.sample && !!wasm}
         onDownloadData={anonymize.downloadData}
         onDownloadMapping={anonymize.downloadMapping}
         canDownloadMapping={!!anonymize.anonymizeResult?.mapping_csv}
@@ -365,13 +407,20 @@ export default function App({
       />
       <main className="main-content">
         {error && <div className="banner banner-error">{error}</div>}
+        {recipeFile.opened && (
+          <RecipeNotice
+            opened={recipeFile.opened}
+            saltTyped={!!file.salt}
+            onDismiss={recipeFile.dismissOpened}
+          />
+        )}
         {file.isLoading && <LoadingOverlay label={`Reading ${file.loadingFileName}…`} />}
         {!file.isLoading && !file.sample && (
           <div className="upload-prompt">
             {datasetPicker ? (
               <p>Pick a sample dataset in the bar above.</p>
             ) : (
-              <Dropzone onFileSelected={handleFile} />
+              <Dropzone onFileSelected={handleDroppedFile} />
             )}
           </div>
         )}
@@ -421,6 +470,8 @@ export default function App({
                   readOnly={showingGenerated}
                   dataset={shownKey}
                   onContentWidth={setTableWidth}
+                  menuRequest={showingGenerated ? null : recipeFile.saltRequest}
+                  onMenuRequestDone={recipeFile.clearSaltRequest}
                 />
               </div>
             </div>
@@ -481,6 +532,13 @@ export default function App({
             />
           </Suspense>
         )}
+        {recipeFile.pending && (
+          <OpenRecipeDialog
+            pending={recipeFile.pending}
+            onConfirm={recipeFile.confirm}
+            onCancel={recipeFile.cancel}
+          />
+        )}
         {dialogGenerator && (
           <dialogGenerator.ext.Dialog
             generator={dialogGenerator.generator}
@@ -490,6 +548,6 @@ export default function App({
           />
         )}
       </main>
-    </div>
+    </FileDrop>
   );
 }

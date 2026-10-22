@@ -16,10 +16,19 @@ and `jupyter-v*` for the Jupyter widget.
 
 ### Added
 
+- **Open recipe in the web UI and the Jupyter widget.** "Open recipe", next to "Download
+  recipe", or a `.yaml` file dropped on the page applies a recipe to the loaded table as if each
+  method had been picked by hand; the History tab can undo it. It works in the hosted demo too,
+  since a recipe is configuration, not data. A recipe that does not parse or has another version
+  is refused with a message that names the column. Columns the table does not have are listed and
+  the rest applied only after confirmation, and replacing a recipe already started asks first.
+  Keyed methods still need the salt typed in, which a recipe never contains: the page says so and
+  opens the salt field. Opening a recipe and downloading it again gives the same file. A data
+  file dropped on a loaded table now loads it, where the browser used to open the file itself.
 - **A demo build of the web UI.** `make -C apps/triplex-web demo` builds the app for a static
   host: it opens on one of two synthetic sample datasets (a municipal benefits register and
-  person-level microdata, in `tests/fixtures/demo/`) and cannot load a file of one's own. A
-  content security policy limits the page to its own origin, so the browser blocks requests
+  person-level microdata, in `tests/fixtures/demo/`) and cannot load a data file of one's own.
+  A content security policy limits the page to its own origin, so the browser blocks requests
   anywhere else. Hosts that embed the app can replace the file chooser with their own control
   (`datasetPicker`).
 - **`triplex risk`.** Prints, as JSON, how well a table's quasi-identifiers (an age, a postcode,

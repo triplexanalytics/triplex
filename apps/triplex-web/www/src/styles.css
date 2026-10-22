@@ -154,6 +154,8 @@ button.full-width {
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* Holds .file-drop-hint, drawn over the whole app while a file is dragged over it. */
+  position: relative;
   /* The dataset being shown sets --ds-color / --ds-tint (navbar bar, dataset tabs, panel tabs).
      Original is neutral white; synthetic and sketched each get their own hue so a glance
      says which data you are looking at. Change the hues in the :root tokens below. */
@@ -1620,6 +1622,82 @@ button.full-width {
 }
 .synth-matrix-heading {
   margin: 1.25rem 0 0.5rem;
+}
+
+/* === Opening a recipe === */
+
+.file-drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(247, 248, 250, 0.85);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+.file-drop-hint p {
+  margin: 0;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.recipe-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.recipe-notice > div {
+  flex: 1;
+}
+.recipe-notice p {
+  margin: 0;
+}
+.recipe-notice p + p {
+  margin-top: 0.3rem;
+}
+.recipe-notice button {
+  flex: none;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.78rem;
+  border-color: var(--warning-border);
+  color: var(--warning-text);
+  background: none;
+}
+
+.method-settings {
+  margin: 0.5rem 0 0;
+}
+
+.confirm-dialog {
+  width: min(460px, 92vw);
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.confirm-dialog::backdrop {
+  background: rgba(16, 24, 40, 0.4);
+}
+.confirm-dialog h3 {
+  margin: 0 0 0.5rem;
+}
+.confirm-dialog p {
+  margin: 0 0 0.6rem;
+}
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }
 
 /* === Compare view === */

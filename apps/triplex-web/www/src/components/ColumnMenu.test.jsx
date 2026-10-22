@@ -1,10 +1,10 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import ColumnMenu from "./ColumnMenu";
 
 afterEach(cleanup);
 
-function open(x, y) {
+function open(x, y, props = {}) {
   // jsdom lays nothing out, so give the menu a size to work with.
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
     width: 300,
@@ -33,6 +33,7 @@ function open(x, y) {
       isLikelyIdentifier={false}
       declaredAsString={false}
       onDeclareAsString={() => {}}
+      {...props}
     />,
   );
   return /** @type {HTMLElement} */ (container.querySelector(".column-menu"));
@@ -53,5 +54,17 @@ describe("ColumnMenu position", () => {
     const menu = open(1850, 900);
     expect(menu.style.left).toBe(`${1920 - 300 - 8}px`);
     expect(menu.style.top).toBe(`${1080 - 500 - 8}px`);
+  });
+});
+
+describe("ColumnMenu after a recipe was opened", () => {
+  it("shows the settings the recipe gave the column", () => {
+    open(400, 200, { currentMethod: "bucket", currentSettings: "bucket width 5" });
+    expect(screen.getByText(/From the opened recipe: bucket width 5/)).toBeTruthy();
+  });
+
+  it("puts the cursor in the salt field when asked to", () => {
+    open(400, 200, { focusSalt: true });
+    expect(document.activeElement).toBe(screen.getByLabelText(/Salt \/ passphrase/));
   });
 });

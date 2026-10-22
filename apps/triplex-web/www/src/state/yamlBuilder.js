@@ -55,9 +55,14 @@ export function createEmptyRecipe() {
 // salt and the same recipe gives the same tokens there.
 export const RECIPE_SALT_ENV = "TRIPLEX_SALT";
 
+/** Whether the method is keyed by the salt (`token_hmac`, `fpe`); the others run without one. */
+export function isKeyedMethod(method) {
+  return method === "token_hmac" || method === "fpe";
+}
+
 /** The `salt_env` a recipe column gets: the salt variable for a keyed method, none otherwise. */
 export function saltEnvFor(method) {
-  return method === "token_hmac" || method === "fpe" ? RECIPE_SALT_ENV : "";
+  return isKeyedMethod(method) ? RECIPE_SALT_ENV : "";
 }
 
 export function upsertRecipeColumn(recipe, name, method, saltEnv) {

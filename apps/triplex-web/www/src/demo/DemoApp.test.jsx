@@ -15,9 +15,11 @@ afterEach(() => {
 });
 
 describe("DemoApp", () => {
-  it("offers the sample datasets and no way to load a file", () => {
+  it("offers the sample datasets and no way to load a data file", () => {
     const { container } = render(<DemoApp extensions={[]} />);
-    expect(container.querySelector('input[type="file"]')).toBeNull();
+    // The one file input is for recipes, which are configuration, not data.
+    const inputs = [...container.querySelectorAll('input[type="file"]')];
+    expect(inputs.map((i) => i.getAttribute("accept"))).toEqual([".yaml,.yml"]);
     expect(screen.queryByRole("button", { name: "Choose file" })).toBeNull();
     expect(container.querySelector(".dropzone")).toBeNull();
     const picker = screen.getByRole("combobox", { name: /Sample dataset/ });
@@ -25,6 +27,12 @@ describe("DemoApp", () => {
       "municipal",
       "statistical",
     ]);
+  });
+
+  it("keeps Open recipe next to Download recipe", () => {
+    render(<DemoApp extensions={[]} />);
+    const open = screen.getByRole("button", { name: "Open recipe" });
+    expect(open.nextElementSibling?.textContent).toBe("Download recipe");
   });
 
   it("opens the dataset the address names, and the picker changes the address", async () => {
@@ -38,15 +46,15 @@ describe("DemoApp", () => {
     await waitFor(() => expect(window.location.hash).toBe("#dataset=municipal"));
   });
 
-  it("says plainly that it is a demo and why own files are off", () => {
+  it("says plainly that it is a demo and why own data is off", () => {
     render(<DemoApp extensions={[]} />);
     expect(
       screen.getByRole("heading", {
-        name: "This is a demo. Loading your own files is switched off.",
+        name: "This is a demo. Loading your own data is switched off.",
       }),
     ).toBeTruthy();
     expect(screen.getByText(/stay on your own premises/)).toBeTruthy();
-    expect(screen.getByText("Own files: off in the demo")).toBeTruthy();
+    expect(screen.getByText("Own data: off in the demo")).toBeTruthy();
   });
 
   it("says Tiers 2 and 3 are Triplex Pro only when the build has them", () => {
