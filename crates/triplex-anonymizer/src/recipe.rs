@@ -27,6 +27,17 @@ impl AnonymizeMethod {
         matches!(self, AnonymizeMethod::TokenHmac | AnonymizeMethod::Fpe)
     }
 
+    /// The method's name as a recipe spells it, for messages about a recipe.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AnonymizeMethod::TokenHmac => "token_hmac",
+            AnonymizeMethod::Fpe => "fpe",
+            AnonymizeMethod::Bucket => "bucket",
+            AnonymizeMethod::PartialMask => "partial_mask",
+            AnonymizeMethod::Drop => "drop",
+        }
+    }
+
     /// Every variant this build supports, in the order a UI should list
     /// them. Grows automatically as this enum grows — a caller (e.g.
     /// `apps/triplex-web`) reads this instead of hardcoding a menu that can
@@ -52,7 +63,10 @@ fn default_keep_suffix() -> usize {
     4
 }
 
+/// Unknown keys are an error, not ignored: a misspelled `bucket_widht: 5` would otherwise
+/// run with the default width and nobody would notice.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnonymizeColumn {
     pub name: String,
     pub method: AnonymizeMethod,
@@ -110,15 +124,80 @@ pub struct AnonymizeRecipe {
     pub columns: Vec<AnonymizeColumn>,
 }
 
+/// The recipe format version this build reads and writes.
+pub const RECIPE_VERSION: u32 = 1;
+
 /// Loads a declarative anonymization recipe from a local `.triplex.yaml` file.
 pub fn load_recipe(path: &Path) -> Result<AnonymizeRecipe> {
-    let text = std::fs::read_to_string(path)?;
-    serde_yaml_ng::from_str(&text).map_err(|e| Error::Yaml(e.to_string()))
+    recipe_from_yaml(&std::fs::read_to_string(path)?)
 }
 
-/// Verifies a recipe is internally well-formed — at least one column
-/// declared, none with an empty name, and no column declared twice —
-/// independent of checking it against any actual data.
+/// Parses recipe YAML text and verifies it is well-formed — the one way every
+/// surface (CLI, Python, browser) reads a recipe, so they all accept and reject
+/// the same files. The version is checked before the columns are read, so a
+/// recipe written for another format version is reported as that, not as
+/// whatever column setting this build doesn't recognize. Keys at the top
+/// level other than `version` and `columns` are ignored, so a recipe can share
+/// a `.triplex.yaml` file with other sections.
+pub fn recipe_from_yaml(text: &str) -> Result<AnonymizeRecipe> {
+    let value: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(text).map_err(|e| Error::Yaml(e.to_string()))?;
+    if !value.is_mapping() {
+        return Err(Error::Validation(
+            "not a recipe: expected version and columns at the top level".to_string(),
+        ));
+    }
+    match value.get("version") {
+        None => return Err(Error::Validation("recipe has no version".to_string())),
+        Some(v) => match v.as_u64() {
+            Some(v) if v == u64::from(RECIPE_VERSION) => {}
+            Some(v) => return Err(unsupported_version(v)),
+            None => {
+                return Err(Error::Validation(
+                    "recipe version must be a whole number".to_string(),
+                ))
+            }
+        },
+    }
+    let recipe: AnonymizeRecipe = serde_yaml_ng::from_value(value.clone())
+        .map_err(|e| column_error(&value).unwrap_or_else(|| Error::Yaml(e.to_string())))?;
+    verify_recipe_well_formed(&recipe)?;
+    Ok(recipe)
+}
+
+fn unsupported_version(version: u64) -> Error {
+    Error::Validation(format!(
+        "recipe version {version} is not supported: this build reads version {RECIPE_VERSION}"
+    ))
+}
+
+/// Finds the first column that doesn't parse and reports it by name (or by
+/// position when it has no name), since a parse error on the whole recipe can
+/// only point at `columns[3]`. A `salt` key gets its own message: it most
+/// likely holds the salt itself, which a recipe must never carry.
+fn column_error(recipe: &serde_yaml_ng::Value) -> Option<Error> {
+    let columns = recipe.get("columns")?.as_sequence()?;
+    columns.iter().enumerate().find_map(|(i, column)| {
+        let label = match column.get("name").and_then(|n| n.as_str()) {
+            Some(name) => format!("column \"{name}\""),
+            None => format!("column {}", i + 1),
+        };
+        if column.get("salt").is_some() {
+            return Some(Error::Validation(format!(
+                "{label} has a salt key: a recipe names the environment variable that holds \
+                 the salt (salt_env), never the salt itself"
+            )));
+        }
+        serde_yaml_ng::from_value::<AnonymizeColumn>(column.clone())
+            .err()
+            .map(|e| Error::Yaml(format!("{label}: {e}")))
+    })
+}
+
+/// Verifies a recipe is internally well-formed — the version this build
+/// reads, at least one column declared, none with an empty name, no column
+/// declared twice, and a `salt_env` on every keyed column — independent of
+/// checking it against any actual data.
 /// `AnonymizeColumn.method` needs no check here: deserializing an
 /// unrecognized method already fails at the YAML/JSON boundary (see
 /// `an_unimplemented_method_is_a_clear_parse_error`), so a value in this
@@ -132,6 +211,9 @@ pub fn load_recipe(path: &Path) -> Result<AnonymizeRecipe> {
 /// before writing it out, rather than only failing later when it's used to
 /// anonymize.
 pub fn verify_recipe_well_formed(recipe: &AnonymizeRecipe) -> Result<()> {
+    if recipe.version != RECIPE_VERSION {
+        return Err(unsupported_version(u64::from(recipe.version)));
+    }
     if recipe.columns.is_empty() {
         return Err(Error::Validation("recipe has no columns".to_string()));
     }
@@ -146,6 +228,14 @@ pub fn verify_recipe_well_formed(recipe: &AnonymizeRecipe) -> Result<()> {
             return Err(Error::Validation(format!(
                 "recipe declares column \"{}\" more than once",
                 column.name
+            )));
+        }
+        if column.method.is_keyed() && column.salt_env.is_empty() {
+            return Err(Error::Validation(format!(
+                "column \"{}\" uses {}, which needs salt_env: the environment variable holding \
+                 its salt",
+                column.name,
+                column.method.as_str()
             )));
         }
     }
@@ -339,5 +429,156 @@ mod tests {
             columns: vec![token_hmac_column("email", "HASH_SALT")],
         };
         assert!(verify_recipe_well_formed(&recipe).is_ok());
+    }
+
+    #[test]
+    fn a_recipe_of_another_version_fails_verification() {
+        let recipe = AnonymizeRecipe {
+            version: 2,
+            columns: vec![token_hmac_column("email", "HASH_SALT")],
+        };
+        let err = verify_recipe_well_formed(&recipe).unwrap_err();
+        assert_eq!(err.code(), "VALIDATION_ERROR");
+    }
+
+    #[test]
+    fn a_keyed_column_without_salt_env_fails_verification() {
+        let recipe = AnonymizeRecipe {
+            version: 1,
+            columns: vec![token_hmac_column("email", "")],
+        };
+        let err = verify_recipe_well_formed(&recipe).unwrap_err().to_string();
+        assert!(
+            err.contains("\"email\" uses token_hmac") && err.contains("salt_env"),
+            "{err}"
+        );
+    }
+
+    /// The message of a recipe that `recipe_from_yaml` rejects, with its error code.
+    fn rejection(yaml: &str) -> (&'static str, String) {
+        let err = recipe_from_yaml(yaml).unwrap_err();
+        (err.code(), err.to_string())
+    }
+
+    #[test]
+    fn loads_the_sample_recipe() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/sample.anonymize.yaml");
+        let recipe = load_recipe(&path).unwrap();
+        assert_eq!(recipe.columns.len(), 1);
+        assert_eq!(recipe.columns[0].name, "name");
+        assert_eq!(recipe.columns[0].salt_env, "TRIPLEX_DEMO_SALT");
+    }
+
+    #[test]
+    fn a_recipe_read_from_yaml_is_written_back_unchanged() {
+        let yaml = "version: 1\ncolumns:\n\
+                    - name: email\n  method: token_hmac\n  salt_env: CUSTOMER_SALT\n\
+                    - name: iban\n  method: fpe\n  salt_env: TRIPLEX_SALT\n\
+                    - name: age\n  method: bucket\n  bucket_width: 5\n\
+                    - name: card\n  method: partial_mask\n  keep_prefix: 2\n  keep_suffix: 3\n\
+                    - name: notes\n  method: drop\n";
+        let recipe = recipe_from_yaml(yaml).unwrap();
+        assert_eq!(serde_yaml_ng::to_string(&recipe).unwrap(), yaml);
+    }
+
+    #[test]
+    fn other_top_level_sections_are_left_alone() {
+        let yaml = "version: 1\ncolumns:\n- name: age\n  method: bucket\ndriftguard:\n  \
+                    max_null_percentage_delta: 0.5\n";
+        assert_eq!(recipe_from_yaml(yaml).unwrap().columns.len(), 1);
+    }
+
+    #[test]
+    fn text_that_is_not_yaml_is_a_parse_error() {
+        let (code, _) = rejection("version: 1\ncolumns: [\n");
+        assert_eq!(code, "YAML_PARSE_ERROR");
+    }
+
+    #[test]
+    fn yaml_that_is_not_a_mapping_is_not_a_recipe() {
+        let (code, message) = rejection("- name: email\n  method: token_hmac\n");
+        assert_eq!(code, "VALIDATION_ERROR");
+        assert!(message.contains("not a recipe"), "{message}");
+    }
+
+    #[test]
+    fn an_unknown_method_names_the_column() {
+        let (code, message) = rejection(
+            "version: 1\ncolumns:\n- name: age\n  method: bucket\n\
+             - name: email\n  method: mask_domain_preserve\n  salt_env: TRIPLEX_SALT\n",
+        );
+        assert_eq!(code, "YAML_PARSE_ERROR");
+        assert!(
+            message.contains("column \"email\"") && message.contains("mask_domain_preserve"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_column_setting_names_the_column_and_the_setting() {
+        let (code, message) =
+            rejection("version: 1\ncolumns:\n- name: age\n  method: bucket\n  bucket_widht: 5\n");
+        assert_eq!(code, "YAML_PARSE_ERROR");
+        assert!(
+            message.contains("column \"age\"") && message.contains("bucket_widht"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_column_without_a_name_is_named_by_its_position() {
+        let (_, message) =
+            rejection("version: 1\ncolumns:\n- name: age\n  method: bucket\n- method: drop\n");
+        assert!(message.contains("column 2"), "{message}");
+    }
+
+    #[test]
+    fn a_salt_in_a_recipe_is_rejected_without_repeating_it() {
+        let (code, message) = rejection(
+            "version: 1\ncolumns:\n- name: email\n  method: token_hmac\n  \
+             salt_env: TRIPLEX_SALT\n  salt: synthetic-test-salt\n",
+        );
+        assert_eq!(code, "VALIDATION_ERROR");
+        assert!(
+            message.contains("column \"email\"") && message.contains("salt_env"),
+            "{message}"
+        );
+        assert!(!message.contains("synthetic-test-salt"), "{message}");
+    }
+
+    #[test]
+    fn another_version_is_reported_before_its_columns_are_read() {
+        let (code, message) =
+            rejection("version: 2\ncolumns:\n- name: age\n  method: bucket\n  bins: 4\n");
+        assert_eq!(code, "VALIDATION_ERROR");
+        assert!(
+            message.contains("version 2 is not supported") && message.contains("version 1"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_recipe_without_a_version_is_rejected() {
+        let (code, message) = rejection("columns:\n- name: age\n  method: bucket\n");
+        assert_eq!(code, "VALIDATION_ERROR");
+        assert!(message.contains("no version"), "{message}");
+    }
+
+    #[test]
+    fn a_version_that_is_not_a_number_is_rejected() {
+        let (_, message) = rejection("version: one\ncolumns:\n- name: age\n  method: bucket\n");
+        assert!(message.contains("whole number"), "{message}");
+    }
+
+    #[test]
+    fn a_parsed_recipe_is_also_verified() {
+        let (code, message) = rejection(
+            "version: 1\ncolumns:\n- name: age\n  method: bucket\n- name: age\n  method: drop\n",
+        );
+        assert_eq!(code, "VALIDATION_ERROR");
+        assert!(message.contains("more than once"), "{message}");
+        let (_, message) = rejection("version: 1\ncolumns:\n- name: email\n  method: fpe\n");
+        assert!(message.contains("needs salt_env"), "{message}");
     }
 }

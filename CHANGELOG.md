@@ -30,6 +30,18 @@ and `jupyter-v*` for the Jupyter widget.
   Rust callers as `triplex_datasetcard::assess`.
 - **Extension slot in the web UI.** Tiers 2 and 3 are generator extensions behind one contract,
   chosen at build time, so another build can add dialogs without changing the app.
+- **`triplex_anonymizer::recipe_from_yaml`.** Reads and checks recipe text the same way
+  `triplex anonymize` reads a recipe file, for callers that hold the text instead of a path.
+
+### Changed
+
+- **Recipes are checked when they are loaded.** `triplex anonymize`, the Python package and
+  `triplex_anonymizer::load_recipe` now refuse a recipe that has no `version` or a version other
+  than 1, a column setting they do not recognize (a misspelled `bucket_width` used to be ignored
+  and the default used), a `salt` key in a column (a recipe names the variable that holds the
+  salt, never the salt), a keyed method (`token_hmac`, `fpe`) without `salt_env`, no columns, or
+  a column declared twice (the second entry used to be ignored). The message names the column.
+  `verify_recipe_well_formed` checks the version and `salt_env` as well.
 
 ### Fixed
 
