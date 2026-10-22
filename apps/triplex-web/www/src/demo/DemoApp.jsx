@@ -39,7 +39,7 @@ function useDatasetFromAddress() {
   return [dataset, choose];
 }
 
-/** The hosted demo: the web UI on bundled synthetic datasets, with no way to load a file of
+/** The hosted demo: the web UI on bundled synthetic datasets, with no way to load a data file of
  * one's own. `extensions` are the build's generator extensions, passed on to the app; when there
  * are any, the page says they are Triplex Pro. */
 export default function DemoApp({ extensions }) {
@@ -69,7 +69,7 @@ export default function DemoApp({ extensions }) {
           </option>
         ))}
       </select>
-      <span className="demo-picker-note">Own files: off in the demo</span>
+      <span className="demo-picker-note">Own data: off in the demo</span>
     </label>
   );
 
@@ -77,7 +77,7 @@ export default function DemoApp({ extensions }) {
     <div className="demo">
       <div className="demo-banner" role="note">
         <h1 className="demo-banner-title">
-          This is a demo. Loading your own files is switched off.
+          This is a demo. Loading your own data is switched off.
         </h1>
         <p>
           Triplex is built so that your files stay on your own premises. A page on our website is

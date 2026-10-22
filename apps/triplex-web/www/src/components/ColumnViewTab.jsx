@@ -2,6 +2,7 @@ import { useState } from "react";
 import ColumnCard from "./ColumnCard";
 import ColumnMenu from "./ColumnMenu";
 import { AssociationMatrix } from "./AssociationMatrix";
+import { recipeSettingsText } from "../state/recipeFile";
 
 /** Grid of per-column detail cards — one `ColumnCard` per profiled column,
  * fed the same profile that drives the Table tab's header sparklines.
@@ -110,6 +111,7 @@ export default function ColumnViewTab({
             y={menu.y}
             methods={methods}
             currentMethod={recipe.columns.find((c) => c.name === menu.name)?.method}
+            currentSettings={recipeSettingsText(recipe.columns.find((c) => c.name === menu.name))}
             currentSalt={salt}
             onPickMethod={(method) => onPickMethod(menu.name, method)}
             onSaltChange={onSaltChange}

@@ -7,6 +7,10 @@ import { useTableHeaderCanvas } from "../hooks/useTableHeaderCanvas";
 import { HEADER_PADDING, NAME_ROW_HEIGHT, HEADER_HEIGHT, MENU_ICON_SIZE } from "./TableTab.const";
 import { readGlideHeaderTheme } from "../state/palette";
 import { formatMissingPercent, primaryTypeOf } from "../state/columnFields";
+import { recipeSettingsText } from "../state/recipeFile";
+
+// How many frames an outside menu request waits for the grid to know its header bounds.
+const MENU_REQUEST_FRAMES = 30;
 
 const ICON_LAYOUT = {
   headerPadding: HEADER_PADDING,
@@ -39,6 +43,8 @@ export default function TableTab({
   readOnly = false,
   dataset = "original",
   onContentWidth,
+  menuRequest = null,
+  onMenuRequestDone,
 }) {
   const distributionByName = useMemo(() => {
     const map = {};
@@ -262,7 +268,7 @@ export default function TableTab({
     setGridKey((k) => k + 1);
   }, [visibleHeaderIndices.length]);
 
-  const [menu, setMenu] = useState(null); // { name, x, y } | null
+  const [menu, setMenu] = useState(null); // { name, x, y, focusSalt? } | null
 
   const onHeaderClicked = useCallback(
     (colIndex, event) => {
@@ -363,6 +369,38 @@ export default function TableTab({
     setHighlightRects(rects);
   }, [highlightColumnNames, columns]);
 
+  // A request from outside (an opened recipe with a keyed column) to open one column's menu
+  // with the cursor in the salt field. Opened at the column's header icon, or at the table's
+  // corner when the column is out of view; the menu keeps itself inside the window either way.
+  // Reported done right away, so a later remount of the table does not open it again. Placed
+  // once the grid can say where the header is, tried for a few frames: the same recipe can hide
+  // dropped columns, which remounts the grid (see gridKey), and a remounted grid knows its
+  // header bounds only after it has laid itself out.
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
+  useEffect(() => {
+    if (!menuRequest) return;
+    onMenuRequestDone?.();
+    if (readOnly) return;
+    const { name } = menuRequest;
+    const place = (framesLeft) => {
+      const colIndex = columnsRef.current.findIndex((c) => c.id === name);
+      const bounds = colIndex === -1 ? undefined : dataEditorRef.current?.getBounds(colIndex, -1);
+      if (bounds) {
+        const icon = menuIconLocalRect(bounds.width, ICON_LAYOUT);
+        setMenu({ name, x: bounds.x + icon.x, y: bounds.y + icon.y + icon.size, focusSalt: true });
+      } else if (framesLeft > 0) {
+        requestAnimationFrame(() => place(framesLeft - 1));
+      } else {
+        const wrap = wrapRef.current?.getBoundingClientRect();
+        setMenu({ name, x: (wrap?.left ?? 0) + 8, y: (wrap?.top ?? 0) + 8, focusSalt: true });
+      }
+    };
+    requestAnimationFrame(() => place(MENU_REQUEST_FRAMES));
+    // Only a new request opens the menu, not a change of columns or of the callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuRequest]);
+
   return (
     <div
       ref={wrapRef}
@@ -436,7 +474,9 @@ export default function TableTab({
           y={menu.y}
           methods={methods}
           currentMethod={recipe.columns.find((c) => c.name === menu.name)?.method}
+          currentSettings={recipeSettingsText(recipe.columns.find((c) => c.name === menu.name))}
           currentSalt={salt}
+          focusSalt={!!menu.focusSalt}
           onPickMethod={(method) => onPickMethod(menu.name, method)}
           onSaltChange={onSaltChange}
           onAnonymize={onAnonymize}
