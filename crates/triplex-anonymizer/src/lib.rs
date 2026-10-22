@@ -19,7 +19,8 @@ pub use fpe::fpe_mask;
 pub use mapping::{decrypt_mapping, encrypt_mapping, EncryptedMapping, MappingEntry};
 pub use partial_mask::partial_mask;
 pub use recipe::{
-    load_recipe, verify_recipe_well_formed, AnonymizeColumn, AnonymizeMethod, AnonymizeRecipe,
+    load_recipe, recipe_from_yaml, verify_recipe_well_formed, AnonymizeColumn, AnonymizeMethod,
+    AnonymizeRecipe, RECIPE_VERSION,
 };
 pub use tokenize::hmac_token;
 pub use triplex_datasetcard::{bucket_numeric, bucket_value};

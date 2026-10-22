@@ -76,6 +76,23 @@ pub fn recipe_json_to_yaml(recipe_json: &str) -> Result<String, JsValue> {
     serde_yaml_ng::to_string(&recipe).map_err(to_js_err)
 }
 
+/// Table view: the reverse of `recipe_json_to_yaml`, for the navbar's "Open
+/// recipe" button. Parses and verifies a recipe file's text the same way the
+/// CLI does (`triplex_anonymizer::recipe_from_yaml`) and returns it as the
+/// JSON shape the page builds recipes in, so the page needs no YAML parser and
+/// a recipe the CLI rejects is rejected here too.
+#[wasm_bindgen]
+pub fn recipe_yaml_to_json(recipe_yaml: &str) -> Result<String, JsValue> {
+    recipe_yaml_json(recipe_yaml).map_err(to_js_err)
+}
+
+// Kept apart from the export so its errors can be tested natively: building a
+// `JsValue` outside a wasm runtime panics.
+fn recipe_yaml_json(recipe_yaml: &str) -> Result<String, String> {
+    let recipe = triplex_anonymizer::recipe_from_yaml(recipe_yaml).map_err(|e| e.to_string())?;
+    serde_json::to_string(&recipe).map_err(|e| e.to_string())
+}
+
 /// Action 1: infers a schema from an uploaded file's bytes and renders it
 /// as a starting `.triplex.yaml` contract the user can download and edit.
 /// `extension` is the file's extension without a leading dot (`"csv"`,
@@ -802,4 +819,71 @@ pub fn score_row_risk(columns_json: &str, model: &str) -> Result<String, JsValue
     let share = triplex_datasetcard::dis_suda_scores(&scores);
     let paired: Vec<(f64, f64)> = scores.into_iter().zip(share).collect();
     serde_json::to_string(&paired).map_err(to_js_err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const RECIPE: &str = "version: 1\ncolumns:\n\
+                          - name: email\n  method: token_hmac\n  salt_env: CUSTOMER_SALT\n\
+                          - name: age\n  method: bucket\n  bucket_width: 5\n\
+                          - name: card\n  method: partial_mask\n  keep_prefix: 2\n  keep_suffix: 3\n\
+                          - name: notes\n  method: drop\n";
+
+    #[test]
+    fn a_recipe_becomes_the_json_the_page_builds() {
+        let json: serde_json::Value =
+            serde_json::from_str(&recipe_yaml_to_json(RECIPE).unwrap()).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "version": 1,
+                "columns": [
+                    { "name": "email", "method": "token_hmac", "salt_env": "CUSTOMER_SALT" },
+                    { "name": "age", "method": "bucket", "bucket_width": 5 },
+                    { "name": "card", "method": "partial_mask", "keep_prefix": 2, "keep_suffix": 3 },
+                    { "name": "notes", "method": "drop" },
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn opening_and_downloading_a_recipe_gives_the_same_yaml() {
+        let json = recipe_yaml_to_json(RECIPE).unwrap();
+        assert_eq!(recipe_json_to_yaml(&json).unwrap(), RECIPE);
+
+        let sample = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/sample.anonymize.yaml"
+        ))
+        .unwrap();
+        let once = recipe_json_to_yaml(&recipe_yaml_to_json(&sample).unwrap()).unwrap();
+        let twice = recipe_json_to_yaml(&recipe_yaml_to_json(&once).unwrap()).unwrap();
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn malformed_yaml_is_rejected() {
+        let err = recipe_yaml_json("version: 1\ncolumns: [\n").unwrap_err();
+        assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn an_unknown_method_is_rejected_by_column() {
+        let err = recipe_yaml_json("version: 1\ncolumns:\n- name: email\n  method: scramble\n")
+            .unwrap_err();
+        assert!(
+            err.contains("column \"email\"") && err.contains("scramble"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn another_version_is_rejected() {
+        let err =
+            recipe_yaml_json("version: 3\ncolumns:\n- name: age\n  method: bucket\n").unwrap_err();
+        assert!(err.contains("version 3 is not supported"), "{err}");
+    }
 }
