@@ -30,6 +30,7 @@ export default function TableTab({
   onAnonymize,
   anonymizing,
   anonymizeResult,
+  onCompareAnonymized,
   onColumnHover,
   highlightColumnNames,
   contract,
@@ -488,8 +489,13 @@ export default function TableTab({
         />
       )}
       {anonymizeResult && (
-        <div className="banner banner-success" style={{ position: "absolute", left: 8, bottom: 8 }}>
+        <div className="banner banner-success anonymized-notice">
           Anonymized {JSON.parse(anonymizeResult.report_json).rows_processed} rows.
+          {onCompareAnonymized && (
+            <button type="button" onClick={onCompareAnonymized}>
+              Compare with the original
+            </button>
+          )}
         </div>
       )}
       {(filteredRowIndices || removedRowIndices?.size > 0) && (

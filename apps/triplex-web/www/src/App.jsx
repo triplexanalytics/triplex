@@ -3,6 +3,7 @@ import { useWasm } from "./hooks/useWasm";
 import { useProfiledFile } from "./hooks/useProfiledFile";
 import { useAnonymize } from "./hooks/useAnonymize";
 import { useDatasetAnalysis } from "./hooks/useDatasetAnalysis";
+import { useAnonymizedCompare } from "./hooks/useAnonymizedCompare";
 import { useHistory } from "./hooks/useHistory";
 import { useOpenRecipe } from "./hooks/useOpenRecipe";
 import { withColumnType } from "./state/yamlBuilder";
@@ -102,16 +103,39 @@ export default function App({
   const showingGenerated = !!generated;
   const shownKey = generated?.key ?? "original";
   const [compareOpen, setCompareOpen] = useState(false);
+  // What Compare puts next to the original: "anonymized" (the last anonymize run's output) or a
+  // generator's key. Set whenever Compare opens.
+  const [compareWith, setCompareWith] = useState(null);
   const view = generated?.analysis ?? original;
   const shown = generated?.result ?? file;
-  // What Compare puts next to the original: the generated dataset on screen, else whichever exists.
-  const compared = generated ?? generators.find((g) => g.result) ?? null;
+  const anonymizedCompare = useAnonymizedCompare({
+    file,
+    original,
+    anonymizeResult: anonymize.anonymizeResult,
+    stale: anonymize.changedSinceRun,
+    active: compareOpen && compareWith === "anonymized",
+  });
+  // Everything that can be compared with the original right now; the dialog switches between them.
+  const compareChoices = [
+    ...(anonymizedCompare.ready ? [{ key: "anonymized", label: "Anonymized" }] : []),
+    ...generators.filter((g) => g.result).map((g) => ({ key: g.key, label: g.label })),
+  ];
+  // The generated dataset on screen, else the anonymized result, else whichever exists.
+  const defaultCompare = generated?.key ?? compareChoices[0]?.key ?? null;
+  const compareKey = compareChoices.some((c) => c.key === compareWith)
+    ? compareWith
+    : defaultCompare;
+  const openCompare = (key) => {
+    setCompareWith(key);
+    setCompareOpen(true);
+  };
+  const compared = compareKey === "anonymized" ? null : (generatorById[compareKey] ?? null);
   const comparedResult = compared?.result;
   const comparedAnalysis = compared?.analysis;
   const comparedLabel = compared?.label;
   const comparedKey = compared?.key;
-  // The Compare view's two sides: the original (minus columns the user removed) and a generated
-  // table. A later uploaded dataset becomes another right-hand side here.
+  // The Compare view's two sides for a generated table: the original (minus columns the user
+  // removed) and the generated table. The anonymized pair comes from useAnonymizedCompare.
   const compareLeft = useMemo(
     () =>
       file.sample && file.profile
@@ -361,7 +385,12 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onHostState, wasm, file.recipe, file.contract, anonymizeResult, ...generatedResults]);
 
-  const error = file.error || anonymize.error || recipeFile.error || dropError;
+  const error =
+    file.error || anonymize.error || anonymizedCompare.error || recipeFile.error || dropError;
+  const comparePair =
+    compareKey === "anonymized"
+      ? anonymizedCompare.ready && anonymizedCompare
+      : compareLeft && compareRight && { left: compareLeft, right: compareRight };
 
   return (
     <FileDrop
@@ -396,12 +425,17 @@ export default function App({
         onSelectTier={handleSelectTier}
         tierDisabledReasons={tierDisabledReasons}
         proTiers={proTiers}
-        canGenerate={generators.length > 0}
         edition={extensions.length > 0 ? "Pro" : "Free"}
         syntheticActive={showingGenerated}
         generatedNoun={generated?.ext.noun ?? "synthetic"}
-        canCompare={!!compared}
-        onCompare={() => setCompareOpen(true)}
+        canCompare={compareChoices.length > 0}
+        compareDisabledReason={
+          generators.length > 0
+            ? "Anonymize the data or generate a synthetic table first"
+            : "Anonymize the data first"
+        }
+        onCompare={() => openCompare(defaultCompare)}
+        comparePulse={anonymizedCompare.ready ? anonymize.anonymizeResult : null}
         onDownloadSyntheticCsv={generated?.generator.downloadCsv}
         onDownloadSyntheticReport={generated?.generator.downloadReport}
       />
@@ -455,6 +489,11 @@ export default function App({
                   onAnonymize={anonymize.run}
                   anonymizing={anonymize.anonymizing}
                   anonymizeResult={showingGenerated ? null : anonymize.anonymizeResult}
+                  onCompareAnonymized={
+                    !showingGenerated && anonymizedCompare.ready
+                      ? () => openCompare("anonymized")
+                      : undefined
+                  }
                   onColumnHover={handleColumnHover}
                   highlightColumnNames={highlightColumnNames}
                   contract={showingGenerated ? null : file.contract}
@@ -520,11 +559,16 @@ export default function App({
             />
           </Suspense>
         )}
-        {compareOpen && compareLeft && compareRight && (
+        {compareOpen && comparePair && (
           <Suspense fallback={null}>
             <CompareDialog
-              left={compareLeft}
-              right={compareRight}
+              left={comparePair.left}
+              right={comparePair.right}
+              quasi={comparePair.quasi}
+              stale={comparePair.stale}
+              choices={compareChoices}
+              active={compareKey}
+              onChoose={setCompareWith}
               hoverNames={hoverNames}
               onHoverNamesChange={setHoverNames}
               onColumnHover={handleColumnHover}

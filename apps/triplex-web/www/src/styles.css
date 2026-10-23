@@ -196,8 +196,93 @@ button.full-width {
   margin-right: 0.5rem;
 }
 
-.navbar .spacer {
-  flex: 1;
+/* The operation bar: its own row under the brand and the tier cards, a flat strip of icon buttons
+   in groups, with the primary download at the far end. */
+.op-bar {
+  /* Edge to edge: the navbar's side padding is taken back by the negative margins. */
+  flex-basis: calc(100% + 2rem);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0;
+  margin: 0 -1rem -0.6rem;
+  padding: 0.3rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-alt);
+}
+.op-group {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0 0.6rem;
+}
+.op-group:first-child {
+  padding-left: 0;
+}
+.op-group + .op-group {
+  border-left: 1px solid var(--border);
+}
+.op-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.op-bar button,
+.op-bar .download-menu > summary,
+.navbar button.op-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+}
+.op-group button {
+  border-color: transparent;
+  background: none;
+}
+.op-group button:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.op-group button svg {
+  color: var(--text-muted);
+}
+.op-compare {
+  position: relative;
+}
+/* Says "a new result can be compared": pulses for ten seconds after an anonymize run (the
+   Navbar removes it then), a still dot for anyone who prefers reduced motion. */
+.pulse-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--method-pseudonymize);
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--method-pseudonymize);
+  animation: pulse-ring 1.25s ease-out infinite;
+}
+@keyframes pulse-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 .navbar .file-shape {
@@ -707,6 +792,25 @@ button.full-width {
   font-size: 0.78rem;
   border-color: var(--warning-border);
   color: var(--warning-text);
+  background: none;
+}
+
+/* Bottom left of the table, above the analysis panel like the banners above, so its button stays
+   clickable when the panel covers a narrow table. */
+.anonymized-notice {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.anonymized-notice button {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.78rem;
+  border-color: var(--success-border);
+  color: var(--success-text);
   background: none;
 }
 
@@ -1810,6 +1914,77 @@ button.full-width {
 .compare-label[data-kind="sketched"] {
   background: var(--table-header-bg-sketched);
   border-top-color: var(--ds-sketched);
+}
+/* The anonymized output is the original with the recipe applied: the original's look, marked with
+   the masking color. */
+.compare-label[data-kind="anonymized"] {
+  border-top-color: var(--method-pseudonymize);
+}
+.compare-dialog-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.compare-choices {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.compare-choices > span {
+  color: var(--text-muted);
+  margin-right: 0.25rem;
+}
+.compare-choices button.active {
+  border-color: var(--ds-compare);
+  background: var(--ds-compare-tint);
+  font-weight: 650;
+}
+.compare-stale {
+  margin: 0;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--warning-border);
+  border-radius: 6px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 0.8rem;
+}
+.compare-quasi {
+  /* As wide as the two matrix columns and centered with them, like .compare-row. */
+  max-width: calc(2 * var(--compare-col, 520px) + 1.5rem);
+  margin: 0.5rem auto 1rem;
+}
+.compare-quasi-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.75rem;
+}
+.compare-quasi-chips button {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: none;
+}
+.compare-quasi-chips button[aria-pressed="true"] {
+  border-color: var(--ds-compare);
+  background: var(--ds-compare-tint);
+  color: var(--text);
+  font-weight: 600;
+}
+.compare-alone {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: var(--surface-alt);
+  font-size: 0.85rem;
+}
+.compare-alone strong {
+  font-size: 1.1rem;
 }
 .compare-section h3 {
   margin: 1.25rem 0 0.25rem;

@@ -100,8 +100,25 @@ knows them only through the contract in `www/src/extensionApi.js`;
 `www/src/extensions.js` lists the ones this build ships. Another build can
 replace that list through a Vite alias on the specifier `./extensions`, the
 same way the widget build swaps `./workers`. This build's list is empty, so
-the tier cards for 2 and 3 become links, and the dataset tabs and the Compare
-button, which only make sense next to a generated table, are hidden.
+the tier cards for 2 and 3 become links and the dataset tabs, which only make
+sense next to a generated table, are hidden.
+
+## Compare
+
+"Compare datasets" sets a second table beside the original: Columns, Column
+associations and Privacy matrices, side by side. After an anonymize run, in
+every build, that is the anonymized output, profiled exactly as "Download
+data" gives it; the "Anonymized N rows" notice opens it too, and a dot next to
+the button pulses for ten seconds after each run. Columns the
+recipe drops stay on the original side and show as removed on the other. On
+the Privacy matrices tab both tables are measured on the same
+quasi-identifiers: the columns both keep, without identifier-like ones (an ID,
+an email address, a pseudonym) unless the user adds them. Whole numbers are
+compared exactly there, and a line per side counts the rows that no other
+row matches on those columns. With a generator extension, a switch in the
+dialog chooses between the anonymized output and the generated tables. If
+the recipe or the removed rows changed after the run, the dialog says the
+anonymized side is from the last run.
 
 ## Hosted demo
 
