@@ -33,3 +33,11 @@ client's stdio transport at this binary. No flags, no config file.
 Ordinary workspace crate: `cargo build -p triplex-mcp`, `cargo test -p
 triplex-mcp`, `cargo clippy -p triplex-mcp --all-targets`. Covered by the
 root `cargo test --workspace`/CI already; there is no separate Makefile target.
+
+## MCP registry
+
+The official MCP registry lists servers by name and points MCP clients to the package to
+install; for this server, that package is this crate on crates.io. The registry confirms that the
+crate belongs to the entry by reading the line below in the published README, so it has to stay:
+
+mcp-name: io.github.triplexanalytics/triplex-mcp
