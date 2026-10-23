@@ -26,7 +26,8 @@ const NO_ACTIONS = {
 
 /** `{ label, kind, sample, profile, analysis, excluded?, droppedReasons? }` per side; `analysis` is
  * useDatasetAnalysis's result for that dataset. Side A is the reference (the original); side B is
- * whatever it is compared with (today the synthetic table; later a sketched or uploaded one). */
+ * whatever it is compared with: the anonymized output or a generated table. `quasi`, given for the
+ * anonymized pair, is the shared quasi-identifier choice (see useAnonymizedCompare). */
 function SideLabels({ left, right }) {
   return (
     <div className="compare-pair compare-labels">
@@ -70,6 +71,54 @@ function CardOrGap({ side, col, name, hoverNames, onColumnHover }) {
 }
 
 const pct = (x) => `${x.toFixed(1)}%`;
+const count = (n) => n.toLocaleString("en-US");
+
+/** The quasi-identifiers both sides are measured on, as toggles, and how many rows no other row
+ * matches on them, per side. Shown when the two sides are an original and its anonymized output. */
+function QuasiIdentifiers({ quasi, left, right }) {
+  return (
+    <div className="compare-quasi">
+      <p className="diversity-check-intro">
+        Quasi-identifiers are columns someone could know about a person from elsewhere, such as a
+        postcode or a birth year. Both tables are measured on the same ones, and whole numbers are
+        compared exactly, so the original is measured as it is.
+      </p>
+      <div className="compare-quasi-chips" role="group" aria-label="Quasi-identifiers">
+        {quasi.candidates.map((name) => (
+          <button
+            key={name}
+            type="button"
+            aria-pressed={quasi.chosen.includes(name)}
+            onClick={() => quasi.toggle(name)}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+      {quasi.chosen.length === 0 ? (
+        <p className="synth-hint">Choose at least one column.</p>
+      ) : (
+        quasi.summary && (
+          <div className="compare-pair">
+            {[
+              [left, quasi.summary.left],
+              [right, quasi.summary.right],
+            ].map(([side, s]) => (
+              <div key={side.kind} className="compare-side compare-alone" data-kind={side.kind}>
+                <strong>
+                  {count(s.alone)} of {count(s.total)}
+                </strong>{" "}
+                rows {s.total > 0 && <>({pct((100 * s.alone) / s.total)}) </>}
+                share their combination of these values with no other row in the{" "}
+                {side.label.toLowerCase()} table.
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
 
 function DeltaStrip({ name, leftCol, rightCol, left, right, difference }) {
   if (!leftCol || !rightCol) return null;
@@ -105,6 +154,7 @@ function DeltaStrip({ name, leftCol, rightCol, left, right, difference }) {
 export default function CompareView({
   left,
   right,
+  quasi,
   hoverNames,
   onHoverNamesChange,
   onColumnHover,
@@ -212,12 +262,13 @@ export default function CompareView({
           <section className="compare-section">
             <h3>Privacy matrices</h3>
             <p className="diversity-check-intro">
-              The same metric side by side. These measure each table as it is; a lower risk in the
-              synthetic table is not a privacy guarantee.
+              The same metric side by side. These measure each table as it is; a lower risk in the{" "}
+              {right.label.toLowerCase()} table is not a privacy guarantee.
             </p>
             <div className="compare-sticky">
               <SideLabels left={left} right={right} />
             </div>
+            {quasi && <QuasiIdentifiers quasi={quasi} left={left} right={right} />}
             <DiversityCompare
               left={diversity(left)}
               right={diversity(right)}

@@ -39,6 +39,9 @@ export function useAnonymize({
   removedRowIndices,
 }) {
   const [anonymizeResult, setAnonymizeResult] = useState(null);
+  // The recipe and removed rows the current result was made with, so a view of the result can
+  // tell when they have changed since.
+  const [ranWith, setRanWith] = useState(null);
   const [anonymizing, setAnonymizing] = useState(false);
   const [patternChecks, setPatternChecks] = useState({});
   const [checkingColumns, setCheckingColumns] = useState(() => new Set());
@@ -61,6 +64,7 @@ export function useAnonymize({
         Array.from(removedRowIndices ?? []),
       );
       setAnonymizeResult(result);
+      setRanWith({ recipe, removedRowIndices });
     } catch (err) {
       setError(String(err.message || err));
     } finally {
@@ -137,13 +141,21 @@ export function useAnonymize({
   // patternChecks from the previous file would otherwise linger.
   const reset = useCallback(() => {
     setAnonymizeResult(null);
+    setRanWith(null);
     setPatternChecks({});
     setCheckingColumns(new Set());
     setError("");
   }, []);
 
+  // Compared by content, not identity: setting a method and clearing it again is no change.
+  const changedSinceRun =
+    !!ranWith &&
+    (JSON.stringify(ranWith.recipe) !== JSON.stringify(recipe) ||
+      ranWith.removedRowIndices !== removedRowIndices);
+
   return {
     anonymizeResult,
+    changedSinceRun,
     anonymizing,
     patternChecks,
     checkingColumns,

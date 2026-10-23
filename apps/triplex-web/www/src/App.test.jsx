@@ -22,7 +22,10 @@ describe("App with generator extensions", () => {
       expect(link.getAttribute("target")).toBe("_blank");
       expect(link.textContent).toMatch(/Part of Triplex Pro/);
     }
-    expect(screen.queryByRole("button", { name: "Compare datasets" })).toBeNull();
+    // Compare is there too, for the anonymized output, which every build can make.
+    const compare = screen.getByRole("button", { name: "Compare datasets" });
+    expect(compare.hasAttribute("disabled")).toBe(true);
+    expect(compare.title).toBe("Anonymize the data first");
     expect(screen.getByText("License: Free")).toBeTruthy();
   });
 

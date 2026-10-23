@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { scoreDiversityMatrix } from "../state/datasetCardClient";
+import { isQuasiIdentifierKind } from "../state/sharedQuasiIdentifiers";
 
 // Same fixed generalization width as the per-column k-anonymity advisory
 // (useColumnRisk) — the Dataset Anonymity Analysis tab has no per-column
@@ -24,12 +25,18 @@ const RISK_BUCKET_WIDTH = 10;
  * is excluded from every row/col array before scoring —
  * same reasoning as useColumnRisk.js: a removed row is gone from the real
  * anonymize/download output, so this dataset-level analysis has to reflect
- * what's actually left, not the original upload. */
-export function useDiversityMatrix(sample, profile, removedRowIndices) {
+ * what's actually left, not the original upload.
+ *
+ * `options.quasiNames` fixes which columns are the quasi-identifiers (the Compare view measures an
+ * original and its anonymized output on the same ones); without it, every column of a suitable
+ * type is one. `options.bucketWidth` replaces the default range width for whole numbers. */
+export function useDiversityMatrix(sample, profile, removedRowIndices, options = {}) {
+  const { quasiNames, bucketWidth = RISK_BUCKET_WIDTH } = options;
   const quasiColumns =
     profile?.columns.filter(
-      (c) => c.inferred_type === "integer" || c.distribution?.kind === "categorical",
+      (c) => isQuasiIdentifierKind(c) && (!quasiNames || quasiNames.includes(c.name)),
     ) ?? [];
+  const quasiKey = quasiColumns.map((c) => c.name).join("\u001f");
   const allColumns = profile?.columns ?? [];
 
   const [raw, setRaw] = useState(null); // { lDiversity, tCloseness, betaLikeness, deltaDisclosure, jointK, rowRisk } | null
@@ -85,7 +92,7 @@ export function useDiversityMatrix(sample, profile, removedRowIndices) {
       name: c.name,
       values: includedRows.map((row) => sample.getCell(row, colIndex[c.name])),
     }));
-    scoreDiversityMatrix(rows, cols, RISK_BUCKET_WIDTH, rowRiskModel, transfer)
+    scoreDiversityMatrix(rows, cols, bucketWidth, rowRiskModel, transfer)
       .then((result) => {
         if (generation.current !== myGeneration) return; // superseded by a newer upload
         setRaw(result);
@@ -104,7 +111,7 @@ export function useDiversityMatrix(sample, profile, removedRowIndices) {
         setError(String(err?.message || err));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sample, profile, rowRiskModel, removedRowIndices]);
+  }, [sample, profile, rowRiskModel, removedRowIndices, quasiKey, bucketWidth]);
 
   return { raw, loading, error, quasiColumns, allColumns, rowRiskModel, setRowRiskModel };
 }

@@ -16,6 +16,17 @@ and `jupyter-v*` for the Jupyter widget.
 
 ### Added
 
+- **Compare the anonymized result with the original in the web UI.** After "Anonymize",
+  "Compare datasets" (now in every build, including the hosted demo) and a button in the
+  "Anonymized N rows" notice set the masked output, exactly as it downloads, beside the original.
+  Columns the recipe drops show as removed, with the reason, instead of disappearing. The privacy
+  matrices on both sides use the same quasi-identifiers, which can be changed, compare whole
+  numbers exactly, and count the rows that no other row matches on them before and after. When a
+  synthetic or sketched table exists too, the dialog switches between them. The dialog says when
+  the recipe changed after the run. For ten seconds after a run, a pulsing dot next to "Compare
+  datasets" points to it.
+- **An operation bar in the web UI.** Open recipe, Download recipe, Download contract, Compare
+  datasets and Download data sit together in one bar under the tier cards, each with an icon.
 - **Open recipe in the web UI and the Jupyter widget.** "Open recipe", next to "Download
   recipe", or a `.yaml` file dropped on the page applies a recipe to the loaded table as if each
   method had been picked by hand; the History tab can undo it. It works in the hosted demo too,
