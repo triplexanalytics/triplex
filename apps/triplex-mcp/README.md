@@ -1,5 +1,7 @@
 # triplex-mcp
 
+[![Triplex schema contracts MCP server](https://mcprush.com/badge/triplex-schema-contracts-mcp/card.svg)](https://mcprush.com/to/triplex-schema-contracts-mcp?ref=badge)
+
 MCP (Model Context Protocol) server over SchemaCast, stdio transport only.
 A coding agent (Claude Code or any other MCP client)
 launches this as a local process and talks to it over its own stdin/stdout,

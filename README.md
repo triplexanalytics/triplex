@@ -4,6 +4,7 @@
 [![engine + CLI version](https://raw.githubusercontent.com/triplexanalytics/triplex/badges/workspace.svg)](https://github.com/triplexanalytics/triplex/tags)
 [![web UI version](https://raw.githubusercontent.com/triplexanalytics/triplex/badges/web.svg)](https://github.com/triplexanalytics/triplex/tags)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Triplex schema contracts MCP on mcprush](https://mcprush.com/badge/triplex-schema-contracts-mcp/score.svg)](https://mcprush.com/to/triplex-schema-contracts-mcp?ref=badge)
 
 Local-first data privacy tooling for two jobs: masking a real table, and generating a synthetic
 one that behaves like it. Around them sit schema contracts, privacy-risk scoring and drift
